@@ -1,0 +1,10 @@
+# Python backend
+backend/myenv/
+backend/__pycache__/
+*.pyc
+.env
+
+# General
+.vscode/
+.DS_Store
+Thumbs.db
