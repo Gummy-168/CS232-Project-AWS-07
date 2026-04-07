@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Jua, Mali } from "next/font/google";
 import "./globals.css";
+import Sidebar from "./components/Sidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -10,6 +11,15 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+const jua = Jua({
+  subsets: ["latin"],
+  weight: "400",
+});
+
+const mali = Mali({
+  subsets: ["thai"],
+  weight: ["400", "600"],
 });
 
 export const metadata: Metadata = {
@@ -27,7 +37,13 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+       <body
+        className={`${jua.className} flex`}
+        style={{ fontFamily: `${jua.style.fontFamily}, ${mali.style.fontFamily}` }}
+      >
+        <Sidebar />
+        <main className="flex-1">{children}</main>
+      </body>
     </html>
   );
 }
