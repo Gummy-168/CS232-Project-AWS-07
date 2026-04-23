@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import AskModal from "../components/askmodal";
+import AskModal from "../../components/askmodal";
 
 // mock data
 const fetchDashboardData = async () => {
@@ -26,14 +26,15 @@ const fetchDashboardData = async () => {
         recentQuestion:
           "ทำไมต้องตั้ง Source เป็น Web Security Group...",
       });
-    }, 800); // simulate delay
+    }, 800); 
   });
 };
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
-
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  
   useEffect(() => {
     fetchDashboardData().then((res) => setData(res));
   }, []);
@@ -86,7 +87,7 @@ export default function Dashboard() {
 
             <button
               onClick={() => setOpen(true)}
-              className="bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-6 py-2 rounded-full mt-6"
+              className="bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-6 mt-6 py-2 rounded-full shadow-lg shadow-purple-200 hover:scale-105 transition-transform"
             >
               Ask Now
             </button>
@@ -99,34 +100,39 @@ export default function Dashboard() {
             <h3 className="mb-4">My Activity Stats</h3>
 
             <div className="grid grid-cols-2 gap-4">
-              <StatBox value={`${data.stats.participation}%`} label="Participation" />
-              <StatBox value={data.stats.questions} label="Questions" />
-              <StatBox value={data.stats.answered} label="Answered" />
-              <StatBox value={data.stats.pending} label="Pending" />
+              <StatBox value={`${data.stats.participation}%`} label="Participation" textColor="text-[#513FDF]" />
+              <StatBox value={data.stats.questions} label="Questions" textColor="text-[#AE2466]" />
+              <StatBox value={data.stats.answered} label="Answered" textColor="text-[#16A34A]" />
+              <StatBox value={data.stats.pending} label="Pending" textColor="text-[#F59E0B]" />
             </div>
           </div>
         </div>
 
         {/* Bottom */}
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-3 gap-6">
 
           {/* Chart */}
-          <div className="bg-white p-6 rounded-2xl shadow">
+          <div className="bg-white p-6 rounded-2xl shadow col-span-1">
             <h3 className="mb-4">Participation Overview</h3>
 
-            <div className="flex items-end gap-3 h-40">
-              {data.chart.map((h, i) => (
-                <div
-                  key={i}
-                  className="bg-purple-400 w-6 rounded"
-                  style={{ height: `${h}%` }}
-                />
-              ))}
+            <div className="flex items-end gap-2.5 h-40">
+                {data.chart.map((h, i) => (
+                  <div key={i} className="flex flex-col items-center gap-2 w-10 h-full justify-end">
+                  <div
+                      className="bg-[#513FDF] w-full rounded-t-3xl"
+                      style={{ height: `${h}%` }}
+                    />
+                    <span className="text-xs text-gray-500 font-medium">
+                      {days[i]}
+                    </span>
+                  </div>
+                ))}
+              
             </div>
           </div>
 
           {/* Questions */}
-          <div className="bg-white p-6 rounded-2xl shadow">
+          <div className="bg-white p-6 rounded-2xl shadow col-span-2">
             <h3 className="mb-4">Recent Questions</h3>
 
             <div className="bg-gray-100 p-4 rounded-xl text-sm">
@@ -140,10 +146,10 @@ export default function Dashboard() {
 }
 
 // reusable component
-function StatBox({ value, label }) {
+function StatBox({ value, label, textColor }) {
   return (
     <div className="bg-gray-100 p-4 rounded-xl text-center">
-      <p className="text-xl font-bold">{value}</p>
+      <p className={`text-xl font-bold ${textColor}`}>{value}</p>
       <p className="text-xs text-gray-500">{label}</p>
     </div>
   );

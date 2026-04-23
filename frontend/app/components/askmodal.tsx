@@ -62,7 +62,7 @@ export default function AskModal({ isOpen, onClose }) {
           <button onClick={onClose}>Cancel</button>
           <button
             onClick={handleSubmit}
-            className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-4 py-2 rounded-full"
+            className="bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-6 py-2 rounded-full shadow-lg shadow-purple-200 hover:scale-105 transition-transform"
           >
             Post Question
           </button>

@@ -2,95 +2,117 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { 
+  LayoutDashboard, 
+  BookOpen, 
+  Rss, 
+  BarChart2, 
+  Settings, 
+  LogOut, 
+  ChevronRight,
+  PlusCircle
+} from "lucide-react"; 
 
 export default function Sidebar() {
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname(); 
+  const [isCourseOpen, setIsCourseOpen] = useState(true);
+
+  // Active
+  const activeStyle = "bg-gradient-to-r from-[#7B61FF] to-[#FD64A4] text-white shadow-lg shadow-purple-100";
+  // Inactive
+  const inactiveStyle = "text-slate-500 hover:bg-slate-50";
 
   return (
-    <aside className="w-64 min-h-screen bg-white p-6 rounded-r-3xl flex flex-col justify-between">
-
-      {/* Top */}
+    <aside className="w-64 min-h-screen bg-white p-6 rounded-r-[2rem] flex flex-col justify-between shadow-sm border-r border-slate-50">
+      
       <div>
         {/* Logo */}
-        <div className="flex flex-col items-center mb-10">
-          <Image src="/logo/logo.png" alt="logo" width={80} height={80} />
-          <p className="text-xs text-gray-400 mt-2 tracking-widest">
+        <div className="flex flex-col items-center mb-10 mt-4">
+          <Image src="/logo/logo.png" alt="logo" width={80} height={80} priority />
+          <p className="text-[10px] text-pink-400 mt-2 tracking-[0.2em] font-bold">
             PLAYFUL ACADEMIC
           </p>
         </div>
 
-        {/* Menu */}
-        <nav className="space-y-4">
-
+        <nav className="space-y-2">
+          
           {/* Dashboard */}
-          <Link href="#" className="flex items-center gap-3 text-gray-700">
-            <span>📊</span>
-            Dashboard
+          <Link 
+            href="/student/dashboard" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-semibold ${pathname === '/dashboard' ? activeStyle : inactiveStyle}`}
+          >
+            <LayoutDashboard size={20} />
+            <span>Dashboard</span>
           </Link>
 
-          {/* Dropdown */}
-          <div>
-            {/* My Courses */}
+          {/* My Courses (Dropdown) */}
+          <div className="space-y-1">
             <div
-              onClick={() => setOpen(!open)}
-              className="flex items-center justify-between bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-4 py-3 rounded-full shadow-md cursor-pointer"
+              onClick={() => setIsCourseOpen(!isCourseOpen)}
+              className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all font-semibold ${pathname.includes('/courses') ? activeStyle : inactiveStyle}`}
             >
-              <div className="flex items-center gap-2">
-                <span>🎓</span>
+              <div className="flex items-center gap-3">
+                <BookOpen size={20} />
                 My Courses
               </div>
-
-              <span
-                className={`transition-transform duration-300 ${
-                  open ? "rotate-90" : ""
-                }`}
-              >
-                ›
-              </span>
+              <ChevronRight size={18} className={`transition-transform ${isCourseOpen ? "rotate-90" : ""}`} />
             </div>
 
-            {/* Sub menu */}
-            {open && (
-              <div className="ml-6 mt-2 space-y-2 text-sm text-gray-400">
-                <button className="flex items-center gap-2 px-3 py-2 rounded-full w-full text-[#A1A1AA] hover:bg-[#F6F4F3] hover:text-[#513FDF] transition">
+            {isCourseOpen && (
+              <div className="ml-4 mt-2 space-y-1">
+                <Link 
+                  href="/courses/cs232"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === '/courses/cs232' ? 'text-[#7B61FF] bg-purple-50' : 'text-slate-400 hover:text-[#7B61FF]'}`}
+                >
+                  <div className={`w-1.5 h-1.5 rounded-full ${pathname === '/courses/cs232' ? 'bg-[#7B61FF]' : 'bg-slate-300'}`}></div>
                   CS232 - Cloud
-                </button>
-
-                <button className="flex items-center gap-2 bg-[#F6F4F3] px-3 py-2 rounded-full w-full text-[#A1A1AA] hover:bg-gradient-to-r hover:from-[#513FDF] hover:to-[#FD64A4] hover:text-white transition">
-                  ➕ Join Course
+                </Link>
+                <button className="flex items-center gap-2 px-4 py-2 rounded-xl w-full text-slate-400 hover:bg-slate-50 hover:text-emerald-500 transition text-sm font-medium">
+                  <PlusCircle size={16} />
+                  Join Course
                 </button>
               </div>
             )}
           </div>
 
           {/* Feed */}
-          <Link href="#" className="flex items-center justify-between text-gray-700">
+          <Link 
+            href="/feed" 
+            className={`flex items-center justify-between px-4 py-3 rounded-2xl transition-all font-semibold ${pathname === '/feed' ? activeStyle : inactiveStyle}`}
+          >
             <div className="flex items-center gap-3">
-              <span>📄</span>
+              <Rss size={20} />
               Feed
             </div>
-            <span>›</span>
+            {pathname !== '/feed' && <ChevronRight size={16} className="text-slate-300" />}
           </Link>
 
           {/* Analytics */}
-          <Link href="#" className="flex items-center gap-3 text-gray-700">
-            <span>📊</span>
-            Analytics
+          <Link 
+            href="/analytics" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-semibold ${pathname === '/analytics' ? activeStyle : inactiveStyle}`}
+          >
+            <BarChart2 size={20} />
+            <span>Analytics</span>
           </Link>
 
           {/* Settings */}
-          <Link href="#" className="flex items-center gap-3 text-gray-700">
-            <span>⚙️</span>
-            Settings
+          <Link 
+            href="/settings" 
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-semibold ${pathname === '/settings' ? activeStyle : inactiveStyle}`}
+          >
+            <Settings size={20} />
+            <span>Settings</span>
           </Link>
 
         </nav>
       </div>
 
-      {/* Bottom */}
-      <div className="pt-6 border-t">
-        <button className="flex items-center gap-2 text-pink-500">
-          ⎋ Logout
+      <div className="pt-6 border-t border-slate-100">
+        <button className="flex items-center gap-3 px-4 py-2 text-rose-400 hover:text-rose-600 font-bold transition-colors w-full">
+          <LogOut size={20} />
+          Logout
         </button>
       </div>
 
