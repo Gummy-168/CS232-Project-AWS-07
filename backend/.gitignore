@@ -1,0 +1,25 @@
+# 1. ข้อมูลความลับ (สำคัญที่สุด)
+.env
+
+# 2. Python - โฟลเดอร์ขยะและไฟล์คอมไพล์
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 3. Virtual Environments
+myenv/
+venv/
+env/
+ENV/
+
+# 4. IDE Settings
+.vscode/
+.idea/
+
+# 5. OS Metadata
+.DS_Store
+Thumbs.db
+
+# 6. Docker logs (ถ้ามี)
+*.log
