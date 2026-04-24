@@ -1,236 +1,176 @@
-# CS232 Project Backend
+# CS232 Backend
 
-Backend ของโปรเจกต์ CS232 พัฒนาด้วย `FastAPI`, `SQLAlchemy`, `MySQL` และ `Docker`
+Backend สำหรับโปรเจกต์ **CS232** พัฒนาด้วย **FastAPI**, **SQLAlchemy**, **MySQL** และ **Docker**  
+โปรเจกต์นี้รองรับทั้งการรันแบบ **Local** และการรันผ่าน **Docker Compose** เพื่อให้ทีมสามารถ clone ไปพัฒนาต่อได้สะดวกและใช้ environment ที่ใกล้เคียงกัน
 
-โปรเจกต์นี้รองรับการรัน 2 แบบ
-
-- `Local`: รัน FastAPI จากเครื่องของเราเอง
-- `Docker Compose`: รัน Backend และ MySQL พร้อมกันในครั้งเดียว
-
-เป้าหมายของ README นี้คือให้สมาชิกในทีมเปิดมาแล้วเริ่มใช้งานต่อได้ทันที
-
-## Overview
-
-ตอนนี้ระบบสามารถทำงานได้ดังนี้
-
-- รัน FastAPI backend ได้
-- เชื่อมต่อ MySQL ได้
-- รันผ่าน Docker Compose ได้
-- ทดสอบ API ผ่าน Swagger Docs ได้
-- Frontend เรียก backend ได้จาก `http://localhost:3000`
-
-## Tech Stack
-
-- Frontend: `Next.js`
-- Backend: `FastAPI`
-- Database: `MySQL`
-- ORM: `SQLAlchemy`
-- Container: `Docker` / `Docker Compose`
+---
 
 ## Project Structure
 
-```text
+```bash
 backend/
 ├── database.py
-├── Dockerfile
-├── docker-compose.yml
 ├── main.py
 ├── models.py
 ├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
 ├── .env.example
+├── .gitignore
 └── README.md
 ```
 
-## Available Endpoints
-
-### `GET /`
-
-ใช้ตรวจสอบว่า backend รันอยู่
-
-ตัวอย่าง response:
-
-```json
-{
-  "message": "Backend is running"
-}
-```
-
-### `GET /api/db-test`
-
-ใช้ตรวจสอบว่า backend เชื่อมต่อ MySQL ได้สำเร็จ
-
-ตัวอย่าง response:
-
-```json
-{
-  "message": "MySQL connected successfully"
-}
-```
+---
 
 ## Requirements
 
-### สำหรับการรันแบบ Local
+### กรณีรันแบบ Local
+- Python 3.x
+- pip
 
-- Python 3.11 ขึ้นไป
-- `pip`
-- MySQL (กรณีจะเชื่อมกับฐานข้อมูลที่ติดตั้งในเครื่อง)
-
-### สำหรับการรันแบบ Docker
-
+### กรณีรันแบบ Docker
 - Docker Desktop
+
+---
 
 ## Environment Setup
 
-สร้างไฟล์ `.env` จาก `.env.example` ก่อนเริ่มใช้งาน
+ก่อนเริ่มใช้งาน ให้สร้างไฟล์ `.env` จาก `.env.example`
 
 ### Windows Command Prompt
-
 ```bash
 copy .env.example .env
 ```
 
 ### PowerShell
-
 ```powershell
 Copy-Item .env.example .env
 ```
 
-### macOS / Linux / Git Bash
-
-```bash
-cp .env.example .env
-```
-
-### ตัวอย่างค่าใน `.env`
-
+### ตัวอย่าง `.env.example`
 ```env
-DB_HOST=localhost
+DB_HOST=db
 DB_PORT=3306
 DB_NAME=cs232db
 DB_USER=root
-DB_PASSWORD=1234
+DB_PASSWORD=your_password_here
 ```
 
-### หมายเหตุเรื่อง `DB_HOST` และ `DB_PORT`
+### หมายเหตุ
+- หากรันผ่าน `docker-compose` ให้ใช้ `DB_HOST=db`
+- หากรันแบบ local และเชื่อมต่อ MySQL ที่ติดตั้งในเครื่อง อาจใช้ `DB_HOST=localhost`
 
-- ถ้ารันด้วย `docker compose` ให้ backend ใช้ `DB_HOST=db` และ `DB_PORT=3306`
-- ถ้ารันแบบ local แล้ว MySQL อยู่ในเครื่อง ให้ใช้ `DB_HOST=localhost`
-- ใน `docker-compose.yml` ตอนนี้มีการ map port ของ MySQL เป็น `3307:3306`
-  ดังนั้นถ้าจะต่อเข้าฐานข้อมูลจากเครื่องภายนอก container ให้ใช้ port `3307`
+---
 
-## Quick Start
+## Install Dependencies (Local)
 
-ถ้าต้องการเริ่มใช้งานเร็วที่สุด แนะนำให้ใช้ Docker Compose
-
-```bash
-docker compose up --build
-```
-
-หลังจากรันสำเร็จ ให้เปิด:
-
-- API: `http://localhost:8000/`
-- Swagger Docs: `http://localhost:8000/docs`
-
-## Run Locally
-
-### 1. ติดตั้ง dependencies
+ติดตั้ง dependencies ผ่าน `requirements.txt`
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. ตั้งค่า `.env`
+---
 
-ตรวจสอบให้แน่ใจว่า `.env` มีค่าถูกต้องสำหรับฐานข้อมูลที่ใช้งานอยู่
+## Run Locally
 
-### 3. รัน FastAPI
+ใช้คำสั่งด้านล่างเพื่อรัน FastAPI แบบ local
 
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 4. ทดสอบการทำงาน
+เมื่อรันสำเร็จ จะเห็นข้อความประมาณนี้
 
-- API: `http://localhost:8000/`
+```bash
+Uvicorn running on http://0.0.0.0:8000
+```
+
+จากนั้นสามารถเปิดใช้งานผ่าน browser ได้ที่
+
+- Main API: `http://localhost:8000/`
 - Swagger Docs: `http://localhost:8000/docs`
 
-หมายเหตุ:
-หากคุณรัน backend ผ่าน Docker Compose อยู่แล้ว ไม่ต้องเปิด `uvicorn` ซ้ำ
+---
 
-## Run With Docker
+## Run with Docker
 
-กรณีต้องการรันเฉพาะ backend image
-
-### Build image
-
+### Build Image
 ```bash
 docker build -t backend-cs232 .
 ```
 
-### Run container
-
+### Run Container
 ```bash
 docker run -d -p 8000:8000 --name backend-container backend-cs232
 ```
 
-หลังจากรันแล้ว ให้เปิด:
+หลังจากรันแล้ว สามารถเข้าใช้งานได้ที่
 
-- API: `http://localhost:8000/`
+- Main API: `http://localhost:8000/`
 - Swagger Docs: `http://localhost:8000/docs`
 
-หมายเหตุ:
-วิธีนี้ยังต้องมี MySQL ที่ backend เชื่อมต่อได้อยู่แล้ว
+---
 
-## Run With Docker Compose
+## Run with Docker Compose
 
-แนะนำสำหรับการพัฒนาในทีม เพราะจะรันทั้ง Backend และ MySQL พร้อมกัน
+หากต้องการรัน **backend + MySQL** พร้อมกัน แนะนำให้ใช้ Docker Compose
 
-### Run แบบปกติ
+MySQL จะรันไฟล์ `sql/init.sql` อัตโนมัติเฉพาะตอนสร้าง database volume ครั้งแรกเท่านั้น
+ถ้าเคยมี volume เดิมอยู่แล้วและต้องการให้ script init ทำงานใหม่ ให้รัน:
 
+```bash
+docker compose down -v
+docker compose up -d --build
+```
+
+### Run
 ```bash
 docker compose up --build
 ```
 
 ### Run แบบ background
-
 ```bash
 docker compose up --build -d
 ```
 
-### Stop services
+---
+
+## Stop Docker Compose
 
 ```bash
 docker compose down
 ```
 
+---
+
 ## View Logs
 
 ### ดู log ของ backend
-
 ```bash
 docker compose logs backend
 ```
 
 ### ดู log ของ MySQL
-
 ```bash
 docker compose logs db
 ```
 
-## How To Test
+---
 
-หลังจากระบบรันแล้ว ให้เปิด Swagger Docs:
+## Test Database Connection
+
+หลังจากรันระบบแล้ว ให้เปิด Swagger Docs ที่
 
 ```text
 http://localhost:8000/docs
 ```
 
-จากนั้นทดสอบ endpoint:
+จากนั้นทดสอบ endpoint ต่อไปนี้
 
-- `GET /`
 - `GET /api/db-test`
 
-ถ้าเชื่อมต่อฐานข้อมูลสำเร็จ จะได้ผลลัพธ์ประมาณนี้:
+หากเชื่อมต่อฐานข้อมูลสำเร็จ จะได้ response ประมาณนี้
 
 ```json
 {
@@ -238,101 +178,119 @@ http://localhost:8000/docs
 }
 ```
 
-## Frontend Integration
-
-ปัจจุบัน backend อนุญาต CORS สำหรับ:
-
-- `http://localhost:3000`
-
-ดังนั้น frontend ที่รันบนพอร์ตนี้สามารถเรียก backend ได้โดยตรง
-
-## Setup For Team Members
-
-สำหรับคนที่เพิ่ง clone โปรเจกต์มา ให้ทำตามนี้
-
-### 1. Clone repository
+สามารถเช็คว่าตารางจาก `sql/init.sql` ถูกสร้างแล้วได้ด้วยคำสั่ง:
 
 ```bash
-git clone <repo-url>
-cd backend
+docker compose exec db mysql -uroot -p1234 -e "USE cs232db; SHOW TABLES;"
 ```
 
-### 2. สร้างไฟล์ `.env`
+---
 
-```bash
-cp .env.example .env
+## Example `requirements.txt`
+
+ตัวอย่าง dependencies ที่ใช้ในโปรเจกต์นี้
+
+```txt
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+python-dotenv
+cryptography
 ```
 
-ถ้าใช้ Windows Command Prompt:
+---
 
-```bash
-copy .env.example .env
+## Example `.gitignore`
+
+ไฟล์และโฟลเดอร์ที่ไม่ควร push ขึ้น Git
+
+```gitignore
+myenv/
+__pycache__/
+*.pyc
+.env
+.vscode/
 ```
 
-### 3. เปิด Docker Desktop
-
-ตรวจสอบว่า Docker พร้อมใช้งานก่อน
-
-### 4. รันระบบ
-
-```bash
-docker compose up --build
-```
-
-หรือรันแบบ background:
-
-```bash
-docker compose up --build -d
-```
-
-### 5. ทดสอบระบบ
-
-- Backend Docs: `http://localhost:8000/docs`
-- Frontend: `http://localhost:3000`
-
-## Useful Commands
-
-### ตรวจสอบ Docker version
-
-```bash
-docker version
-```
-
-### ดู container ที่กำลังรันอยู่
-
-```bash
-docker ps
-```
-
-### ดูสถานะของ Docker Compose
-
-```bash
-docker compose ps
-```
-
-## Current Status
-
-สถานะล่าสุดของ backend ตอนนี้
-
-- Backend รันได้
-- Database เชื่อมได้
-- Docker Compose ใช้งานได้
-- Swagger ใช้งานได้
-- Frontend เรียก backend ได้
+---
 
 ## Important Notes
 
 - ไม่ควร push ไฟล์ `.env` ขึ้น Git
 - ไม่ควร push virtual environment เช่น `myenv/`
-- ไม่ควร push `__pycache__/`
-- ถ้าใช้ Docker Compose เป็นหลัก สมาชิกในทีมไม่จำเป็นต้องติดตั้ง MySQL แยกในเครื่อง
-- ถ้ารัน backend ผ่าน Docker Compose แล้ว ไม่ต้องเปิด `uvicorn` ซ้ำ
+- หากเพื่อน clone โปรเจกต์ไป ให้สร้าง `.env` ใหม่จาก `.env.example`
+- หากใช้ Docker Compose เป็นหลัก เพื่อนไม่จำเป็นต้องติดตั้ง MySQL แยกในเครื่อง
+
+---
+
+## Setup for Team Members
+
+หลังจาก clone โปรเจกต์ ให้ทำตามขั้นตอนต่อไปนี้
+
+### Windows Command Prompt
+```bash
+git clone <repo-url>
+cd backend
+copy .env.example .env
+docker compose up --build
+```
+
+### PowerShell
+```powershell
+git clone <repo-url>
+cd backend
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+---
+
+## Useful Commands
+
+### ตรวจสอบ Docker version
+```bash
+docker version
+```
+
+### ดู container ที่กำลังรันอยู่
+```bash
+docker ps
+```
+
+### ดูสถานะของ Docker Compose
+```bash
+docker compose ps
+```
+
+---
+
+## Current API
+
+### Database Test
+- **GET** `/api/db-test`
+
+ใช้สำหรับตรวจสอบว่า backend สามารถเชื่อมต่อกับ MySQL ได้สำเร็จหรือไม่
+
+---
+
+## Current Status
+
+ปัจจุบัน backend สามารถทำงานได้ในส่วนต่อไปนี้
+
+- รันด้วย FastAPI
+- เชื่อมต่อกับ MySQL
+- ใช้งานผ่าน Docker
+- ใช้งานผ่าน Docker Compose
+- ทดสอบผ่าน Swagger Docs ได้
+
+---
 
 ## Next Steps
 
-สิ่งที่เหมาะจะพัฒนาต่อจากจุดนี้
+ขั้นตอนต่อไปที่เหมาะสำหรับการพัฒนาต่อ ได้แก่
 
-- เพิ่ม model และ table จริง
+- เพิ่ม models และ tables จริง
 - พัฒนา CRUD endpoints
-- เชื่อม flow ระหว่าง frontend และ backend ให้ครบ
-- เตรียม deployment ขึ้น AWS
+- เชื่อมต่อ backend กับ frontend
+- เตรียมระบบสำหรับ deployment ขึ้น AWS
