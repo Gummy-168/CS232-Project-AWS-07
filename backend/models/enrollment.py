@@ -27,76 +27,72 @@ class Enrollment:
         self._join_date: datetime = join_date
         self._student: User | None = student
         self._course: Course | None = course
-        pass
 
     @property
     def enrollment_id(self) -> int:
         """Get the enrollment identifier."""
         return self._enrollment_id
-        pass
 
     @enrollment_id.setter
     def enrollment_id(self, value: int) -> None:
         """Set the enrollment identifier."""
         self._enrollment_id = value
-        pass
 
     @property
     def student_id(self) -> int:
         """Get the student identifier."""
         return self._student_id
-        pass
 
     @student_id.setter
     def student_id(self, value: int) -> None:
         """Set the student identifier."""
         self._student_id = value
-        pass
 
     @property
     def course_code(self) -> str:
         """Get the course code."""
         return self._course_code
-        pass
 
     @course_code.setter
     def course_code(self, value: str) -> None:
         """Set the course code."""
         self._course_code = value
-        pass
 
     @property
     def join_date(self) -> datetime:
         """Get the join date."""
         return self._join_date
-        pass
 
     @join_date.setter
     def join_date(self, value: datetime) -> None:
         """Set the join date."""
         self._join_date = value
-        pass
 
     @property
     def student(self) -> User | None:
         """Get the linked student object."""
         return self._student
-        pass
 
     @student.setter
     def student(self, value: User | None) -> None:
         """Set the linked student object."""
         self._student = value
-        pass
 
     @property
     def course(self) -> Course | None:
         """Get the linked course object."""
         return self._course
-        pass
 
     @course.setter
     def course(self, value: Course | None) -> None:
         """Set the linked course object."""
         self._course = value
-        pass
+
+    def get_enrollment_details(self) -> dict[str, int | str | datetime]:
+        """Return key enrollment details."""
+        return {
+            "enrollment_id": self.enrollment_id,
+            "student_id": self.student_id,
+            "course_code": self.course_code,
+            "join_date": self.join_date,
+        }

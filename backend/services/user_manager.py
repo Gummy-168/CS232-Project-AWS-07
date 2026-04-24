@@ -47,20 +47,29 @@ class UserManager:
             role=user_data.role,
             nickname=user_data.nickname,
         )
+
         db.add(user)
         db.commit()
         db.refresh(user)
+
         return user
 
     @classmethod
     def create_access_token(cls, data: dict[str, str]) -> str:
         """Create a JWT access token from the provided payload."""
         to_encode: dict[str, str | datetime] = data.copy()
+
         expire: datetime = datetime.now(timezone.utc) + timedelta(
             minutes=cls._ACCESS_TOKEN_EXPIRE_MINUTES
         )
+
         to_encode["exp"] = expire
-        return jwt.encode(to_encode, cls._SECRET_KEY, algorithm=cls._ALGORITHM)
+
+        return jwt.encode(
+            to_encode,
+            cls._SECRET_KEY,
+            algorithm=cls._ALGORITHM,
+        )
 
     @classmethod
     def authenticate_user(
@@ -84,16 +93,47 @@ class UserManager:
                 "role": user.role,
             }
         )
+
         return TokenResponse(
             access_token=access_token,
             token_type="bearer",
             role=user.role,
         )
 
-    def update_nickname(self, db: Session, user_id: str, nickname: str) -> User | None:
+    @classmethod
+    def update_nickname(
+        cls,
+        db: Session,
+        user_id: str,
+        nickname: str,
+    ) -> User | None:
         """Update a user's nickname."""
-        pass
+        user: User | None = db.query(User).filter(User.id == user_id).first()
 
-    def get_user_by_id(self, db: Session, user_id: str) -> User | None:
+        if user is None:
+            return None
+
+        user.nickname = nickname.strip()
+        db.commit()
+        db.refresh(user)
+
+        return user
+
+    @classmethod
+    def get_user_by_id(
+        cls,
+        db: Session,
+        user_id: str,
+    ) -> User | None:
         """Retrieve a user by identifier."""
-        pass
+        return db.query(User).filter(User.id == user_id).first()
+
+    @classmethod
+    def logout_user(
+        cls,
+        db: Session,
+        user_id: str,
+    ) -> bool:
+        """Validate that a user exists before logout completes."""
+        user: User | None = cls.get_user_by_id(db, user_id)
+        return user is not None
