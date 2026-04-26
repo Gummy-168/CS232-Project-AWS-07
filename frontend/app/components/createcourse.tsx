@@ -14,10 +14,10 @@ const CreateCourse = ({ isOpen, onClose }: CreateCourseProps) => {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const toggleDay = (day) => {
     if (selectedDays.includes(day)) {
-      // ถ้ามีวันนั้นอยู่แล้ว ให้กรองออก (Unselect)
+      
       setSelectedDays(selectedDays.filter((d) => d !== day));
     } else {
-      // ถ้ายังไม่มี ให้เพิ่มเข้าไปใน Array (Select)
+      
       setSelectedDays([...selectedDays, day]);
     }
   };

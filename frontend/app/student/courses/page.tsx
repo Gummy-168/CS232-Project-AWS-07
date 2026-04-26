@@ -4,9 +4,22 @@ import CreateCourse from "../../components/createcourse";
 import { 
   Search, 
   Bell,
+  Contact,
+  Clock,
 } from 'lucide-react';
 
 // mockmock data
+const MOCK_SESSION = {
+  id: "course-001",
+  title: "CS232: Intro to Cloud Computing",
+  subtitle: "Join and ask your questions now!",
+  startTime: "13:30",
+  endTime: "16:30",
+  timeLeft: "45m left",
+  instructor: "Aj. Noon",
+  studentCount: 12,
+  status: "CURRENTLY IN SESSION"
+};
 const INITIAL_ACTIVITIES = [
   {
     id: 1,
@@ -61,7 +74,7 @@ export default function StudentClass() {
   }, [activities, filter]);
 
   return (
-    <div className="flex-1 p-8 bg-[#F8F9FE] min-h-screen font-sans text-slate-700">
+    <div className="flex-1 p-8 bg-[#FCF9F8] min-h-screen font-sans text-slate-700">
       
       {/* Header */}
       <header className="flex justify-between items-center mb-8">
@@ -82,12 +95,49 @@ export default function StudentClass() {
       </header>
 
       {/* upcoming classes */}
-      <section className="bg-white rounded-3xl p-10 shadow-sm border border-slate-50 text-center mb-10">
-        <h2 className="text-2xl font-bold mb-6">CS232: Intro to Cloud Computing</h2>
-        <button className="bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-6 py-2 rounded-full shadow-lg shadow-purple-200 hover:scale-105 transition-transform">
-          Join board
-        </button>
-      </section>
+      <section className="bg-white rounded-[30px] p-5 shadow-lg border border-slate-50 mb-8 overflow-hidden relative text-left">
+  
+    <div className="flex items-center gap-2 mb-4 text-[#D1388D] text-xs font-semibold tracking-wider uppercase">
+    <span className="text-[10px]">(( ))</span>
+    CURRENTLY IN SESSION
+  </div>
+
+  <h2 className="text-2xl mb-5">
+    <span className="text-[#1B1B1B]">Board - </span>
+    <span className="text-[#513FDF]">Join and ask your questions now!</span>
+  </h2>
+
+  <div className="grid grid-cols-2 gap-6 mb-7">
+    <div className="flex items-center gap-4 bg-[#F9F9F9] p-6 rounded-full">
+        <Clock size={24} className="text-[#513FDF]" />
+     
+      <div>
+        <p className="text-xs text-slate-400 font-medium">Time Remaining</p>
+        <p className="text-xl text-slate-800">{MOCK_SESSION.startTime} - {MOCK_SESSION.endTime} ({MOCK_SESSION.timeLeft})</p>
+      </div>
+    </div>
+
+    {/* 3.2 Instructor */}
+    <div className="flex items-center gap-4 bg-[#F9F9F9] p-6 rounded-full">
+     
+        <Contact size={24} className="text-[#513FDF]" />
+     
+      <div>
+        <p className="text-xs text-slate-400 font-medium">Instructor</p>
+        <p className="text-xl text-slate-800">{MOCK_SESSION.instructor}</p>
+      </div>
+    </div>
+  </div>
+
+  <div className="flex items-center gap-6">
+    <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
+      Join Board
+    </button>
+    <p className="text-sm text-slate-500 font-medium">
+      <span className=" text-slate-700">12</span> students are currently asking questions.
+    </p>
+  </div>
+</section>
 
       {/* Activity Timeline Section */}
       <section>
