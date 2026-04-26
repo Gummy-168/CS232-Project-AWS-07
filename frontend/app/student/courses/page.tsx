@@ -54,11 +54,6 @@ export default function StudentClass() {
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [filter, setFilter] = useState("All");
 
-  
-
-
- 
-
   //filter
   const filteredActivities = useMemo(() => {
     if (filter === "All") return activities;
@@ -76,9 +71,6 @@ export default function StudentClass() {
         <div className="flex items-center gap-4">
           <div>
 
-
-
-     
       
     </div>
           <div className="relative cursor-pointer">
@@ -146,7 +138,7 @@ function StudentActivityCard({ data }: any) {
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
-      {/* Status Badge - ยังคงไว้เพื่อให้เด็กนักเรียนรู้ว่าคำถามได้รับคำตอบหรือยัง */}
+      {/* Status Badge  */}
       <div className="absolute top-5 right-5 flex items-center gap-1">
          <div className={`w-2 h-2 rounded-full ${isAnswered ? 'bg-emerald-400' : data.status === 'BOARD' ? 'bg-red-400' : 'bg-orange-300'}`}></div>
          <span className={`text-[10px] font-bold ${isAnswered ? 'text-emerald-400' : data.status === 'BOARD' ? 'text-red-400' : 'text-orange-300'}`}>
@@ -166,7 +158,7 @@ function StudentActivityCard({ data }: any) {
           
           {!isBoard && (
             <>
-              {/* รายการ Professor Reply - สำหรับนักเรียนไว้อ่านคำตอบอย่างเดียว ลบไม่ได้ */}
+              {/* รายการ Professor Reply */}
               <div className="space-y-3 mb-4">
                 {data.professorReplies?.map((reply: string, index: number) => (
                   <div key={index} className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
@@ -180,7 +172,7 @@ function StudentActivityCard({ data }: any) {
                 ))}
               </div>
 
-              {/* จำนวน Reply เท่านั้นที่แสดง */}
+              {/* จำนวน Reply */}
               <div className="flex items-center text-xs font-bold">
                 <div className="text-slate-400 flex items-center gap-1">
                   💬 {data.replies || 0} Replies
@@ -189,7 +181,7 @@ function StudentActivityCard({ data }: any) {
             </>
           )}
 
-          {/* ปุ่ม Review Session - ยังคงไว้เหมือนเดิม */}
+          {/* ปุ่ม Review Session */}
           {isBoard && (
             <button className="bg-[#5B41FF] text-white px-6 py-2 rounded-full text-xs font-bold mt-2 hover:bg-[#4a32d4] transition-colors">
               👁️ Review Session

@@ -119,8 +119,13 @@ const handleDeleteReply = (activityId: number, replyIndex: number) => {
         </h1>
         <div className="flex items-center gap-4">
           <div>
-      {/* ปุ่มกดเปิด Modal (จากหน้า Header หรือ Sidebar) */}
-      <button onClick={() => setIsModalOpen(true)}>Create Course</button>
+    
+            <button 
+            onClick={() => setIsModalOpen(true)}
+            className="border border-dashed border-[#E3DFFF] px-5 py-2 rounded-xl text-[#513FDF] bg-[#FAF5FF] hover:bg-[#513FDF] hover:text-white transition"
+            >
+            <span className="text-xl  ">+ </span>Create Course
+            </button>
 
       {/* เรียกใช้ Overlay */}
       <CreateCourse

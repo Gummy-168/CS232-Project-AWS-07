@@ -71,7 +71,7 @@ export default function ProfessorDashboard() {
   setActivities(prev => prev.map(item => {
     if (item.id === id) {
       const currentReplies = item.professorReplies || [];
-      const currentCount = item.replies || 0; // ดึงจำนวน replies เดิม (ถ้าไม่มีให้เป็น 0)
+      const currentCount = item.replies || 0; 
       
       return { 
         ...item, 
@@ -121,7 +121,12 @@ const handleDeleteReply = (activityId: number, replyIndex: number) => {
         <div className="flex items-center gap-4">
           <div>
       {/* ปุ่มกดเปิด Modal (จากหน้า Header หรือ Sidebar) */}
-      <button onClick={() => setIsModalOpen(true)}>Create Course</button>
+            <button 
+            onClick={() => setIsModalOpen(true)}
+            className="border border-dashed border-[#E3DFFF] px-5 py-2 rounded-xl text-[#513FDF] bg-[#FAF5FF] hover:bg-[#513FDF] hover:text-white transition"
+            >
+            <span className="text-xl  ">+ </span>Create Course
+            </button>
 
       {/* เรียกใช้ Overlay */}
       <CreateCourse

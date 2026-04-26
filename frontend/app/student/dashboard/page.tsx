@@ -59,15 +59,15 @@ export default function Dashboard() {
           </div>
 
           <div className="p-8">
-      {/* ปุ่มกดเปิด Modal (หน้าตาแบบเดียวกับรูป Sidebar ของคุณ) */}
+      
       <button 
         onClick={() => setIsJoinModalOpen(true)}
-        className="flex items-center gap-2 bg-[#F3F3F3] text-slate-400 px-6 py-3 rounded-full hover:bg-slate-200 transition-all"
+        className="border border-dashed border-[#E3DFFF] px-4 py-2 rounded-xl text-[#513FDF] bg-[#FAF5FF] hover:bg-[#513FDF] hover:text-white transition"
       >
         <span className="text-xl">+</span> Join Course
       </button>
 
-      {/* Overlay */}
+      
       <JoinCourse
         isOpen={isJoinModalOpen} 
         onClose={() => setIsJoinModalOpen(false)} 
