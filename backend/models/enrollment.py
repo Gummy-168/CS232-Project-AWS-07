@@ -14,7 +14,7 @@ class Enrollment:
     def __init__(
         self,
         enrollment_id: int,
-        student_id: int,
+        student_id: str,
         course_code: str,
         join_date: datetime,
         student: User | None = None,
@@ -22,8 +22,8 @@ class Enrollment:
     ) -> None:
         """Initialize an enrollment instance."""
         self._enrollment_id: int = enrollment_id
-        self._student_id: int = student_id
-        self._course_code: str = course_code
+        self._student_id: str = student_id.strip()
+        self._course_code: str = course_code.strip().upper()
         self._join_date: datetime = join_date
         self._student: User | None = student
         self._course: Course | None = course
@@ -39,14 +39,14 @@ class Enrollment:
         self._enrollment_id = value
 
     @property
-    def student_id(self) -> int:
+    def student_id(self) -> str:
         """Get the student identifier."""
         return self._student_id
 
     @student_id.setter
-    def student_id(self, value: int) -> None:
+    def student_id(self, value: str) -> None:
         """Set the student identifier."""
-        self._student_id = value
+        self._student_id = value.strip()
 
     @property
     def course_code(self) -> str:
@@ -56,7 +56,7 @@ class Enrollment:
     @course_code.setter
     def course_code(self, value: str) -> None:
         """Set the course code."""
-        self._course_code = value
+        self._course_code = value.strip().upper()
 
     @property
     def join_date(self) -> datetime:

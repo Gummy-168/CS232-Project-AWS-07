@@ -9,13 +9,13 @@ from .user import User
 class Question:
     """Represents a question posted on an interaction board."""
 
-    VALID_STATUSES = {"pending", "answered", "hidden", "deleted"}
+    VALID_STATUSES = {"pending", "answered", "deleted"}
 
     def __init__(
         self,
-        question_id: int,
+        question_id: str,
         board_id: int,
-        student_id: int,
+        student_id: str,
         content: str,
         reply_content: str | None,
         status: str,
@@ -25,10 +25,10 @@ class Question:
         student: User | None = None,
     ) -> None:
         """Initialize a question instance."""
-        self._question_id: int = question_id
+        self._question_id: str = question_id
         self._board_id: int = board_id
-        self._student_id: int = student_id
-        self._content: str = content
+        self._student_id: str = student_id.strip()
+        self._content: str = content.strip()
         self._reply_content: str | None = reply_content
         self._status: str = self._normalize_status(status)
         self._is_anonymous: bool = is_anonymous
@@ -37,12 +37,12 @@ class Question:
         self._student: User | None = student
 
     @property
-    def question_id(self) -> int:
+    def question_id(self) -> str:
         """Get the question identifier."""
         return self._question_id
 
     @question_id.setter
-    def question_id(self, value: int) -> None:
+    def question_id(self, value: str) -> None:
         """Set the question identifier."""
         self._question_id = value
 
@@ -57,14 +57,14 @@ class Question:
         self._board_id = value
 
     @property
-    def student_id(self) -> int:
+    def student_id(self) -> str:
         """Get the student identifier."""
         return self._student_id
 
     @student_id.setter
-    def student_id(self, value: int) -> None:
+    def student_id(self, value: str) -> None:
         """Set the student identifier."""
-        self._student_id = value
+        self._student_id = value.strip()
 
     @property
     def content(self) -> str:
@@ -74,7 +74,10 @@ class Question:
     @content.setter
     def content(self, value: str) -> None:
         """Set the question content."""
-        self._content = value
+        cleaned_value = value.strip()
+        if not cleaned_value:
+            raise ValueError("Question content cannot be empty.")
+        self._content = cleaned_value
 
     @property
     def reply_content(self) -> str | None:
@@ -144,13 +147,17 @@ class Question:
         """Update the question status."""
         self.status = status
 
-    def professor_reply(self, reply_content: str) -> None:
+    def process_professor_reply(self, reply_content: str) -> None:
         """Store a professor reply and mark the question as answered."""
         cleaned_reply = reply_content.strip()
         if not cleaned_reply:
             raise ValueError("Reply content cannot be empty.")
         self.reply_content = cleaned_reply
         self.status = "answered"
+
+    def professor_reply(self, reply_content: str) -> None:
+        """Keep compatibility for callers that still use the old method name."""
+        self.process_professor_reply(reply_content)
 
     def can_be_deleted(self) -> bool:
         """Check whether the question can be deleted."""

@@ -14,7 +14,7 @@ class BoardManager:
         self._boards: list[InteractionBoard] = []
         self._next_board_id = 1
 
-    def create_board(self, course: Course, status: str = "draft") -> InteractionBoard:
+    def create_board(self, course: Course, status: str = "active") -> InteractionBoard:
         """Create an interaction board for a course."""
         board = InteractionBoard(
             board_id=self._next_board_id,

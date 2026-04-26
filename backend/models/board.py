@@ -8,11 +8,10 @@ from .course import Course
 class InteractionBoard:
     """Represents an interaction board for a course."""
 
-    VALID_STATUSES = {"draft", "open", "closed", "archived"}
+    VALID_STATUSES = {"active", "closed", "archived"}
     ALLOWED_TRANSITIONS = {
-        "draft": {"open", "archived"},
-        "open": {"closed", "archived"},
-        "closed": {"open", "archived"},
+        "active": {"closed", "archived"},
+        "closed": {"active", "archived"},
         "archived": set(),
     }
 
@@ -25,7 +24,7 @@ class InteractionBoard:
     ) -> None:
         """Initialize an interaction board instance."""
         self._board_id: int = board_id
-        self._course_code: str = course_code
+        self._course_code: str = course_code.strip().upper()
         self._status: str = self._normalize_status(status)
         self._course: Course | None = course
 
@@ -47,7 +46,7 @@ class InteractionBoard:
     @course_code.setter
     def course_code(self, value: str) -> None:
         """Set the course code."""
-        self._course_code = value
+        self._course_code = value.strip().upper()
 
     @property
     def status(self) -> str:

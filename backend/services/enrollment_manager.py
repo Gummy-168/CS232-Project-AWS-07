@@ -52,7 +52,7 @@ class EnrollmentManager:
             None,
         )
 
-    def get_enrollments_by_student(self, student_id: int) -> list[Enrollment]:
+    def get_enrollments_by_student(self, student_id: str) -> list[Enrollment]:
         """Retrieve enrollments for a student."""
         return [
             enrollment
@@ -74,7 +74,7 @@ class EnrollmentManager:
         """Expose a copy of managed enrollments."""
         return list(self._enrollments)
 
-    def _has_enrollment(self, student_id: int, course_code: str) -> bool:
+    def _has_enrollment(self, student_id: str, course_code: str) -> bool:
         """Check whether a student is already enrolled in a course."""
         normalized_code = course_code.strip().upper()
         return any(

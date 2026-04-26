@@ -61,7 +61,15 @@ class AnalyticsManager:
             ),
         }
 
-    def get_student_activity_summary(self, student_id: int) -> dict[str, int]:
+    def generate_class_overview(self, course_code: str) -> dict[str, int]:
+        """Return the main analytics summary for a course."""
+        return self.get_course_question_summary(course_code)
+
+    def generate_student_insight(self, student_id: str) -> dict[str, int]:
+        """Return the main analytics summary for a student."""
+        return self.get_student_activity_summary(student_id)
+
+    def get_student_activity_summary(self, student_id: str) -> dict[str, int]:
         """Return activity summary metrics for a student."""
         student_questions = [
             question for question in self._questions if question.student_id == student_id

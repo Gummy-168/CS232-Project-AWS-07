@@ -14,7 +14,7 @@ class QuestionManager:
         self._questions: list[Question] = []
         self._next_question_id = 1
 
-    def submit_question(
+    def create_question(
         self,
         board: InteractionBoard,
         student: User,
@@ -24,14 +24,18 @@ class QuestionManager:
         """Create and store a new question."""
         if student.role != "student":
             raise ValueError("Only students can submit questions.")
-        if board.status != "open":
-            raise ValueError("Questions can only be submitted to open boards.")
+        if board.status != "active":
+            raise ValueError("Questions can only be submitted to active boards.")
+
+        cleaned_content = content.strip()
+        if not cleaned_content:
+            raise ValueError("Question content cannot be empty.")
 
         question = Question(
-            question_id=self._next_question_id,
+            question_id=str(self._next_question_id),
             board_id=board.board_id,
             student_id=student.user_id,
-            content=content.strip(),
+            content=cleaned_content,
             reply_content=None,
             status="pending",
             is_anonymous=is_anonymous,
@@ -43,14 +47,24 @@ class QuestionManager:
         self._next_question_id += 1
         return question
 
-    def get_question_by_id(self, question_id: int) -> Question | None:
+    def submit_question(
+        self,
+        board: InteractionBoard,
+        student: User,
+        content: str,
+        is_anonymous: bool = False,
+    ) -> Question:
+        """Keep compatibility with the older method name."""
+        return self.create_question(board, student, content, is_anonymous)
+
+    def get_question_by_id(self, question_id: str) -> Question | None:
         """Retrieve a question by identifier."""
         return next(
             (question for question in self._questions if question.question_id == question_id),
             None,
         )
 
-    def set_question_status(self, question_id: int, status: str) -> Question | None:
+    def set_question_status(self, question_id: str, status: str) -> Question | None:
         """Update a question status."""
         question = self.get_question_by_id(question_id)
         if question is None:
@@ -59,16 +73,20 @@ class QuestionManager:
         question.set_question_status(status)
         return question
 
-    def professor_reply(self, question_id: int, reply_content: str) -> Question | None:
+    def reply_question(self, question_id: str, reply_content: str) -> Question | None:
         """Reply to a question."""
         question = self.get_question_by_id(question_id)
         if question is None:
             return None
 
-        question.professor_reply(reply_content)
+        question.process_professor_reply(reply_content)
         return question
 
-    def delete_question(self, question_id: int) -> bool:
+    def professor_reply(self, question_id: str, reply_content: str) -> Question | None:
+        """Keep compatibility with the older method name."""
+        return self.reply_question(question_id, reply_content)
+
+    def delete_question(self, question_id: str) -> bool:
         """Mark a question as deleted when allowed."""
         question = self.get_question_by_id(question_id)
         if question is None or not question.can_be_deleted():
@@ -77,7 +95,7 @@ class QuestionManager:
         question.set_question_status("deleted")
         return True
 
-    def grant_participation_score(self, question_id: int, score: float) -> Question | None:
+    def grant_score(self, question_id: str, score: float) -> Question | None:
         """Grant a participation score to a question."""
         question = self.get_question_by_id(question_id)
         if question is None:
@@ -86,7 +104,11 @@ class QuestionManager:
         question.grant_participation_score(score)
         return question
 
-    def get_question_score(self, question_id: int) -> float | None:
+    def grant_participation_score(self, question_id: str, score: float) -> Question | None:
+        """Keep compatibility with the older method name."""
+        return self.grant_score(question_id, score)
+
+    def get_question_score(self, question_id: str) -> float | None:
         """Return the participation score for a question."""
         question = self.get_question_by_id(question_id)
         return None if question is None else question.get_question_score()

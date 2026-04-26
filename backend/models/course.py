@@ -10,13 +10,13 @@ class Course:
         self,
         course_code: str,
         course_name: str,
-        prof_id: int,
+        prof_id: str,
         is_active: bool,
     ) -> None:
         """Initialize a course instance."""
         self._course_code: str = self._normalize_course_code(course_code)
-        self._course_name: str = course_name
-        self._prof_id: int = prof_id
+        self._course_name: str = course_name.strip()
+        self._professor_id: str = prof_id.strip()
         self._is_active: bool = is_active
 
     @property
@@ -40,24 +40,24 @@ class Course:
         self._course_name = value
 
     @property
-    def prof_id(self) -> int:
+    def prof_id(self) -> str:
         """Get the professor identifier."""
-        return self._prof_id
+        return self._professor_id
 
     @prof_id.setter
-    def prof_id(self, value: int) -> None:
+    def prof_id(self, value: str) -> None:
         """Set the professor identifier."""
-        self._prof_id = value
+        self._professor_id = value.strip()
 
     @property
-    def professor_id(self) -> int:
+    def professor_id(self) -> str:
         """Get the professor identifier using the naming in CODEX.md."""
-        return self._prof_id
+        return self._professor_id
 
     @professor_id.setter
-    def professor_id(self, value: int) -> None:
+    def professor_id(self, value: str) -> None:
         """Set the professor identifier using the naming in CODEX.md."""
-        self._prof_id = value
+        self._professor_id = value.strip()
 
     @property
     def is_active(self) -> bool:

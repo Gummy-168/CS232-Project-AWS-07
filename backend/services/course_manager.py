@@ -16,7 +16,7 @@ class CourseManager:
         self,
         course_code: str,
         course_name: str,
-        professor_id: int,
+        professor_id: str,
         is_active: bool = True,
     ) -> Course:
         """Create a new course."""
@@ -27,7 +27,7 @@ class CourseManager:
         course = Course(
             course_code=normalized_code,
             course_name=course_name.strip(),
-            prof_id=professor_id,
+            prof_id=professor_id.strip(),
             is_active=is_active,
         )
         self._courses.append(course)
@@ -76,7 +76,7 @@ class CourseManager:
     def verify_enrollment_eligibility(
         self,
         course_code: str,
-        student_id: int,
+        student_id: str,
         enrollments: list[Enrollment],
     ) -> bool:
         """Verify whether a student may enroll in a course."""

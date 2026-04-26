@@ -25,6 +25,10 @@ class FeedAndSearchManager:
             and question.board.course_code.strip().upper() == normalized_course_code
         ]
 
+    def validate_search_keyword(self, keyword: str) -> bool:
+        """Check whether a search keyword is usable."""
+        return len(keyword.strip()) > 0
+
     def search_questions(
         self,
         keyword: str,
@@ -50,6 +54,14 @@ class FeedAndSearchManager:
             )
         ]
 
+    def filter_questions(
+        self,
+        status: str,
+        course_code: str,
+    ) -> list[Question]:
+        """Filter questions by status for a course."""
+        return self.filter_questions_by_status(status, course_code)
+
     def filter_questions_by_status(
         self,
         status: str,
@@ -62,3 +74,19 @@ class FeedAndSearchManager:
             for question in self.list_course_questions(course_code)
             if question.status == normalized_status
         ]
+
+    def get_question_feed(
+        self,
+        sort_by: str = "newest",
+        filter_status: str = "",
+    ) -> list[Question]:
+        """Prepare a simple feed of questions for display."""
+        questions = list(self._questions)
+        if filter_status.strip():
+            normalized_status = filter_status.strip().lower()
+            questions = [
+                question for question in questions if question.status == normalized_status
+            ]
+        if sort_by == "oldest":
+            return sorted(questions, key=lambda question: int(question.question_id))
+        return sorted(questions, key=lambda question: int(question.question_id), reverse=True)

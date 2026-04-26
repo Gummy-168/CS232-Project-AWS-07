@@ -60,7 +60,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)) -> dict[str, 
     user = UserManager.register_user(db=db, user_data=user_data)
     return {
         "message": "User registered successfully",
-        "id": user.id,
+        "id": user.user_id,
         "email": user.email,
         "role": user.role,
         "nickname": user.nickname,

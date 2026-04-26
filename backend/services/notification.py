@@ -12,25 +12,38 @@ class NotificationService:
     """Handles system notifications."""
 
     def __init__(self) -> None:
-        self._notification_list: dict[int, list[str]] = defaultdict(list)
-        self._unread_counts: dict[int, int] = defaultdict(int)
+        self._notification_list: dict[str, list[str]] = defaultdict(list)
+        self._unread_counts: dict[str, int] = defaultdict(int)
 
-    def get_unread_notification_count(self, user_id: int) -> int:
+    def get_unread_count(self, user_id: str) -> int:
         """Return the unread notification count for a user."""
         return self._unread_counts[user_id]
 
-    def dispatch_notification(self, user_id: int, message: str) -> None:
+    def get_unread_notification_count(self, user_id: str) -> int:
+        """Keep compatibility with the older method name."""
+        return self.get_unread_count(user_id)
+
+    def dispatch_notification(
+        self,
+        target_user_id: str,
+        message: str,
+        notif_type: str = "general",
+    ) -> None:
         """Dispatch a notification to a user."""
-        if not self.validate_notification_target(user_id):
-            raise ValueError(f"Invalid notification target: {user_id}")
+        if not self.validate_notification_target(target_user_id):
+            raise ValueError(f"Invalid notification target: {target_user_id}")
 
         cleaned_message = message.strip()
-        self._notification_list[user_id].append(cleaned_message)
-        self._unread_counts[user_id] += 1
+        if not cleaned_message:
+            raise ValueError("Notification message cannot be empty.")
 
-    def validate_notification_target(self, user_id: int) -> bool:
+        full_message = f"[{notif_type}] {cleaned_message}"
+        self._notification_list[target_user_id].append(full_message)
+        self._unread_counts[target_user_id] += 1
+
+    def validate_notification_target(self, user_id: str) -> bool:
         """Validate whether a notification target is allowed."""
-        return user_id > 0
+        return len(user_id.strip()) > 0
 
     def notify_new_question(self, question: Question) -> None:
         """Notify users about a new question."""
@@ -40,6 +53,7 @@ class NotificationService:
         self.dispatch_notification(
             question.board.course.professor_id,
             f"New question posted in course {question.board.course_code}: {question.content}",
+            "new_question",
         )
 
     def notify_new_reply(self, question: Question) -> None:
@@ -50,6 +64,7 @@ class NotificationService:
         self.dispatch_notification(
             question.student_id,
             f"Your question #{question.question_id} has a new reply.",
+            "reply",
         )
 
     def notify_course_status_change(self, course: Course) -> None:
@@ -57,10 +72,11 @@ class NotificationService:
         self.dispatch_notification(
             course.professor_id,
             f"Course {course.course_code} is now {'active' if course.is_active else 'inactive'}.",
+            "course_status",
         )
 
     @property
-    def notification_list(self) -> dict[int, list[str]]:
+    def notification_list(self) -> dict[str, list[str]]:
         """Expose a copy of stored notifications."""
         return {
             user_id: list(messages)
