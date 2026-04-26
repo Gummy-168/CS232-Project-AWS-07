@@ -68,10 +68,10 @@ export default function ProfessorSidebar() {
               <div className="ml-5 mt-3 space-y-1.5 overflow-hidden transition-all">
                 {/* sub */}
                 <Link 
-                  href="/professor/courses/cs232"
-                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl w-full text-sm font-medium transition-all ${pathname === '/professor/courses/cs232' ? 'text-[#7B61FF] bg-purple-50' : 'text-slate-400 hover:text-[#7B61FF]'}`}
+                  href="/professor/courses"
+                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl w-full text-sm font-medium transition-all ${pathname === '/professor/courses' ? 'text-[#7B61FF] bg-purple-50' : 'text-slate-400 hover:text-[#7B61FF]'}`}
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${pathname === '/professor/courses/cs232' ? 'bg-[#7B61FF]' : 'bg-slate-300'}`}></div>
+                  <div className={`w-1.5 h-1.5 rounded-full ${pathname === '/professor/courses' ? 'bg-[#7B61FF]' : 'bg-slate-300'}`}></div>
                   <span className="leading-tight">CS232 - Cloud</span>
                 </Link>
 

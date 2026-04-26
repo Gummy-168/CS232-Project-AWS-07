@@ -62,10 +62,10 @@ export default function Sidebar() {
             {isCourseOpen && (
               <div className="ml-4 mt-2 space-y-1">
                 <Link 
-                  href="/courses/cs232"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === '/courses/cs232' ? 'text-[#7B61FF] bg-purple-50' : 'text-slate-400 hover:text-[#7B61FF]'}`}
+                  href="/student/courses"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === '/student/courses' ? 'text-[#7B61FF] bg-purple-50' : 'text-slate-400 hover:text-[#7B61FF]'}`}
                 >
-                  <div className={`w-1.5 h-1.5 rounded-full ${pathname === '/courses/cs232' ? 'bg-[#7B61FF]' : 'bg-slate-300'}`}></div>
+                  <div className={`w-1.5 h-1.5 rounded-full ${pathname === '/student/courses' ? 'bg-[#7B61FF]' : 'bg-slate-300'}`}></div>
                   CS232 - Cloud
                 </Link>
                 <button className="flex items-center gap-2 px-4 py-2 rounded-xl w-full text-slate-400 hover:bg-slate-50 hover:text-emerald-500 transition text-sm font-medium">

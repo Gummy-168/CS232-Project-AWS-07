@@ -92,7 +92,6 @@ const handleDeleteReply = (activityId: number, replyIndex: number) => {
       return { 
         ...item, 
         professorReplies: filteredReplies,
-        // ลดจำนวน replies ลง 1 (แต่ใช้ Math.max เพื่อไม่ให้ติดลบ)
         replies: Math.max(0, (item.replies || 0) - 1), 
         status: filteredReplies.length > 0 ? "ANSWERED" : "UNANSWERED"
       };
