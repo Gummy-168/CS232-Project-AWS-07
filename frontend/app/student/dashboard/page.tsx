@@ -2,6 +2,12 @@
 import { useEffect, useState } from "react";
 import AskModal from "../../components/askmodal";
 import JoinCourse from "../../components/joincourse";
+import { 
+  Search, 
+  Bell,
+  Contact,
+  Clock,
+} from 'lucide-react';
 
 // mock data
 const fetchDashboardData = async () => {
@@ -78,36 +84,60 @@ export default function Dashboard() {
         {/* Card Section */}
         <div className="grid grid-cols-3 gap-6">
 
-          {/* Current Session */}
-          <div className="col-span-2 bg-white p-6 rounded-2xl shadow">
-            <p className="mt-3 text-[#AE2466] text-sm mb-2">
-              🛜 CURRENTLY IN SESSION
-            </p>
+      {/* Current Session */}
+      <section className="col-span-2 bg-white rounded-[30px] p-6 shadow border border-slate-50 overflow-hidden relative text-left">
 
-            <h3 className="text-xl text-[#1B1B1B] font-semibold mb-4">
-              {data.session.title}
-            </h3>
+        <div className="flex items-center gap-2 mb-4 text-[#D1388D] text-xs font-semibold tracking-wider uppercase">
+          <span className="text-[10px]">(( ))</span>
+          CURRENTLY IN SESSION
+        </div>
 
-            <div className="flex gap-4">
-              <div className="flex-1 bg-[#F6F3F2] px-4 py-2 rounded-2xl text-sm">
-                <p className="text-xs">🕑 Time</p>
-                {data.session.time}
-              </div>
-              <div className="flex-1 bg-[#F6F3F2] px-4 py-2 rounded-2xl text-sm">
-                <p className="text-xs">👨‍🏫 Instructor</p>
-                {data.session.instructor}
-              </div>
+        <h2 className="text-2xl  mb-6">
+          <span className="text-[#1B1B1B]">{data.session.title.split(':')[0]}: </span>
+          <span className="text-[#513FDF]">Join and ask your questions now!</span>
+        </h2>
+
+
+        <div className="grid grid-cols-2 gap-6 mb-8">
+          <div className="flex items-center gap-4 bg-[#F9F9F9] p-5 rounded-full">
+            <div className="bg-white p-2 rounded-full shadow-sm">
+              <Clock size={24} className="text-[#513FDF]" />
             </div>
-
-            <button
-              onClick={() => setOpen(true)}
-              className="bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-6 mt-6 py-2 rounded-full shadow-lg shadow-purple-200 hover:scale-105 transition-transform"
-            >
-              Ask Now
-            </button>
-
-      <AskModal isOpen={open} onClose={() => setOpen(false)} />
+            <div>
+              <p className="text-xs text-slate-400 font-medium">Time Remaining</p>
+              <p className="text-lg text-slate-800">
+                {data.session.time} 
+              </p>
+            </div>
           </div>
+
+      
+          <div className="flex items-center gap-4 bg-[#F9F9F9] p-5 rounded-full">
+            <div className="bg-white p-2 rounded-full shadow-sm">
+              <Contact size={24} className="text-[#513FDF]" />
+            </div>
+            <div>
+              <p className="text-xs text-slate-400 font-medium">Instructor</p>
+              <p className="text-lg text-slate-800">{data.session.instructor}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center gap-6">
+          <button 
+            onClick={() => setOpen(true)}
+            className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-12 py-3 rounded-full text-lg shadow-xl shadow-purple-100 hover:scale-105 active:scale-95 transition-all"
+          >
+            Ask Now
+          </button>
+          <p className="text-sm text-slate-500 font-medium">
+            <span className=" text-slate-700">12</span> students are currently asking questions.
+          </p>
+        </div>
+
+        <AskModal isOpen={open} onClose={() => setOpen(false)} />
+      </section>
 
           {/* Stats */}
           <div className="bg-white p-6 rounded-2xl shadow">

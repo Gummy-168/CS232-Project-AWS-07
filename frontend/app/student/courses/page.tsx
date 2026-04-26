@@ -117,7 +117,6 @@ export default function StudentClass() {
       </div>
     </div>
 
-    {/* 3.2 Instructor */}
     <div className="flex items-center gap-4 bg-[#F9F9F9] p-6 rounded-full">
      
         <Contact size={24} className="text-[#513FDF]" />
