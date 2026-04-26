@@ -10,8 +10,17 @@ interface CreateCourseProps {
 const CreateCourse = ({ isOpen, onClose }: CreateCourseProps) => {
   if (!isOpen) return null;
 
-  const [selectedDay, setSelectedDay] = useState('Mon');
+  const [selectedDays, setSelectedDays] = useState([]);
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const toggleDay = (day) => {
+    if (selectedDays.includes(day)) {
+      // ถ้ามีวันนั้นอยู่แล้ว ให้กรองออก (Unselect)
+      setSelectedDays(selectedDays.filter((d) => d !== day));
+    } else {
+      // ถ้ายังไม่มี ให้เพิ่มเข้าไปใน Array (Select)
+      setSelectedDays([...selectedDays, day]);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
@@ -63,25 +72,28 @@ const CreateCourse = ({ isOpen, onClose }: CreateCourseProps) => {
             />
           </div>
 
-          {/* Schedule */}
+        {/* Schedule & Time */}
           <div className="space-y-4">
             <label className="block font-bold text-slate-700 ml-1">Schedule</label>
             <div className="flex flex-wrap items-center gap-6">
-              {/* Day Selector */}
               <div className="flex gap-2">
-                {days.map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDay(day)}
-                    className={`w-10 h-10 rounded-full text-xs font-bold transition-all ${
-                      selectedDay === day 
-                      ? 'bg-[#7B61FF] text-white shadow-lg shadow-purple-200' 
-                      : 'bg-[#D9D9D9] text-slate-700 hover:bg-slate-300'
-                    }`}
-                  >
-                    {day}
-                  </button>
-                ))}
+                {days.map((day) => {
+                  const isSelected = selectedDays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleDay(day)}
+                      className={`w-10 h-10 rounded-full text-xs font-bold transition-all ${
+                        isSelected 
+                        ? 'bg-[#7B61FF] text-white shadow-lg shadow-purple-200' 
+                        : 'bg-[#D9D9D9] text-slate-700 hover:bg-slate-300'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
               </div>
 
               {/* Time Input */}
@@ -104,7 +116,7 @@ const CreateCourse = ({ isOpen, onClose }: CreateCourseProps) => {
           </div>
         </div>
 
-        {/* Footer Actions */}
+      {/* Footer Actions */}  
         <div className="mt-10 p-8 bg-[#F9F9F9]/50 flex justify-end items-center gap-6">
           <button 
             onClick={onClose}
