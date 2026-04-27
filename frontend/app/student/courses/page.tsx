@@ -9,6 +9,16 @@ import {
 } from 'lucide-react';
 
 // mockmock data
+const fetchDashboardData = async () => {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({
+        student: { name: "John", id: "670000000" }
+      
+      });
+    }, 800);
+  });
+};
 const MOCK_SESSION = {
   id: "course-001",
   title: "CS232: Intro to Cloud Computing",

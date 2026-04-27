@@ -28,9 +28,9 @@ export default function Sidebar() {
 <aside className="fixed left-0 top-0 h-screen w-64 bg-white p-6 rounded-r-[40px] flex flex-col justify-between shadow-sm border-r border-slate-50 z-40">      
       <div>
         {/* Logo */}
-        <div className="flex flex-col items-center mb-10 mt-4">
-          <Image src="/logo/logo.png" alt="logo" width={80} height={80} priority />
-          <p className="text-[10px] text-pink-400 mt-2 tracking-[0.2em] font-bold">
+        <div className="flex flex-col items-center mb-10 mt-0">
+          <Image src="/logo/logo.png" alt="logo" width={140} height={100} priority />
+          <p className="text-[10px] text-gray-400 mt-0 tracking-[0.2em] font-regular">
             PLAYFUL ACADEMIC
           </p>
         </div>
