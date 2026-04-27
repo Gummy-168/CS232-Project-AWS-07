@@ -46,9 +46,10 @@ useEffect(() => {
     <div className="h-screen bg-[#FCF9F8] overflow-hidden">
 
       <Header
-        studentName={data?.student.name}
-        studentId={data?.student.id}
+        studentName={data?.student?.name}
+        studentId={data?.student?.id}
         onJoinCourse={() => setIsJoinModalOpen(true)}
+        mode="dashboard"
       />
       <JoinCourse isOpen={isJoinModalOpen} onClose={() => setIsJoinModalOpen(false)} />
 

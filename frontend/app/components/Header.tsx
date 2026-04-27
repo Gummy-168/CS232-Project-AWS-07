@@ -5,10 +5,19 @@ interface HeaderProps {
   studentName?: string;
   studentId?: string;
   onJoinCourse?: () => void;
+  courseTitle?: string;
+  mode?: "dashboard" | "course";
 }
 
-export default function Header({ studentName, studentId, onJoinCourse }: HeaderProps) {
-    function renderName(name: string) {
+export default function Header({ 
+  studentName, 
+  studentId, 
+  onJoinCourse, 
+  courseTitle,
+  mode = "dashboard"
+}: HeaderProps) {
+
+  function renderName(name: string) {
     return name.split(/([\u0E00-\u0E7F]+)/).map((part, i) => {
       const isThai = /[\u0E00-\u0E7F]/.test(part);
       return (
@@ -18,27 +27,34 @@ export default function Header({ studentName, studentId, onJoinCourse }: HeaderP
       );
     });
   }
-    return (
-    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
-      
-      {/* Left: Hello */}
-    <div className="space-y-1">
-        <h1 className="text-3xl font-regular text-[#1B1B1B]">
-            Hello,{" "}
-            <span className="text-2xl font-bold">{studentName}</span>
-        </h1>
-        <p className="text-gray-500 text-100 font-medium">
-            Student ID: {studentId || "..."}
-        </p>
-    </div>
 
-      {/* Right: Join Course + Bell + Avatar */}
+  return (
+    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
+
+      {/* Left */}
+      <div className="space-y-1">
+        {mode === "dashboard" ? (
+          <h1 className="text-3xl font-regular text-[#1B1B1B]">
+            Hello,{" "}
+            <span className="font-bold">{studentName ? renderName(studentName) : "..."}</span>
+          </h1>
+        ) : (
+          <h1 className="text-3xl font-regular text-[#1B1B1B]">
+            {courseTitle || "My Course"}
+          </h1>
+        )}
+        <p className="text-gray-500 text-sm font-medium">
+          Student ID: {studentId || "..."}
+        </p>
+      </div>
+
+      {/* Right */}
       <div className="flex items-center gap-4">
         <button
-            onClick={onJoinCourse}
-            className="border border-dashed border-[#C4B5FD] px-6 py-2.5 rounded-2xl text-[#513FDF] bg-[#FAF5FF] hover:bg-[#513FDF] hover:text-white transition text-base font-regular"
+          onClick={onJoinCourse}
+          className="border border-dashed border-[#C4B5FD] px-6 py-2.5 rounded-2xl text-[#513FDF] bg-[#FAF5FF] hover:bg-[#513FDF] hover:text-white transition text-base font-regular"
         >
-        + Join Course
+          + Join Course
         </button>
 
         <button className="relative p-2 rounded-full hover:bg-gray-100 transition">
@@ -50,6 +66,7 @@ export default function Header({ studentName, studentId, onJoinCourse }: HeaderP
           N
         </div>
       </div>
+
     </header>
   );
 }
