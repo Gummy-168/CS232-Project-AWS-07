@@ -19,7 +19,8 @@ export default function Header({ studentName, studentId, onJoinCourse }: HeaderP
     });
   }
     return (
-<header className="fixed top-7 left-64 right-0 flex items-center justify-between px-8 z-10 py-5 bg-[#FCF9F8]">      
+    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
+      
       {/* Left: Hello */}
     <div className="space-y-1">
         <h1 className="text-3xl font-regular text-[#1B1B1B]">

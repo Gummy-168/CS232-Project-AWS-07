@@ -17,7 +17,8 @@ const fetchDashboardData = async () => {
         },
         stats: { participation: 72, questions: 12, answered: 8, pending: 4 },
         chart: [40, 60, 50, 70, 90, 30, 50],
-        recentQuestion: "ทำไมต้องตั้ง Source เป็น Web Security Group...",
+        recentQuestion: "ทำไมต้องตั้ง Source เป็น Web Security Group แทนที่จะใส่ IP หรือ 0.0.0.0/0 แล้วมันส่งผลกับการเข้าถึง DB ยังไง?",
+        tag: "BOARD"
       });
     }, 800);
   });
@@ -30,11 +31,19 @@ export default function Dashboard() {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   useEffect(() => {
-    fetchDashboardData().then((res) => setData(res));
-  }, []);
+  fetchDashboardData().then((res) => setData(res));
+}, []);
+
+useEffect(() => {
+  document.body.style.overflow = "hidden";
+
+  return () => {
+    document.body.style.overflow = "auto";
+  };
+}, []);
 
   return (
-    <div className="min-h-screen bg-[#FCF9F8]">
+    <div className="h-screen bg-[#FCF9F8] overflow-hidden">
 
       <Header
         studentName={data?.student.name}
@@ -43,8 +52,8 @@ export default function Dashboard() {
       />
       <JoinCourse isOpen={isJoinModalOpen} onClose={() => setIsJoinModalOpen(false)} />
 
-      <main className="p-8 pt-[80px] space-y-6">
-        {!data ? (
+  <main className="p-8 pt-[80px] space-y-6 h-full">        
+  {!data ? (
           <div>Loading...</div>
         ) : (
           <>
@@ -101,9 +110,9 @@ export default function Dashboard() {
               </section>
 
               {/* Stats */}
-              <div className="bg-white p-6 rounded-2xl shadow">
-                <h3 className="mb-4">My Activity Stats</h3>
-                <div className="grid grid-cols-2 gap-4">
+              <div className="bg-[#F6F3F2]-100 p-6 rounded-2xl shadow">
+                <h3 className="mb-4 text-xl">My Activity Stats</h3>
+                <div className="grid grid-cols-2 gap-5">
                   <StatBox value={`${data.stats.participation}%`} label="Participation" textColor="text-[#513FDF]" />
                   <StatBox value={data.stats.questions} label="Questions" textColor="text-[#AE2466]" />
                   <StatBox value={data.stats.answered} label="Answered" textColor="text-[#16A34A]" />
@@ -116,7 +125,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-6">
 
               {/* Chart */}
-              <div className="bg-white p-6 rounded-2xl shadow col-span-1">
+              <div className="bg-[#F6F3F2] p-6 rounded-2xl shadow col-span-1">
                 <h3 className="mb-4">Participation Overview</h3>
                 <div className="flex items-end gap-2.5 h-40">
                   {data.chart.map((h, i) => (
@@ -130,10 +139,25 @@ export default function Dashboard() {
 
               {/* Questions */}
               <div className="bg-white p-6 rounded-2xl shadow col-span-2">
-                <h3 className="mb-4">Recent Questions</h3>
-                <div className="bg-gray-100 p-4 rounded-xl text-sm">
-                  {data.recentQuestion}
+  
+              {/* Header + Tag */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3>Recent Questions</h3>
                 </div>
+
+                {/* Content */}
+                <div className="bg-[#F9F9F9] p-4 rounded-3xl text-sm flex items-center justify-between gap-4">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <p className="text-slate-800 pr-4 flex-1">
+                    {data.recentQuestion}
+                  </p>
+
+                  <span className="text-red-600  bg-red-100 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                    {data.tag}
+                  </span>
+
+                </div>
+
               </div>
             </div>
           </>
@@ -145,9 +169,9 @@ export default function Dashboard() {
 
 function StatBox({ value, label, textColor }) {
   return (
-    <div className="bg-gray-100 p-4 rounded-xl text-center">
-      <p className={`text-xl font-bold ${textColor}`}>{value}</p>
-      <p className="text-xs text-gray-500">{label}</p>
+    <div className="bg-white p-5 rounded-4xl flex flex-col items-start">
+      <p className={`text-2xl font-regular ${textColor}`}>{value}</p>
+      <p className="text-s text-gray-500">{label}</p>
     </div>
   );
 }
