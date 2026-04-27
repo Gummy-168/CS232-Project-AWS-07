@@ -71,7 +71,7 @@ class Question:
     @property
     def title(self) -> str:
         """Get the question title."""
-        return self.title
+        return self._title
 
     @title.setter
     def title(self, value: str) -> None:
