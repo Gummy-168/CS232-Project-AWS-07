@@ -28,6 +28,10 @@ class QuestionManager:
         if board.status != "active":
             raise ValueError("Questions can only be submitted to active boards.")
 
+        cleaned_title = title.strip()
+        if not cleaned_title:
+            raise ValueError("Question title cannot be empty.")
+
         cleaned_content = content.strip()
         if not cleaned_content:
             raise ValueError("Question content cannot be empty.")
