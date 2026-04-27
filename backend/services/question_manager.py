@@ -18,6 +18,7 @@ class QuestionManager:
         self,
         board: InteractionBoard,
         student: User,
+        title: str,
         content: str,
         is_anonymous: bool = False,
     ) -> Question:
@@ -35,6 +36,7 @@ class QuestionManager:
             question_id=str(self._next_question_id),
             board_id=board.board_id,
             student_id=student.user_id,
+            title=cleaned_title,
             content=cleaned_content,
             reply_content=None,
             status="pending",
@@ -51,11 +53,12 @@ class QuestionManager:
         self,
         board: InteractionBoard,
         student: User,
+        title: str,
         content: str,
         is_anonymous: bool = False,
     ) -> Question:
         """Keep compatibility with the older method name."""
-        return self.create_question(board, student, content, is_anonymous)
+        return self.create_question(board, student, title, content, is_anonymous)
 
     def get_question_by_id(self, question_id: str) -> Question | None:
         """Retrieve a question by identifier."""

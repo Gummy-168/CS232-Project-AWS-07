@@ -16,6 +16,7 @@ class Question:
         question_id: str,
         board_id: int,
         student_id: str,
+        title: str,
         content: str,
         reply_content: str | None,
         status: str,
@@ -28,6 +29,7 @@ class Question:
         self._question_id: str = question_id
         self._board_id: int = board_id
         self._student_id: str = student_id.strip()
+        self._title: str = title.strip()
         self._content: str = content.strip()
         self._reply_content: str | None = reply_content
         self._status: str = self._normalize_status(status)
@@ -65,6 +67,19 @@ class Question:
     def student_id(self, value: str) -> None:
         """Set the student identifier."""
         self._student_id = value.strip()
+
+    @property
+    def title(self) -> str:
+        """Get the question title."""
+        return self.title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        """Set the question title."""
+        cleaned_value = value.strip()
+        if not cleaned_value:
+            raise ValueError("Question title cannot be empty.")
+        self._title = cleaned_value
 
     @property
     def content(self) -> str:

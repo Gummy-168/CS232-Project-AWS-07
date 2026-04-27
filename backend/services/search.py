@@ -34,7 +34,7 @@ class FeedAndSearchManager:
         keyword: str,
         course_code: str | None = None,
     ) -> list[Question]:
-        """Search questions by keyword."""
+        """Search questions by keyword (content, reply, or student name)."""
         normalized_keyword = keyword.strip().lower()
         questions = (
             self.list_course_questions(course_code)
@@ -47,11 +47,22 @@ class FeedAndSearchManager:
         return [
             question
             for question in questions
+            # ค้นหาจากหัวข้อคำถาม
+            if normalized_keyword in question.title.lower()
+            # ค้นหาจากเนื้อหาคำถาม
             if normalized_keyword in question.content.lower()
+            # ค้นหาจากเนื้อหาการตอบกลับของอาจารย์
             or (
                 question.reply_content is not None
                 and normalized_keyword in question.reply_content.lower()
             )
+            # ค้นหาจากชื่อเล่นนักศึกษา
+            or (
+                question.student is not None
+                and normalized_keyword in question.student.nickname.lower()
+            )
+            # ค้นหาจากรหัสนักศึกษา
+            or normalized_keyword in question.student_id.lower()
         ]
 
     def filter_questions(
