@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS questions (
     question_id VARCHAR(50) PRIMARY KEY,
     board_id VARCHAR(50) NOT NULL,
     student_id VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     reply_content TEXT NULL,
     status ENUM('pending', 'answered', 'deleted') DEFAULT 'pending',
