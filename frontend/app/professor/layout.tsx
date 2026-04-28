@@ -1,17 +1,14 @@
 import ProfessorSidebar from "../components/profSidebar";
 
-export default function ProfessorLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function MainLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex">
-      {/* ใส่ Professor Sidebar ไว้ที่นี่! มันจะแสดงเฉพาะหน้าที่อยู่ใต้ (professor) โฟลเดอร์ */}
       <ProfessorSidebar />
-      <main className="flex-1 bg-slate-50 min-h-screen">
-        {children}
-      </main>
+      <div className="flex-1 ml-64 flex flex-col min-h-screen">
+        <main className="flex-1 overflow-y-auto pt-16">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
