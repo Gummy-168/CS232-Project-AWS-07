@@ -148,7 +148,7 @@ export default function ProfessorDashboard() {
 
       {/* Course Card */}
       
-      <section className="bg-white rounded-3xl p-13 shadow-sm border border-slate-50 text-center mb-10 mt-17 max-w-6xl mx-auto">
+      <section className="bg-white rounded-3xl p-13 shadow-sm border border-slate-50 text-center mb-10 mt-13 max-w-6xl mx-auto">
         <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">{data?.course?.title}</h2>
         <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
           Create Board
@@ -209,6 +209,7 @@ export default function ProfessorDashboard() {
 
 function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete, onDeleteReply }: any) {
   const [replyText, setReplyText] = useState("");
+  const [showReplyBox, setShowReplyBox] = useState(false);
   const isBoard = data.type === 'board';
   const isAnswered = data.status === 'ANSWERED';
 
@@ -216,9 +217,9 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
 
       <div className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
-        isAnswered ? 'bg-emerald-50 text-emerald-500 '
-        : isBoard ? 'bg-red-50 text-red-400 '
-        : 'bg-orange-50 text-orange-400 '
+        isAnswered ? 'bg-emerald-50 text-emerald-500'
+        : isBoard ? 'bg-red-50 text-red-400'
+        : 'bg-orange-50 text-orange-400'
       }`}>
         {isAnswered ? (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -259,11 +260,12 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
             <>
               <p className="text-slate-700 mb-4">{data.content}</p>
 
+              {/* Professor Replies */}
               <div className="space-y-3 mb-4">
                 {data.professorReplies?.map((reply: string, index: number) => (
                   <div key={index} className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
                         Professor Reply
                       </span>
                       <button
@@ -278,9 +280,29 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                 ))}
               </div>
 
-              <div className="flex items-center gap-4 text-xs font-bold">
-                <button className="text-slate-400 flex items-center gap-1">💬 {data.replies || 0}</button>
+              {/* Bottom row */}
+              <div className="flex items-center gap-4 text-[13px] font-regular">
+                
+                {/* ✅ Reply count ซ้าย — กดไม่ได้ */}
+                <span className="text-slate-400 flex items-center gap-1">
+                  ↩ {data.replies || 0}
+                </span>
+
+                {/* ✅ ปุ่มขวา */}
                 <div className="ml-auto flex gap-2">
+                  
+                  {/* Reply toggle */}
+                  <button
+                    onClick={() => setShowReplyBox(!showReplyBox)}
+                    className={`px-3 py-1 rounded-md border transition-colors ${
+                      showReplyBox
+                        ? 'text-[#5B41FF] border-[#5B41FF] bg-purple-50'
+                        : 'text-slate-400 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    Reply
+                  </button>
+
                   {isAnswered ? (
                     <button onClick={onUnmarked} className="text-orange-500 border border-orange-100 px-3 py-1 rounded-md bg-orange-50 hover:bg-orange-100 transition-colors">
                       Unmarked
@@ -290,33 +312,48 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                       Mark Answered
                     </button>
                   )}
+
                   <button onClick={onDelete} className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md hover:bg-rose-50 transition-colors">
                     Delete
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
-                <textarea
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  placeholder="Add a new reply as Instructor..."
-                  className="w-full bg-transparent border-none resize-none text-sm focus:outline-none h-16 text-slate-600"
-                />
-                <div className="flex justify-end mt-2">
-                  <button
-                    onClick={() => {
-                      if (replyText.trim()) {
-                        onPostReply(replyText);
+              {/* ✅ Reply box — แสดงเมื่อกด Reply */}
+              {showReplyBox && (
+                <div className="mt-4 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="Add a new reply as Instructor..."
+                    className="w-full bg-transparent border-none resize-none text-sm focus:outline-none h-16 text-slate-600"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        setShowReplyBox(false);
                         setReplyText("");
-                      }
-                    }}
-                    className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-xs font-bold hover:shadow-md transition-all active:scale-95"
-                  >
-                    Post Reply
-                  </button>
+                      }}
+                      className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] font-regular hover:bg-slate-50 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (replyText.trim()) {
+                          onPostReply(replyText);
+                          setReplyText("");
+                          setShowReplyBox(false);
+                        }
+                      }}
+                      className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-[13px] font-regular hover:shadow-md transition-all active:scale-95"
+                    >
+                      Post Reply
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
         </div>
