@@ -51,7 +51,7 @@ export default function ProfessorSidebar() {
                 onClick={() => setIsCourseOpen(!isCourseOpen)}
                 className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all ${pathname.includes("/professor/courses") ? activeStyle : inactiveStyle}`}
               >
-                <div className="flex items-center gap-3.5">
+                <div className="flex items-center gap-3.5 ">
                   <GraduationCap size={20} />
                   <span className="text-base">Courses</span>
                 </div>
