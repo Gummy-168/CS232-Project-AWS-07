@@ -393,7 +393,7 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                 {data.professorReplies?.map((reply: string, index: number) => (
                   <div key={index} className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded uppercase tracking-wider">
+                      <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
                         Professor Reply
                       </span>
                       <button onClick={() => onDeleteReply(data.id, index)} className="text-rose-400 hover:text-rose-600 transition-colors text-xs font-bold px-1">✕</button>

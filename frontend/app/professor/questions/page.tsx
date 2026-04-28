@@ -356,12 +356,11 @@ function ActivityCard({
 
               {/* Bottom row */}
               <div className="flex items-center gap-4 text-[13px] font-regular">
-                {/* ✅ Reply count ซ้าย — กดไม่ได้ */}
+                {/* Reply count ซ้าย — กดไม่ได้ */}
                 <span className="text-slate-400 flex items-center gap-1">
                   ↩ {data.replies || 0}
                 </span>
-
-                {/* ✅ ปุ่มขวา */}
+                {/* ปุ่มขวา */}
                 <div className="ml-auto flex gap-2">
                   {/* Reply toggle */}
                   <button
@@ -400,7 +399,7 @@ function ActivityCard({
                 </div>
               </div>
 
-              {/* ✅ Reply box — แสดงเมื่อกด Reply */}
+              {/* Reply box — แสดงเมื่อกด Reply */}
               {showReplyBox && (
                 <div className="mt-4 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
                   <textarea

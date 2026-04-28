@@ -70,6 +70,7 @@ const INITIAL_ACTIVITIES = [
 export default function StudentClass() {
   const [data, setData] = useState(null);
   const [activities] = useState(INITIAL_ACTIVITIES);
+  const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
@@ -78,15 +79,26 @@ export default function StudentClass() {
   }, []);
 
   const filteredActivities = useMemo(() => {
-    if (filter === "All") return activities;
     return activities.filter((item) => {
+      // 1. ตรวจสอบ Filter ตามสถานะ (All, Answered, Unanswered, Board)
       const status = item.status?.toUpperCase().trim();
-      if (filter === "Board") return status === "BOARD";
-      if (filter === "Answered") return status === "ANSWERED";
-      if (filter === "Unanswered") return status === "UNANSWERED";
-      return true;
+      const matchesFilter =
+        filter === "All" ||
+        (filter === "Board" && status === "BOARD") ||
+        (filter === "Answered" && status === "ANSWERED") ||
+        (filter === "Unanswered" && status === "UNANSWERED");
+
+      // 2. ตรวจสอบ Search Query (ค้นหาจากชื่อผู้ใช้ หรือ เนื้อหา)
+      const searchLower = activitySearch.toLowerCase().trim();
+      const matchesSearch =
+        item.user.toLowerCase().includes(searchLower) ||
+        item.content.toLowerCase().includes(searchLower) ||
+        (item.subContent &&
+          item.subContent.toLowerCase().includes(searchLower));
+
+      return matchesFilter && matchesSearch;
     });
-  }, [activities, filter]);
+  }, [activities, filter, activitySearch]);
 
   if (!data) {
     return (
@@ -183,19 +195,21 @@ export default function StudentClass() {
             </div>
 
             <div className="relative flex-1 max-w-xs ml-auto">
+              <Search
+                className="absolute left-3 top-2.5 text-slate-400"
+                size={15}
+              />
               <input
                 type="text"
+                value={activitySearch}
+                onChange={(e) => setActivitySearch(e.target.value)}
                 placeholder="Search my questions..."
-                className="w-full bg-white border border-slate-200 py-2 px-4 pr-10 rounded-full text-sm focus:outline-none"
-              />
-              <Search
-                className="absolute right-3 top-2 text-slate-400"
-                size={18}
+                className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
               />
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 min-h-[60vh] transition-all duration-200">
             {filteredActivities.map((item) => (
               <StudentActivityCard key={item.id} data={item} />
             ))}
@@ -280,18 +294,22 @@ function StudentActivityCard({ data }: any) {
               <p className="text-slate-700 mb-3">{data.content}</p>
 
               {data.professorReply && (
-                <div className="border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4] mb-2">
-                  <span className="text-[1xl] font-regular text-emerald-600">
-                    Professor Reply
-                  </span>
+                <div className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
+                      Professor Reply
+                    </span>
+                  </div>
                   <p className="text-sm text-slate-700">
                     {data.professorReply}
                   </p>
                 </div>
               )}
 
-              <div className="text-xs text-slate-400 font-bold flex items-center gap-1">
-                💬 {data.replies || 0} Replies
+              <div className="flex items-center gap-4 text-[13px]">
+                <span className="text-slate-400 flex items-center gap-1">
+                  ↩ {data.replies || 0}
+                </span>
               </div>
             </div>
           )}
