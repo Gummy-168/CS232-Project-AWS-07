@@ -1,8 +1,8 @@
 "use client";
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import CreateCourse from "../../components/createcourse";
-import { Search } from 'lucide-react';
-import Header from '@/app/components/Header';
+import { Search } from "lucide-react";
+import Header from "@/app/components/Header";
 
 /* ---------------- MOCK API ---------------- */
 
@@ -13,7 +13,7 @@ const fetchProfessorData = async () => {
         professor: { name: "อาจารย์สะปุกนิก", id: "PRF000001" },
         course: {
           title: "CS232: Intro to Cloud Computing",
-        }
+        },
       });
     }, 600);
   });
@@ -31,7 +31,7 @@ const INITIAL_ACTIVITIES = [
     type: "question",
     replies: 0,
     professorReplies: [],
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong"
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
   },
   {
     id: 2,
@@ -42,7 +42,7 @@ const INITIAL_ACTIVITIES = [
     type: "question",
     replies: 0,
     professorReplies: [],
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tung"
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tung",
   },
   {
     id: 3,
@@ -54,19 +54,20 @@ const INITIAL_ACTIVITIES = [
     type: "board",
     replies: 0,
     professorReplies: [],
-    avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot"
+    avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot",
   },
   {
     id: 4,
     user: "มะพร้าว ส้มโอ",
     time: "2h ago",
-    content: "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้ มีใครสามารถทำได้บ้างไหมครับ",
+    content:
+      "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้ มีใครสามารถทำได้บ้างไหมครับ",
     status: "ANSWERED",
     type: "question",
     replies: 1,
     professorReplies: ["ติดปัญหาส่วนไหนคะ ลองดู...ใหม่ค่ะ"],
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Coconut"
-  }
+    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Coconut",
+  },
 ];
 
 /* ---------------- MAIN COMPONENT ---------------- */
@@ -74,6 +75,7 @@ const INITIAL_ACTIVITIES = [
 export default function ProfessorDashboard() {
   const [data, setData] = useState(null);
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
+  const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -82,74 +84,109 @@ export default function ProfessorDashboard() {
   }, []);
 
   const handleMarkAnswered = (id: number) => {
-    setActivities(prev => prev.map(item =>
-      item.id === id ? { ...item, status: "ANSWERED" } : item
-    ));
+    setActivities((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "ANSWERED" } : item,
+      ),
+    );
   };
 
   const handleUnmarked = (id: number) => {
-    setActivities(prev => prev.map(item =>
-      item.id === id ? { ...item, status: "UNANSWERED" } : item
-    ));
+    setActivities((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, status: "UNANSWERED" } : item,
+      ),
+    );
   };
 
   const handlePostReply = (id: number, text: string) => {
-    setActivities(prev => prev.map(item => {
-      if (item.id === id) {
-        return {
-          ...item,
-          status: "ANSWERED",
-          professorReplies: [...(item.professorReplies || []), text],
-          replies: (item.replies || 0) + 1
-        };
-      }
-      return item;
-    }));
+    setActivities((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            status: "ANSWERED",
+            professorReplies: [...(item.professorReplies || []), text],
+            replies: (item.replies || 0) + 1,
+          };
+        }
+        return item;
+      }),
+    );
   };
 
   const handleDeleteReply = (activityId: number, replyIndex: number) => {
-    setActivities(prev => prev.map(item => {
-      if (item.id === activityId) {
-        const filteredReplies = item.professorReplies.filter((_: any, i: number) => i !== replyIndex);
-        return {
-          ...item,
-          professorReplies: filteredReplies,
-          replies: Math.max(0, (item.replies || 0) - 1),
-          status: filteredReplies.length > 0 ? "ANSWERED" : "UNANSWERED"
-        };
-      }
-      return item;
-    }));
+    setActivities((prev) =>
+      prev.map((item) => {
+        if (item.id === activityId) {
+          const filteredReplies = item.professorReplies.filter(
+            (_: any, i: number) => i !== replyIndex,
+          );
+          return {
+            ...item,
+            professorReplies: filteredReplies,
+            replies: Math.max(0, (item.replies || 0) - 1),
+            status: filteredReplies.length > 0 ? "ANSWERED" : "UNANSWERED",
+          };
+        }
+        return item;
+      }),
+    );
   };
 
   const handleDelete = (id: number) => {
-    setActivities(prev => prev.filter(item => item.id !== id));
+    setActivities((prev) => prev.filter((item) => item.id !== id));
   };
 
   const filteredActivities = useMemo(() => {
-    if (filter === "All") return activities;
-    return activities.filter(item => item.status === filter.toUpperCase());
-  }, [activities, filter]);
+    let result = activities;
+
+    // filter tab
+    if (filter !== "All") {
+      result = result.filter((item) => item.status === filter.toUpperCase());
+    }
+
+    // search
+    if (activitySearch.trim()) {
+      const q = activitySearch.toLowerCase();
+
+      result = result.filter(
+        (item) =>
+          item.content.toLowerCase().includes(q) ||
+          item.user.toLowerCase().includes(q),
+      );
+    }
+
+    return result;
+  }, [activities, filter, activitySearch]);
 
   if (!data) {
-    return <div className="h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="h-screen flex items-center justify-center">
+        Loading...
+      </div>
+    );
   }
 
   return (
     <div className="flex-1 p-8 bg-[#FCF9F8] min-h-screen font-sans text-slate-700">
-
       <Header
         professorName={data?.professor?.name}
         onJoinCourse={() => setIsModalOpen(true)}
         mode="questions"
       />
 
-      <CreateCourse isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreateCourse
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
 
       {/* Course Card */}
-      
+
       <section className="bg-white rounded-3xl p-13 shadow-sm border border-slate-50 text-center mb-10 mt-13 max-w-6xl mx-auto">
-        <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">{data?.course?.title}</h2>
+        <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">
+          {data?.course?.title}
+        </h2>
         <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
           Create Board
         </button>
@@ -157,7 +194,9 @@ export default function ProfessorDashboard() {
 
       {/* Activity Timeline */}
       <section className="max-w-5xl mx-auto mt-10">
-        <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">ActivityTimeline</h3>
+        <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
+          ActivityTimeline
+        </h3>
 
         <div className="flex flex-wrap items-center gap-3 mb-8">
           <div className="flex items-center gap-2">
@@ -167,8 +206,8 @@ export default function ProfessorDashboard() {
                 onClick={() => setFilter(btnLabel)}
                 className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
                   filter === btnLabel
-                    ? 'bg-[#5B41FF] text-white border-[#5B41FF]'
-                    : 'text-slate-400 border-slate-200 hover:border-slate-300 bg-white'
+                    ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                    : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
                 }`}
               >
                 {btnLabel}
@@ -177,16 +216,21 @@ export default function ProfessorDashboard() {
           </div>
 
           <div className="relative flex-1 max-w-xs ml-auto">
+            <Search
+              className="absolute left-3 top-2.5 text-slate-400"
+              size={15}
+            />
             <input
               type="text"
+              value={activitySearch}
+              onChange={(e) => setActivitySearch(e.target.value)}
               placeholder="Search my questions..."
-              className="w-full bg-white border border-slate-200 py-2 px-4 pr-10 rounded-full text-sm focus:outline-none"
+              className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
             />
-            <Search className="absolute right-3 top-2 text-slate-400" size={18} />
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-6 min-h-[60vh]">
           {filteredActivities.map((item) => (
             <ActivityCard
               key={item.id}
@@ -200,46 +244,69 @@ export default function ProfessorDashboard() {
           ))}
         </div>
       </section>
-
     </div>
   );
 }
 
 /* ---------------- SUB COMPONENT ---------------- */
 
-function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete, onDeleteReply }: any) {
+function ActivityCard({
+  data,
+  onMarkAnswered,
+  onUnmarked,
+  onPostReply,
+  onDelete,
+  onDeleteReply,
+}: any) {
   const [replyText, setReplyText] = useState("");
   const [showReplyBox, setShowReplyBox] = useState(false);
-  const isBoard = data.type === 'board';
-  const isAnswered = data.status === 'ANSWERED';
+  const isBoard = data.type === "board";
+  const isAnswered = data.status === "ANSWERED";
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
-
-      <div className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
-        isAnswered ? 'bg-emerald-50 text-emerald-500'
-        : isBoard ? 'bg-red-50 text-red-400'
-        : 'bg-orange-50 text-orange-400'
-      }`}>
+      <div
+        className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
+          isAnswered
+            ? "bg-emerald-50 text-emerald-500"
+            : isBoard
+              ? "bg-red-50 text-red-400"
+              : "bg-orange-50 text-orange-400"
+        }`}
+      >
         {isAnswered ? (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <circle cx="5" cy="5" r="5" fill="#34d399"/>
-            <path d="M2.5 5l1.8 1.8L7.5 3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
+            <circle cx="5" cy="5" r="5" fill="#34d399" />
+            <path
+              d="M2.5 5l1.8 1.8L7.5 3.5"
+              stroke="white"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
           </svg>
         ) : isBoard ? (
           <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
         ) : (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <circle cx="5" cy="5" r="5" fill="#fb923c"/>
-            <path d="M5 3v2.5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/>
-            <circle cx="5" cy="7" r="0.6" fill="white"/>
+            <circle cx="5" cy="5" r="5" fill="#fb923c" />
+            <path
+              d="M5 3v2.5"
+              stroke="white"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+            />
+            <circle cx="5" cy="7" r="0.6" fill="white" />
           </svg>
         )}
         {data.status}
       </div>
 
       <div className="flex gap-4">
-        <img src={data.avatar} alt="avatar" className="w-12 h-12 rounded-full bg-slate-100" />
+        <img
+          src={data.avatar}
+          alt="avatar"
+          className="w-12 h-12 rounded-full bg-slate-100"
+        />
         <div className="flex-1">
           <div className="flex items-baseline gap-2 mb-1">
             <span className="font-bold text-slate-800">{data.user}</span>
@@ -248,7 +315,9 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
 
           {isBoard ? (
             <div className="bg-[#F0EEFF] rounded-2xl p-4 mt-2">
-              <p className="text-[#513FDF] font-bold text-lg mb-1">{data.content}</p>
+              <p className="text-[#513FDF] font-bold text-lg mb-1">
+                {data.content}
+              </p>
               {data.subContent && (
                 <p className="text-sm text-slate-500 mb-4">{data.subContent}</p>
               )}
@@ -263,7 +332,10 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
               {/* Professor Replies */}
               <div className="space-y-3 mb-4">
                 {data.professorReplies?.map((reply: string, index: number) => (
-                  <div key={index} className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
+                  <div
+                    key={index}
+                    className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]"
+                  >
                     <div className="flex items-center justify-between mb-2">
                       <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
                         Professor Reply
@@ -275,14 +347,15 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                         ✕
                       </button>
                     </div>
-                    <p className="text-sm text-slate-700 font-medium">{reply}</p>
+                    <p className="text-sm text-slate-700 font-medium">
+                      {reply}
+                    </p>
                   </div>
                 ))}
               </div>
 
               {/* Bottom row */}
               <div className="flex items-center gap-4 text-[13px] font-regular">
-                
                 {/* ✅ Reply count ซ้าย — กดไม่ได้ */}
                 <span className="text-slate-400 flex items-center gap-1">
                   ↩ {data.replies || 0}
@@ -290,30 +363,38 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
 
                 {/* ✅ ปุ่มขวา */}
                 <div className="ml-auto flex gap-2">
-                  
                   {/* Reply toggle */}
                   <button
                     onClick={() => setShowReplyBox(!showReplyBox)}
                     className={`px-3 py-1 rounded-md border transition-colors ${
                       showReplyBox
-                        ? 'text-[#5B41FF] border-[#5B41FF] bg-purple-50'
-                        : 'text-slate-400 border-slate-200 hover:border-slate-300'
+                        ? "text-[#5B41FF] border-[#5B41FF] bg-purple-50"
+                        : "text-slate-400 border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     Reply
                   </button>
 
                   {isAnswered ? (
-                    <button onClick={onUnmarked} className="text-orange-500 border border-orange-100 px-3 py-1 rounded-md bg-orange-50 hover:bg-orange-100 transition-colors">
+                    <button
+                      onClick={onUnmarked}
+                      className="text-orange-500 border border-orange-100 px-3 py-1 rounded-md bg-orange-50 hover:bg-orange-100 transition-colors"
+                    >
                       Unmarked
                     </button>
                   ) : (
-                    <button onClick={onMarkAnswered} className="text-emerald-500 border border-emerald-100 px-3 py-1 rounded-md hover:bg-emerald-50 transition-colors">
+                    <button
+                      onClick={onMarkAnswered}
+                      className="text-emerald-500 border border-emerald-100 px-3 py-1 rounded-md hover:bg-emerald-50 transition-colors"
+                    >
                       Mark Answered
                     </button>
                   )}
 
-                  <button onClick={onDelete} className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md hover:bg-rose-50 transition-colors">
+                  <button
+                    onClick={onDelete}
+                    className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md hover:bg-rose-50 transition-colors"
+                  >
                     Delete
                   </button>
                 </div>
