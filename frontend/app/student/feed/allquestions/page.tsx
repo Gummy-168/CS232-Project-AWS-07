@@ -2,8 +2,8 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Contact, Clock } from "lucide-react";
-import JoinCourse from "../../components/joincourse";
-import Header from "../../components/Header";
+import JoinCourse from "../../../components/joincourse";
+import Header from "../../../components/Header";
 
 const fetchDashboardData = async () => {
   return new Promise((resolve) => {
@@ -27,6 +27,7 @@ const INITIAL_ACTIVITIES = [
     user: "สมปอง กุ๊กกิ๊ก",
     time: "1 sec ago",
     content: "ไก่กับไข่อะไรเกิดก่อนกัน",
+    subject: "CS242",
     status: "UNANSWERED",
     type: "question",
     replies: 0,
@@ -37,6 +38,7 @@ const INITIAL_ACTIVITIES = [
     user: "ทุงทุงทุง",
     time: "2m ago",
     content: "อยากทราบว่า EC2 ทำงานยังไงหรอครับ",
+    subject: "CS232",
     status: "UNANSWERED",
     type: "question",
     replies: 3,
@@ -47,6 +49,7 @@ const INITIAL_ACTIVITIES = [
     user: "CS232 Course Bot",
     time: "1d ago",
     content: "Lab 5 : RDS",
+    subject: "CS232",
     subContent: "สามารถดูคำถามย้อนหลังได้ที่นี่ ทั้งหมด 5 คำถาม",
     status: "BOARD",
     type: "board",
@@ -57,6 +60,7 @@ const INITIAL_ACTIVITIES = [
     user: "มะพร้าว ส้มโอ",
     time: "2h ago",
     content: "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้",
+    subject: "CS232",
     status: "ANSWERED",
     type: "question",
     professorReply: "ลองตรวจ step 4 อีกครั้งค่ะ",
@@ -65,6 +69,8 @@ const INITIAL_ACTIVITIES = [
   },
 ];
 
+
+
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function StudentClass() {
@@ -72,9 +78,15 @@ export default function StudentClass() {
   const [activities] = useState(INITIAL_ACTIVITIES);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
+  const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
-  useEffect(() => {
+  const subjects = useMemo(() => {
+      const allSubjectsFromData = INITIAL_ACTIVITIES.map(item => item.subject);
+      return ["All Subjects", ...new Set(allSubjectsFromData)];
+    }, []);
+  
+    useEffect(() => {
     fetchDashboardData().then(setData);
   }, []);
 
@@ -87,6 +99,7 @@ export default function StudentClass() {
         (filter === "Board" && status === "BOARD") ||
         (filter === "Answered" && status === "ANSWERED") ||
         (filter === "Unanswered" && status === "UNANSWERED");
+      const matchesSubject = selectedSubject === "All Subjects" || item.subject === selectedSubject;
 
       // 2. ตรวจสอบ Search Query (ค้นหาจากชื่อผู้ใช้ หรือ เนื้อหา)
       const searchLower = activitySearch.toLowerCase().trim();
@@ -96,9 +109,9 @@ export default function StudentClass() {
         (item.subContent &&
           item.subContent.toLowerCase().includes(searchLower));
 
-      return matchesFilter && matchesSearch;
+      return matchesFilter && matchesSearch && matchesSubject;
     });
-  }, [activities, filter, activitySearch]);
+  }, [activities, filter, activitySearch, selectedSubject]);
 
   if (!data) {
     return (
@@ -114,8 +127,7 @@ export default function StudentClass() {
         studentName={data?.student?.name}
         studentId={data?.student?.id}
         onJoinCourse={() => setIsJoinModalOpen(true)}
-        courseTitle={data?.session?.title}
-        mode="feed"
+        mode="dashboard"
       />
 
       <JoinCourse
@@ -124,52 +136,7 @@ export default function StudentClass() {
       />
 
       <main className="p-8 pt-[100px] space-y-6 left-30 h-full">
-        {/* SESSION CARD */}
-        <section className="bg-white rounded-[30px] p-5 shadow-lg border border-slate-50 overflow-hidden relative text-left max-w-6xl mx-auto">
-          <div className="flex items-center gap-2 mb-4 text-[#D1388D] text-xs font-semibold tracking-wider uppercase">
-            <span className="text-[10px]">(( ))</span>
-            CURRENTLY IN SESSION
-          </div>
-
-          <h2 className="text-2xl mb-5">
-            <span className="text-[#1B1B1B]">Board - </span>
-            <span className="text-[#513FDF]">
-              Join and ask your questions now!
-            </span>
-          </h2>
-
-          <div className="grid grid-cols-2 gap-6 mb-7">
-            <div className="flex items-center gap-4 bg-[#F9F9F9] p-6 rounded-full">
-              <Clock size={24} className="text-[#513FDF]" />
-              <div>
-                <p className="text-xs text-slate-400 font-medium">
-                  Time Remaining
-                </p>
-                <p className="text-xl text-slate-800">{data.session.time}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-4 bg-[#F9F9F9] p-6 rounded-full">
-              <Contact size={24} className="text-[#513FDF]" />
-              <div>
-                <p className="text-xs text-slate-400 font-medium">Instructor</p>
-                <p className="text-xl text-slate-800">
-                  {data.session.instructor}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-6">
-            <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
-              Join Board
-            </button>
-            <p className="text-sm text-slate-500 font-medium">
-              <span className="text-slate-700">12</span> students are currently
-              asking questions.
-            </p>
-          </div>
-        </section>
+        
 
         {/* ACTIVITY TIMELINE */}
         <section className="max-w-5xl mx-auto mt-10">
@@ -208,7 +175,23 @@ export default function StudentClass() {
               />
             </div>
           </div>
-
+          
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+                <span className="text-sm text-slate-500 mr-2">Subject:</span>
+                {subjects.map((subject) => (
+                  <button
+                    key={subject}
+                    onClick={() => setSelectedSubject(subject)}
+                    className={`px-4 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all ${
+                      selectedSubject === subject
+                        ? "bg-slate-800 text-white"
+                        : "text-slate-500 bg-slate-100 hover:bg-slate-200"
+                    }`}
+                  >
+                    {subject}
+                  </button>
+                ))}
+              </div>
           <div className="space-y-6 min-h-[60vh] transition-all duration-200">
             {filteredActivities.map((item) => (
               <StudentActivityCard key={item.id} data={item} />
@@ -228,6 +211,7 @@ function StudentActivityCard({ data }: any) {
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
+      
       <div
         className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-regular ${
           isAnswered
@@ -266,12 +250,17 @@ function StudentActivityCard({ data }: any) {
 
       <div className="flex gap-4">
         <img src={data.avatar} className="w-12 h-12 rounded-full" />
-
+        
         <div className="flex-1">
           <div className="flex items-baseline gap-2 mb-1">
             <span className="font-bold">{data.user}</span>
             <span className="text-xs text-slate-400">{data.time}</span>
           </div>
+          <div className="mb-2">
+        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-tighter">
+          {data.subject || "No Subject"}
+        </span>
+      </div>
 
           {isBoard ? (
             <div className="mt-1">

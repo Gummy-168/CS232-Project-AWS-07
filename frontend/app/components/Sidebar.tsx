@@ -115,20 +115,20 @@ export default function Sidebar() {
             {isFeedOpen && (
               <div className="ml-4 mt-2 space-y-1">
                 <Link
-                  href="/student/feed"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === "/feed/all" ? "text-[#7B61FF] bg-purple-50" : "text-slate-400 hover:text-[#7B61FF]"}`}
+                  href="/student/feed/allquestions"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === "/student/feed/allquestions" ? "text-[#7B61FF] bg-purple-50" : "text-slate-400 hover:text-[#7B61FF]"}`}
                 >
                   <div
-                    className={`w-1.5 h-1.5 rounded-full ${pathname === "/feed/all" ? "bg-[#7B61FF]" : "bg-slate-300"}`}
+                    className={`w-1.5 h-1.5 rounded-full ${pathname === "/student/feed/allquestions" ? "bg-[#7B61FF]" : "bg-slate-300"}`}
                   ></div>
                   All Questions
                 </Link>
                 <Link
-                  href="/student/feed"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === "/feed/all" ? "text-[#7B61FF] bg-purple-50" : "text-slate-400 hover:text-[#7B61FF]"}`}
+                  href="/student/feed/myquestions"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === "/student/feed/myquestions" ? "text-[#7B61FF] bg-purple-50" : "text-slate-400 hover:text-[#7B61FF]"}`}
                 >
                   <div
-                    className={`w-1.5 h-1.5 rounded-full ${pathname === "/feed/all" ? "bg-[#7B61FF]" : "bg-slate-300"}`}
+                    className={`w-1.5 h-1.5 rounded-full ${pathname === "/student/feed/myquestions" ? "bg-[#7B61FF]" : "bg-slate-300"}`}
                   ></div>
                   My Questions
                 </Link>
