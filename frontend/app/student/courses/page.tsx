@@ -115,7 +115,7 @@ export default function StudentClass() {
         studentId={data?.student?.id}
         onJoinCourse={() => setIsJoinModalOpen(true)}
         courseTitle={data?.session?.title}
-        mode="feed"
+        mode="course"
       />
 
       <JoinCourse

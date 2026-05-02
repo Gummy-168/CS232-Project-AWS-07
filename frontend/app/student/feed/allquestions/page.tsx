@@ -73,7 +73,7 @@ const INITIAL_ACTIVITIES = [
 
 /* ---------------- MAIN COMPONENT ---------------- */
 
-export default function StudentClass() {
+export default function Allquestions() {
   const [data, setData] = useState(null);
   const [activities] = useState(INITIAL_ACTIVITIES);
   const [activitySearch, setActivitySearch] = useState("");

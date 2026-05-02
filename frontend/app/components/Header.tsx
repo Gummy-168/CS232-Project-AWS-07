@@ -35,9 +35,9 @@ export default function Header({
   const resolvedLabel = buttonLabel ?? (mode === "questions" ? "+ Create Course" : "+ Join Course");
 
   return (
-    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
+    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-4 bg-[#F9F9F9]">
       {/* Left */}
-      <div className="space-y-1">
+      <div className="space-y-1 ">
         {mode === "dashboard" ? (
           <>
             <h1 className="text-3xl font-regular text-[#1B1B1B]">
