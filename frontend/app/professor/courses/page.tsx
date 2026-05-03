@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useMemo, useEffect } from "react";
+import { useRouter } from 'next/navigation';
 import CreateCourse from "../../components/createcourse";
 import Header from "@/app/components/Header";
 import {
@@ -10,8 +11,10 @@ import {
   Search,
   SlidersHorizontal,
 } from "lucide-react";
+import Link from 'next/link';
 
-/* ---------------- MOCK API ---------------- */
+
+/*  MOCK API - */
 
 const fetchProfessorData = async () => {
   return new Promise((resolve) => {
@@ -24,7 +27,7 @@ const fetchProfessorData = async () => {
   });
 };
 
-/* ---------------- MOCK DATA ---------------- */
+/* MOCK DATA */
 
 const stats = [
   { value: 12, label: "New Questions", bg: "bg-[#EEF0FF]", text: "text-[#5B41FF]" },
@@ -46,10 +49,10 @@ const miniStats = [
 ];
 
 const students = [
-  { name: "สมปอง อยากรวย", questions: 5, online: true, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong2" },
-  { name: "พาที ณ พารัก", questions: 4, online: true, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Patee" },
-  { name: "ญาญ่า อยากนอน", questions: 2, online: true, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Yaya" },
-  { name: "สมหญิง อุอุอะ", questions: 0, online: false, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Somying" },
+  { id: 1, name: "สมปอง อยากรวย", questions: 5, online: true, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong2" },
+  { id: 2, name: "พาที ณ พารัก", questions: 4, online: true, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Patee" },
+  { id: 3, name: "ญาญ่า อยากนอน", questions: 2, online: true, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Yaya" },
+  { id: 4, name: "สมหญิง อุอุอะ", questions: 0, online: false, avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Somying" },
 ];
 
 const INITIAL_ACTIVITIES = [
@@ -62,6 +65,7 @@ const INITIAL_ACTIVITIES = [
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function ProfessorDashboard() {
+  const router = useRouter();
   const [data, setData] = useState(null);
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [filter, setFilter] = useState("All");
@@ -163,12 +167,14 @@ export default function ProfessorDashboard() {
             </div>
 
             <div className="flex gap-3">
-              <button className="flex items-center justify-center gap-3 flex-1 bg-[#6B57FF] text-white rounded-2xl py-4 text-sm font-medium shadow-lg shadow-[#6B57FF]/30 hover:bg-[#5846ee] hover:shadow-[#6B57FF]/50 hover:scale-[1.02] active:scale-95 transition-all duration-200">
-                <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
-                  <path d="M19 3L3 19M3 19H11M3 19V11M19 3H12M19 3V10" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Board is opening
-              </button>
+              <Link href="/professor/courses/board" className="flex-1">
+                <button className="w-full flex items-center justify-center gap-3 bg-[#6B57FF] text-white rounded-2xl py-4 text-sm font-medium shadow-lg shadow-[#6B57FF]/30 hover:bg-[#5846ee] hover:shadow-[#6B57FF]/50 hover:scale-[1.02] active:scale-95 transition-all duration-200">
+                  <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
+                    <path d="M19 3L3 19M3 19H11M3 19V11M19 3H12M19 3V10" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Board is opening
+                </button>
+              </Link>
               <button className="bg-slate-100 text-slate-500 rounded-2xl px-7 py-4 text-sm font-medium hover:bg-rose-50 hover:text-rose-400 active:scale-95 transition-all duration-200">
                 Close Board
               </button>
@@ -217,45 +223,13 @@ export default function ProfessorDashboard() {
               />
             </div>
 
-            <div className="relative">
-              <button
-                onClick={() => setShowFilterMenu(!showFilterMenu)}
-                className={`rounded-full px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors duration-200 ${studentFilter !== "all" ? "bg-[#EEF0FF] text-[#5B41FF]" : "text-[#1B1B1B] hover:text-[#5B41FF]"
-                  }`}
-              >
-                <SlidersHorizontal size={16} color="#5B41FF" />
-                Filter
-                {studentFilter !== "all" && <span className="w-1.5 h-1.5 rounded-full bg-[#5B41FF] ml-0.5" />}
-              </button>
-
-              {showFilterMenu && (
-                <div className="absolute right-0 top-10 bg-white border border-slate-100 rounded-2xl shadow-lg p-2 z-10 min-w-36">
-                  {[
-                    { label: "All", value: "all" },
-                    { label: "Online", value: "online" },
-                    { label: "Offline", value: "offline" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setStudentFilter(opt.value as typeof studentFilter); setShowFilterMenu(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors flex items-center gap-2 ${studentFilter === opt.value ? "bg-[#EEF0FF] text-[#5B41FF] font-medium" : "text-slate-600 hover:bg-slate-50"
-                        }`}
-                    >
-                      {opt.value === "online" && <span className="w-2 h-2 rounded-full bg-emerald-400" />}
-                      {opt.value === "offline" && <span className="w-2 h-2 rounded-full bg-slate-300" />}
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
           </div>
 
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left pl-15 pb-3 text-[#1B1B1B] font-medium">Name</th>
-                <th className="text-right pr-10 pb-3 text-[#1B1B1B] font-medium">Total Questions</th>
+                <th className="text-left pl-4 pb-3 text-[#1B1B1B] font-medium">Name</th>
+                <th className="text-right pr-4 pb-3 text-[#1B1B1B] font-medium">Total Questions</th>
               </tr>
             </thead>
             <tbody>
@@ -264,20 +238,25 @@ export default function ProfessorDashboard() {
                   <td colSpan={2} className="py-8 text-center text-slate-400 text-sm">No students found</td>
                 </tr>
               ) : (
-                filteredStudents.map(({ name, questions, online, avatar }) => (
-                  <tr key={name} className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors duration-150 cursor-pointer">
-                    <td className="py-3">
+                filteredStudents.map((student) => (
+                  <tr
+                    key={student.id}
+
+                    onClick={() => router.push(`/professor/courses/${student.id}`)}
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors duration-150 cursor-pointer group"
+                  >
+                    <td className="py-3 pl-4">
                       <div className="flex items-center gap-3">
-                        <div className="relative">
-                          <img src={avatar} className="w-9 h-9 rounded-full bg-slate-100" />
-                          <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${online ? "bg-emerald-400" : "bg-slate-300"}`} />
-                        </div>
-                        <span className="text-slate-700 font-medium">{name}</span>
+                        <img src={student.avatar} className="w-9 h-9 rounded-full bg-slate-100" alt="" />
+
+                        <span className="text-slate-700 font-medium group-hover:text-[#5B41FF] transition-colors">
+                          {student.name}
+                        </span>
                       </div>
                     </td>
-                    <td className="py-3 text-right pr-20">
-                      <span className={`font-semibold text-base ${questions > 0 ? "text-[#5B41FF]" : "text-slate-300"}`}>
-                        {questions}
+                    <td className="py-3 text-right pr-10">
+                      <span className={`font-semibold text-base ${student.questions > 0 ? "text-[#5B41FF]" : "text-slate-300"}`}>
+                        {student.questions}
                       </span>
                     </td>
                   </tr>
