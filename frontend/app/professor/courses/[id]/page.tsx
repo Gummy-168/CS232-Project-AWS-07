@@ -5,47 +5,6 @@ import { useRouter } from 'next/navigation';
 
 const StudentDetailPage = ({ params }: { params: { id: string } }) => {
     const router = useRouter();
-    const [data, setData] = useState(null);
-    const [activities, setActivities] = useState(studentData);
-    const [filter, setFilter] = useState("All");
-    const [activitySearch, setActivitySearch] = useState("");
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [studentSearch, setStudentSearch] = useState("");
-    const [studentFilter, setStudentFilter] = useState<"all" | "online" | "offline">("all");
-    const [showFilterMenu, setShowFilterMenu] = useState(false);
-
-
-    const handleMarkAnswered = (id: number) => {
-        setActivities((prev) => prev.map((item) => item.id === id ? { ...item, status: "ANSWERED" } : item));
-    };
-
-    const handleUnmarked = (id: number) => {
-        setActivities((prev) => prev.map((item) => item.id === id ? { ...item, status: "UNANSWERED" } : item));
-    };
-
-    const handlePostReply = (id: number, text: string) => {
-        setActivities((prev) => prev.map((item) => {
-            if (item.id === id) {
-                return { ...item, status: "ANSWERED", professorReplies: [...(item.professorReplies || []), text], replies: (item.replies || 0) + 1 };
-            }
-            return item;
-        }));
-    };
-
-    const handleDeleteReply = (activityId: number, replyIndex: number) => {
-        setActivities((prev) => prev.map((item) => {
-            if (item.id === activityId) {
-                const filteredReplies = item.professorReplies.filter((_: any, i: number) => i !== replyIndex);
-                return { ...item, professorReplies: filteredReplies, replies: Math.max(0, (item.replies || 0) - 1), status: filteredReplies.length > 0 ? "ANSWERED" : "UNANSWERED" };
-            }
-            return item;
-        }));
-    };
-
-    const handleDelete = (id: number) => {
-        setActivities((prev) => prev.filter((item) => item.id !== id));
-    };
-
 
     const studentData = {
         id: params.id,
@@ -58,55 +17,112 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
             answered: 12,
             participating: "88%",
             totalQuestions: 20
-        },
-        questions: [
-            {
-                id: 101,
-                courseCode: "CS232-54001",
-                time: "1 sec ago",
-                content: "ไก่กับไข่อะไรเกิดก่อนกัน",
-                replies: 3,
-                status: "UNANSWERED"
-            },
-            {
-                id: 102,
-                courseCode: "CS232-54001",
-                time: "1 sec ago",
-                content: "ทำแลปไม่ได้ค่ะ",
-                status: "ANSWERED",
-                professorReply: "ติดปัญหาส่วนไหนคะ ลองดู....ใหม่ค่ะ"
-            }
-        ]
+        }
     };
 
-    //  Mini Stats 
+  
+    const [activities, setActivities] = useState([
+        {
+            id: 101,
+            user: studentData.name,
+            avatar: studentData.avatar,
+            courseCode: "CS232-54001",
+            time: "1 sec ago",
+            content: "ไก่กับไข่อะไรเกิดก่อนกัน",
+            replies: 0,
+            status: "UNANSWERED",
+            professorReplies: [],
+            type: "question"
+        },
+
+        {
+            id: 102,
+            user: studentData.name,
+            avatar: studentData.avatar,
+            courseCode: "CS232-54001",
+            time: "2 hours ago",
+            content: "ทำแลปไม่ได้ค่ะ ตรงส่วนเชื่อมต่อ Database",
+            replies: 1,
+            status: "ANSWERED",
+            professorReplies: ["ลองเช็คไฟล์ .env อีกรอบนะคะว่าใส่พอร์ตถูกไหม"],
+            type: "question"
+        }
+    ]);
+
+    const [filter, setFilter] = useState("All");
+
+  
+    const handleMarkAnswered = (id: number) => {
+        setActivities(prev => prev.map(item => item.id === id ? { ...item, status: "ANSWERED" } : item));
+    };
+
+    const handleUnmarked = (id: number) => {
+        setActivities(prev => prev.map(item => item.id === id ? { ...item, status: "UNANSWERED" } : item));
+    };
+
+    const handlePostReply = (id: number, text: string) => {
+        setActivities(prev => prev.map(item => {
+            if (item.id === id) {
+                const newReplies = [...(item.professorReplies || []), text];
+                return { 
+                    ...item, 
+                    professorReplies: newReplies, 
+                    status: "ANSWERED",
+                    replies: (item.replies || 0) + 1 
+                };
+            }
+            return item;
+        }));
+    };
+
+    const handleDeleteReply = (activityId: number, replyIndex: number) => {
+        setActivities(prev => prev.map(item => {
+            if (item.id === activityId) {
+                const filtered = item.professorReplies.filter((_, i) => i !== replyIndex);
+                return { 
+                    ...item, 
+                    professorReplies: filtered, 
+                    status: filtered.length > 0 ? "ANSWERED" : "UNANSWERED",
+                    replies: Math.max(0, (item.replies || 0) - 1)
+                };
+            }
+            return item;
+        }));
+    };
+
+    const handleDelete = (id: number) => {
+        setActivities(prev => prev.filter(item => item.id !== id));
+    };
+
+    const filteredActivities = useMemo(() => {
+        return activities.filter((q) => {
+            if (filter === "All") return true;
+            if (filter === "Board") return q.type === "board";
+            return q.status.toUpperCase() === filter.toUpperCase();
+        });
+    }, [filter, activities]);
+
     const miniStats = [
-        { label: "PENDING", value: studentData.stats.pending, color: "#AE2466", icon: <Clock size={20} className="text-[#FD64A4] " /> },
+        { label: "PENDING", value: studentData.stats.pending, color: "#AE2466", icon: <Clock size={20} className="text-[#FD64A4]" /> },
         { label: "ANSWERED", value: studentData.stats.answered, color: "#513FDF", icon: <CheckCircle2 size={20} className="text-[#22C55E]" /> },
         { label: "PARTICIPATING", value: studentData.stats.participating, color: "#1B1C1B", icon: <TrendingUp size={20} className="text-[#513FDF]" /> },
         { label: "TOTAL QUESTIONS", value: studentData.stats.totalQuestions, color: "#1B1C1B", icon: <MessageSquare size={20} className="text-[#513FDF]" /> },
     ];
 
-    const filteredQuestions = useMemo(() => {
-        return studentData.questions.filter((q) => {
-            if (filter === "All") return true;
-            return q.status.toUpperCase() === filter.toUpperCase();
-        });
-    }, [filter, studentData.questions]);
-
     return (
-        <div className="min-h-screen bg-[#F6F3F2] p-6 md:p-10 font-sans">
+        <div className="min-h-screen bg-[#F6F3F2] p-6 md:p-10 font-sans text-slate-900">
             <div className="max-w-5xl mx-auto bg-white rounded-[40px] shadow-sm border border-slate-50 p-8 md:p-12">
-
-                {/* HEADER & BACK BUTTON */}
+                
+                {/* HEADER  */}
                 <div className="flex items-center gap-4 mb-10">
                     <button onClick={() => router.back()} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                         <ChevronLeft size={28} className="text-slate-700" />
                     </button>
                     <div className="flex items-center gap-2 bg-indigo-50 px-4 py-2 rounded-2xl text-indigo-600">
                         <User size={20} />
-                        <span className="font-bold">รายละเอียดนักเรียน</span>
+                        
                     </div>
+                    <span className="font-bold">รายละเอียดนักเรียน</span>
                 </div>
 
                 {/* PROFILE SECTION */}
@@ -117,7 +133,6 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
                         </div>
                         <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Student Profile</span>
                     </div>
-
                     <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-6">
                         <InfoBox label="Full Name" value={studentData.name} />
                         <InfoBox label="Student Number" value={studentData.studentNumber} />
@@ -125,11 +140,9 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
                             <InfoBox label="Email" value={studentData.email} />
                         </div>
                     </div>
-
-                    {/* MINI STATS GRID */}
                     <div className="grid grid-cols-2 gap-2.5">
                         {miniStats.map(({ label, value, color, icon }) => (
-                            <div key={label} className="bg-white rounded-2xl p-4 border border-slate-100 flex items-center justify-between hover:shadow-md hover:scale-[1.02] transition-all duration-200 cursor-default">
+                            <div key={label} className="bg-white rounded-2xl p-4 border border-slate-100 flex items-center justify-between hover:shadow-md transition-all">
                                 <div>
                                     <div className="text-[12px] text-slate-400 uppercase tracking-wider mb-1">{label}</div>
                                     <div className="text-3xl font-medium" style={{ color }}>{value}</div>
@@ -140,17 +153,17 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
                     </div>
                 </div>
 
-                {/* QUESTIONS SECTION */}
+                {/* ACTIVITY TIMELINE SECTION */}
                 <div className="space-y-6">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                        <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">Question from them</h3>
+                        <h3 className="text-2xl font-regular text-[#1B1B1B]">Question from them</h3>
                         <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-400">
-                            {["All", "Answered", "Unanswered"].map((btnLabel) => (
+                            {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
                                 <button
                                     key={btnLabel}
                                     onClick={() => setFilter(btnLabel)}
                                     className={`px-5 py-2 rounded-lg transition-all ${filter === btnLabel
-                                        ? "bg-white text-indigo-600 shadow-sm"
+                                        ? "bg-white text-[#513FDF] shadow-sm"
                                         : "hover:text-slate-600"
                                         }`}
                                 >
@@ -160,39 +173,17 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
                         </div>
                     </div>
 
-                    <div className="space-y-4">
-                        {filteredQuestions.map((q) => (
-                            <div key={q.id} className={`p-6 rounded-[30px] border transition-all ${q.status === 'ANSWERED' ? 'bg-emerald-50/50 border-emerald-100' : 'bg-white border-slate-100 shadow-sm'}`}>
-                                <div className="flex justify-between items-start mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <img src={studentData.avatar} className="w-10 h-10 rounded-full border-2 border-white shadow-sm" alt="" />
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="font-bold text-slate-700 text-sm">{studentData.name}</span>
-                                                <span className="text-[10px] text-slate-400 font-medium">· {q.time} · {q.courseCode}</span>
-                                            </div>
-                                            <p className="text-slate-600 font-medium mt-1">{q.content}</p>
-                                        </div>
-                                    </div>
-                                    <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${q.status === 'ANSWERED' ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-50 text-orange-400 border border-orange-100'}`}>
-                                        {q.status === 'ANSWERED' ? '● ANSWERED' : '⚙ UNANSWERED'}
-                                    </span>
-                                </div>
-
-                                {q.status === 'UNANSWERED' ? (
-                                    <div className="mt-4 ml-0 md:ml-12">
-                                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 relative">
-                                            <textarea placeholder="Reply as Instructor..." className="w-full bg-transparent border-none focus:ring-0 text-sm min-h-[100px] resize-none focus:outline-none"></textarea>
-                                            <button className="absolute bottom-3 right-3 bg-indigo-600 text-white px-6 py-2 rounded-xl text-xs font-bold shadow-lg shadow-indigo-200 hover:scale-105 transition-transform">Post Reply</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="mt-4 ml-0 md:ml-12 bg-white/60 border border-emerald-100 rounded-2xl p-4">
-                                        <span className="text-[9px] font-black text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-md uppercase">Professor Reply</span>
-                                        <p className="text-slate-600 text-sm mt-2 font-medium">{q.professorReply}</p>
-                                    </div>
-                                )}
-                            </div>
+                    <div className="space-y-6">
+                        {filteredActivities.map((activity) => (
+                            <ActivityCard
+                                key={activity.id}
+                                data={activity}
+                                onMarkAnswered={() => handleMarkAnswered(activity.id)}
+                                onUnmarked={() => handleUnmarked(activity.id)}
+                                onPostReply={(text: string) => handlePostReply(activity.id, text)}
+                                onDelete={() => handleDelete(activity.id)}
+                                onDeleteReply={(activityId: number, index: number) => handleDeleteReply(activityId, index)}
+                            />
                         ))}
                     </div>
                 </div>
@@ -200,8 +191,121 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
         </div>
     );
 };
+// ActivityCard
+function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete, onDeleteReply }: any) {
+    const [replyText, setReplyText] = useState("");
+    const [showReplyBox, setShowReplyBox] = useState(false);
+    const isBoard = data.type === "board";
+    const isAnswered = data.status === "ANSWERED";
 
-// HELPER COMPONENTS
+    return (
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative">
+            {/* Status Badge */}
+            <div className={`absolute top-6 right-6 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${isAnswered ? "bg-emerald-50 text-emerald-500" : isBoard ? "bg-red-50 text-red-400" : "bg-orange-50 text-orange-400"
+                }`}>
+                {isAnswered ? (
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <circle cx="5" cy="5" r="5" fill="#34d399" />
+                        <path d="M2.5 5l1.8 1.8L7.5 3.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+                    </svg>
+                ) : isBoard ? (
+                    <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
+                ) : (
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                        <circle cx="5" cy="5" r="5" fill="#fb923c" />
+                        <path d="M5 3v2.5" stroke="white" strokeWidth="1.2" strokeLinecap="round" />
+                        <circle cx="5" cy="7" r="0.6" fill="white" />
+                    </svg>
+                )}
+                {data.status}
+            </div>
+
+            <div className="flex gap-4">
+                <img src={data.avatar} alt="avatar" className="w-12 h-12 rounded-full bg-slate-100" />
+                <div className="flex-1">
+                    <div className="flex items-baseline gap-2 mb-1">
+                        <span className="font-bold text-slate-800">{data.user}</span>
+                        <span className="text-xs text-slate-400">{data.time}</span>
+                    </div>
+
+                    {isBoard ? (
+                        <div className="bg-[#F0EEFF] rounded-2xl p-5 mt-2">
+                            <p className="text-[#513FDF] font-bold text-lg mb-1">{data.content}</p>
+                            {data.subContent && <p className="text-sm text-slate-500 mb-4">{data.subContent}</p>}
+                            <button className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all">
+                                <span>👁</span> Review Session
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-slate-700 mb-4">{data.content}</p>
+
+                            {/* Professor Replies Loop */}
+                            <div className="space-y-3 mb-4">
+                                {data.professorReplies?.map((reply: string, index: number) => (
+                                    <div key={index} className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4] relative group">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                                                Professor Reply
+                                            </span>
+                                            <button 
+                                                onClick={() => onDeleteReply(data.id, index)} 
+                                                className="text-rose-400 hover:text-rose-600 transition-colors text-xs font-bold px-1"
+                                            >✕</button>
+                                        </div>
+                                        <p className="text-sm text-slate-700 font-medium">{reply}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex items-center gap-4 text-[13px]">
+                                <span className="text-slate-400 flex items-center gap-1 font-medium">↩ {data.replies || 0} Replies</span>
+                                <div className="ml-auto flex gap-2">
+                                    <button
+                                        onClick={() => setShowReplyBox(!showReplyBox)}
+                                        className={`px-3 py-1 rounded-md border font-bold transition-all ${showReplyBox ? "text-[#5B41FF] border-[#5B41FF] bg-purple-50" : "text-slate-400 border-slate-200 hover:border-slate-300"}`}
+                                    >
+                                        Reply
+                                    </button>
+                                    {isAnswered ? (
+                                        <button onClick={onUnmarked} className="text-orange-500 border border-orange-100 px-3 py-1 rounded-md bg-orange-50 font-bold hover:bg-orange-100 transition-colors">Unmarked</button>
+                                    ) : (
+                                        <button onClick={onMarkAnswered} className="text-emerald-500 border border-emerald-100 px-3 py-1 rounded-md font-bold hover:bg-emerald-50 transition-colors">Mark Answered</button>
+                                    )}
+                                    <button onClick={onDelete} className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md font-bold hover:bg-rose-50 transition-colors">Delete</button>
+                                </div>
+                            </div>
+
+                            {showReplyBox && (
+                                <div className="mt-4 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
+                                    <textarea
+                                        value={replyText}
+                                        onChange={(e) => setReplyText(e.target.value)}
+                                        placeholder="Add a new reply as Instructor..."
+                                        className="w-full bg-transparent border-none resize-none text-sm focus:outline-none h-16 text-slate-600 placeholder:text-slate-400 font-medium"
+                                        autoFocus
+                                    />
+                                    <div className="flex justify-end gap-2 mt-2">
+                                        <button onClick={() => { setShowReplyBox(false); setReplyText(""); }} className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-all">
+                                            Cancel
+                                        </button>
+                                        <button
+                                            onClick={() => { if (replyText.trim()) { onPostReply(replyText); setReplyText(""); setShowReplyBox(false); } }}
+                                            className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-[13px] font-bold hover:shadow-md transition-all active:scale-95"
+                                        >
+                                            Post Reply
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 const InfoBox = ({ label, value }: { label: string, value: string }) => (
     <div className="space-y-2">
         <div className="flex items-center gap-2">

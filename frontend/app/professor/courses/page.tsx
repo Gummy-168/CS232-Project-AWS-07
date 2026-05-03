@@ -220,9 +220,8 @@ export default function ProfessorDashboard() {
             <div className="relative">
               <button
                 onClick={() => setShowFilterMenu(!showFilterMenu)}
-                className={`rounded-full px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors duration-200 ${
-                  studentFilter !== "all" ? "bg-[#EEF0FF] text-[#5B41FF]" : "text-[#1B1B1B] hover:text-[#5B41FF]"
-                }`}
+                className={`rounded-full px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors duration-200 ${studentFilter !== "all" ? "bg-[#EEF0FF] text-[#5B41FF]" : "text-[#1B1B1B] hover:text-[#5B41FF]"
+                  }`}
               >
                 <SlidersHorizontal size={16} color="#5B41FF" />
                 Filter
@@ -239,9 +238,8 @@ export default function ProfessorDashboard() {
                     <button
                       key={opt.value}
                       onClick={() => { setStudentFilter(opt.value as typeof studentFilter); setShowFilterMenu(false); }}
-                      className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors flex items-center gap-2 ${
-                        studentFilter === opt.value ? "bg-[#EEF0FF] text-[#5B41FF] font-medium" : "text-slate-600 hover:bg-slate-50"
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors flex items-center gap-2 ${studentFilter === opt.value ? "bg-[#EEF0FF] text-[#5B41FF] font-medium" : "text-slate-600 hover:bg-slate-50"
+                        }`}
                     >
                       {opt.value === "online" && <span className="w-2 h-2 rounded-full bg-emerald-400" />}
                       {opt.value === "offline" && <span className="w-2 h-2 rounded-full bg-slate-300" />}
@@ -300,9 +298,8 @@ export default function ProfessorDashboard() {
               <button
                 key={btnLabel}
                 onClick={() => setFilter(btnLabel)}
-                className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                  filter === btnLabel ? "bg-[#5B41FF] text-white border-[#5B41FF]" : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
-                }`}
+                className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${filter === btnLabel ? "bg-[#5B41FF] text-white border-[#5B41FF]" : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
+                  }`}
               >
                 {btnLabel}
               </button>
@@ -349,9 +346,8 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
-      <div className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
-        isAnswered ? "bg-emerald-50 text-emerald-500" : isBoard ? "bg-red-50 text-red-400" : "bg-orange-50 text-orange-400"
-      }`}>
+      <div className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${isAnswered ? "bg-emerald-50 text-emerald-500" : isBoard ? "bg-red-50 text-red-400" : "bg-orange-50 text-orange-400"
+        }`}>
         {isAnswered ? (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <circle cx="5" cy="5" r="5" fill="#34d399" />
