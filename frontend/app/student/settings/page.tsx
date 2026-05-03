@@ -1,6 +1,6 @@
 "use client";
 import React, { useState } from "react";
-import { User, Bell, Lock, Edit3, Activity } from "lucide-react";
+import { User, Bell, Lock, Edit3, Activity, Camera } from "lucide-react";
 
 const StudentProfilePage = () => {
   // Mock Data
@@ -11,7 +11,7 @@ const StudentProfilePage = () => {
     studentId: "6700000000",
     semester: "2/2026",
     enrolledCourses: 1,
-    profileImage: "https://api.dicebear.com/7.x/bottts/svg?seed=shiba", // หรือใช้รูปน้องหมาที่คุณมี
+    profileImage: "https://api.dicebear.com/7.x/bottts/svg?seed=shiba", 
   };
 
   const [notifications, setNotifications] = useState({
@@ -19,7 +19,20 @@ const StudentProfilePage = () => {
     liveBoard: false,
     gmail: false,
   });
- 
+  const [avatarUrl, setAvatarUrl] = useState("https://img.freepik.com/free-photo/cute-shiba-inu-dog-portrait_23-2149174154.jpg");
+
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(studentInfo.displayName);
 
@@ -30,7 +43,7 @@ const StudentProfilePage = () => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       setIsEditing(false);
-      alert("อัปเดตชื่อสำเร็จ!");
+      alert("อัปเดตโปรไฟล์สำเร็จ!");
     } catch (error) {
       console.error("Update failed", error);
       alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
@@ -62,11 +75,10 @@ const StudentProfilePage = () => {
                       setIsEditing(true);
                     }
                   }}
-                  className={`${
-                    isEditing
+                  className={`${isEditing
                       ? "bg-emerald-500 text-white"
                       : "bg-indigo-50 text-indigo-600"
-                  } px-6 py-2 rounded-full font-medium hover:opacity-90 transition-all flex items-center gap-2`}
+                    } px-6 py-2 rounded-full font-medium hover:opacity-90 transition-all flex items-center gap-2`}
                 >
                   {isEditing ? <> บันทึกข้อมูล </> : <> Edit Profile </>}
                 </button>
@@ -75,13 +87,41 @@ const StudentProfilePage = () => {
               <div className="flex flex-col md:flex-row gap-10 items-start">
                 {/* Avatar Section */}
                 <div className="flex flex-col items-center gap-4">
-                  <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-slate-50 shadow-inner">
+                  <div
+                    onClick={() => {
+                      if (isEditing) {
+
+                        document.getElementById('avatarInput').click();
+                      }
+                    }}
+                    className={`relative w-32 h-32 rounded-full overflow-hidden border-4 ${isEditing
+                      ? "border-emerald-400 ring-4 ring-emerald-500/10 cursor-pointer"
+                      : "border-slate-50"
+                      } shadow-inner group transition-all duration-300`}
+                  >
                     <img
-                      src="https://img.freepik.com/free-photo/cute-shiba-inu-dog-portrait_23-2149174154.jpg"
+                      src={avatarUrl}
                       alt="Profile"
                       className="w-full h-full object-cover"
                     />
+
+                    {isEditing && (
+                      <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera size={32} className="text-white" />
+                      </div>
+                    )}
                   </div>
+
+                  {isEditing && (
+                    <input
+                      id="avatarInput"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  )}
+
                   <span className="text-xs font-bold text-slate-400 tracking-widest uppercase">
                     Student Profile
                   </span>
@@ -112,11 +152,10 @@ const StudentProfilePage = () => {
                         value={displayName}
                         disabled={!isEditing}
                         onChange={(e) => setDisplayName(e.target.value)}
-                        className={`w-full px-4 py-3 rounded-2xl border transition-all ${
-                          isEditing
+                        className={`w-full px-4 py-3 rounded-2xl border transition-all ${isEditing
                             ? "bg-white border-indigo-400 ring-4 ring-indigo-500/10 shadow-sm"
                             : "bg-slate-50 border-slate-200 text-slate-500"
-                        } focus:outline-none`}
+                          } focus:outline-none`}
                       />
                       {isEditing && (
                         <p className="text-[10px] text-indigo-500 font-medium ml-2">
