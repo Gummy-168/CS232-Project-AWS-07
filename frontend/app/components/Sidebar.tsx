@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import JoinCourse from './joincourse';
 import {
   LayoutDashboard,
   BookOpen,
@@ -18,6 +19,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [isFeedOpen, setIsFeedOpen] = useState(false);
   const [isCourseOpen, setIsCourseOpen] = useState(true);
+  const [isJoinOpen, setIsJoinOpen] = useState(false);
 
   // Active
   const activeStyle =
@@ -73,11 +75,10 @@ export default function Sidebar() {
               <div className="ml-4 mt-2 space-y-1">
                 <Link
                   href="/student/courses"
-                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
-                    pathname === "/student/courses"
+                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${pathname === "/student/courses"
                       ? "text-[#7B61FF] bg-[#FAF8FF]"
                       : "text-slate-400 hover:text-[#7B61FF]"
-                  }`}
+                    }`}
                 >
                   {pathname === "/student/courses" && (
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
@@ -88,10 +89,17 @@ export default function Sidebar() {
                     CS232 - Cloud
                   </div>
                 </Link>
-                <button className="flex items-center gap-2 px-4 py-2 rounded-xl w-full text-slate-400 hover:bg-slate-50 hover:text-emerald-500 transition text-sm font-medium">
+                <button
+                  onClick={() => setIsJoinOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl w-full text-slate-400 hover:bg-slate-50 hover:text-emerald-500 transition text-sm font-medium"
+                >
                   <PlusCircle size={16} />
                   Join Course
                 </button>
+                <JoinCourse
+                  isOpen={isJoinOpen}
+                  onClose={() => setIsJoinOpen(false)}
+                />
               </div>
             )}
           </div>
