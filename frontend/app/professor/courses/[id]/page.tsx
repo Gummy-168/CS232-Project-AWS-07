@@ -157,8 +157,8 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
                 <div className="space-y-6">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                         <h3 className="text-2xl font-regular text-[#1B1B1B]">Question from them</h3>
-                        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold text-slate-400">
-                            {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
+                        <div className="flex bg-slate-100 p-1 rounded-xl text-xs  text-slate-400">
+                            {["All", "Answered", "Unanswered", ].map((btnLabel) => (
                                 <button
                                     key={btnLabel}
                                     onClick={() => setFilter(btnLabel)}
@@ -201,7 +201,7 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
     return (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative">
             {/* Status Badge */}
-            <div className={`absolute top-6 right-6 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${isAnswered ? "bg-emerald-50 text-emerald-500" : isBoard ? "bg-red-50 text-red-400" : "bg-orange-50 text-orange-400"
+            <div className={`absolute top-6 right-6 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] ${isAnswered ? "bg-emerald-50 text-emerald-500" : isBoard ? "bg-red-50 text-red-400" : "bg-orange-50 text-orange-400"
                 }`}>
                 {isAnswered ? (
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -230,7 +230,7 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
 
                     {isBoard ? (
                         <div className="bg-[#F0EEFF] rounded-2xl p-5 mt-2">
-                            <p className="text-[#513FDF] font-bold text-lg mb-1">{data.content}</p>
+                            <p className="text-[#513FDF] text-lg mb-1">{data.content}</p>
                             {data.subContent && <p className="text-sm text-slate-500 mb-4">{data.subContent}</p>}
                             <button className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all">
                                 <span>👁</span> Review Session
@@ -245,12 +245,12 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                                 {data.professorReplies?.map((reply: string, index: number) => (
                                     <div key={index} className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4] relative group">
                                         <div className="flex items-center justify-between mb-2">
-                                            <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                                            <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded  uppercase tracking-wider">
                                                 Professor Reply
                                             </span>
                                             <button 
                                                 onClick={() => onDeleteReply(data.id, index)} 
-                                                className="text-rose-400 hover:text-rose-600 transition-colors text-xs font-bold px-1"
+                                                className="text-rose-400 hover:text-rose-600 transition-colors text-xs px-1"
                                             >✕</button>
                                         </div>
                                         <p className="text-sm text-slate-700 font-medium">{reply}</p>
@@ -263,16 +263,16 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                                 <div className="ml-auto flex gap-2">
                                     <button
                                         onClick={() => setShowReplyBox(!showReplyBox)}
-                                        className={`px-3 py-1 rounded-md border font-bold transition-all ${showReplyBox ? "text-[#5B41FF] border-[#5B41FF] bg-purple-50" : "text-slate-400 border-slate-200 hover:border-slate-300"}`}
+                                        className={`px-3 py-1 rounded-md border transition-all ${showReplyBox ? "text-[#5B41FF] border-[#5B41FF] bg-purple-50" : "text-slate-400 border-slate-200 hover:border-slate-300"}`}
                                     >
                                         Reply
                                     </button>
                                     {isAnswered ? (
-                                        <button onClick={onUnmarked} className="text-orange-500 border border-orange-100 px-3 py-1 rounded-md bg-orange-50 font-bold hover:bg-orange-100 transition-colors">Unmarked</button>
+                                        <button onClick={onUnmarked} className="text-orange-500 border border-orange-100 px-3 py-1 rounded-md bg-orange-50 hover:bg-orange-100 transition-colors">Unmarked</button>
                                     ) : (
-                                        <button onClick={onMarkAnswered} className="text-emerald-500 border border-emerald-100 px-3 py-1 rounded-md font-bold hover:bg-emerald-50 transition-colors">Mark Answered</button>
+                                        <button onClick={onMarkAnswered} className="text-emerald-500 border border-emerald-100 px-3 py-1 rounded-md hover:bg-emerald-50 transition-colors">Mark Answered</button>
                                     )}
-                                    <button onClick={onDelete} className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md font-bold hover:bg-rose-50 transition-colors">Delete</button>
+                                    <button onClick={onDelete} className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md hover:bg-rose-50 transition-colors">Delete</button>
                                 </div>
                             </div>
 
@@ -286,12 +286,12 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                                         autoFocus
                                     />
                                     <div className="flex justify-end gap-2 mt-2">
-                                        <button onClick={() => { setShowReplyBox(false); setReplyText(""); }} className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] font-bold hover:bg-slate-50 transition-all">
+                                        <button onClick={() => { setShowReplyBox(false); setReplyText(""); }} className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] hover:bg-slate-50 transition-all">
                                             Cancel
                                         </button>
                                         <button
                                             onClick={() => { if (replyText.trim()) { onPostReply(replyText); setReplyText(""); setShowReplyBox(false); } }}
-                                            className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-[13px] font-bold hover:shadow-md transition-all active:scale-95"
+                                            className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-[13px]  hover:shadow-md transition-all active:scale-95"
                                         >
                                             Post Reply
                                         </button>
@@ -310,7 +310,7 @@ const InfoBox = ({ label, value }: { label: string, value: string }) => (
     <div className="space-y-2">
         <div className="flex items-center gap-2">
             <div className="w-1.5 h-4 bg-[#AE2466] rounded-full"></div>
-            <label className="text-sm font-bold text-slate-800">{label}</label>
+            <label className="text-sm  text-slate-800">{label}</label>
         </div>
         <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-slate-600 font-medium">{value}</div>
     </div>
