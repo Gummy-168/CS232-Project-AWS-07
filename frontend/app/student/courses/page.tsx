@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Contact, Clock } from "lucide-react";
+import { Search, Contact, Clock,  } from "lucide-react";
+import Link from 'next/link';
 import JoinCourse from "../../components/joincourse";
 import Header from "../../components/Header";
 
@@ -161,9 +162,12 @@ export default function StudentClass() {
           </div>
 
           <div className="flex items-center gap-6">
-            <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
-              Join Board
-            </button>
+            <Link 
+                href="/student/courses/board"
+                className="inline-block bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all"
+              >
+                Join Board
+              </Link>
             <p className="text-sm text-slate-500 font-medium">
               <span className="text-slate-700">12</span> students are currently
               asking questions.
@@ -215,6 +219,7 @@ export default function StudentClass() {
             ))}
           </div>
         </section>
+        
       </main>
     </div>
   );

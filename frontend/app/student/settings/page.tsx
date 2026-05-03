@@ -19,14 +19,12 @@ const StudentProfilePage = () => {
     liveBoard: false,
     gmail: false,
   });
-  //  สร้าง State สำหรับเก็บค่าที่กำลังพิมพ์
+ 
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(studentInfo.displayName);
 
-  //  ฟังก์ชันสำหรับส่งข้อมูลไป Database
   const handleSaveProfile = async () => {
     try {
-      // API ('/api/user/update', { displayName })
       console.log("Saving to Database...", displayName);
 
       await new Promise((resolve) => setTimeout(resolve, 1000));

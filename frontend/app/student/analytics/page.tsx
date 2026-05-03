@@ -154,7 +154,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 4. Course Activity */}
+      {/* Course Activity */}
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
         <h3 className="text-xl font-bold mb-4">Course Activity</h3>
         <div className="flex flex-col gap-2">
@@ -185,7 +185,7 @@ const StatCard = ({ label, value, subValue }: any) => {
     
     <div className={`relative overflow-hidden p-6 rounded-3xl border bg-white shadow-sm flex flex-col group ${defaultBorderClasses} ${hoverBorderClasses}`}>
       
-      {/* ส่วนเส้นสีชมพูด้านบนสุด (Bar): จะแสดงผลเฉพาะตอน hover */}
+    
       <div className="absolute top-0 left-6 right-6 h-1 bg-pink-500 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
       <div className="flex justify-between items-start mb-2 relative z-10">

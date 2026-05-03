@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export default function AskModal({ isOpen, onClose }) {
+export default function AskModal({ isOpen, onClose, onAdd }) {
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
   const [anonymous, setAnonymous] = useState(false);
@@ -10,18 +10,40 @@ export default function AskModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   const handleSubmit = async () => {
+    if (!title.trim() || !detail.trim()) {
+      alert("กรุณากรอกหัวข้อและรายละเอียด");
+      return;
+    }
+
     const payload = {
+      id: Date.now(), 
       title,
       detail,
       anonymous,
+      status: "IN DISCUSSION",
+      createdAt: new Date().toISOString(),
+      // สมมติข้อมูล User เบื้องต้น
+      user: anonymous ? "Anonymous" : "สมปอง อยากรวย",
+      avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=shiba",
+      isSolved: false
     };
 
     console.log("SEND:", payload);
 
-    // 🔹 mock API
+    
     await new Promise((res) => setTimeout(res, 500));
 
+
+    if (onAdd) {
+      onAdd(payload);
+    }
+
     alert("Posted!");
+
+
+    setTitle("");
+    setDetail("");
+
     onClose();
   };
 
