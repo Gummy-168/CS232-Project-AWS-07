@@ -9,6 +9,7 @@ import {
   PieChart,
   Tooltip,
   Pie,
+  LabelList,
 } from 'recharts';
 
 const fetchStatsData = async (): Promise<any> => {
@@ -82,6 +83,7 @@ const Dashboard = () => {
               <BarChart
                 data={data.chart}
                 onMouseLeave={() => setActiveIndex(null)}
+                margin={{ top: 20, right: 0, left: 0, bottom: 0 }}
               >
                 <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
 
@@ -92,6 +94,27 @@ const Dashboard = () => {
                   radius={[20, 20, 20, 20]}
                   barSize={50}
                 >
+                  <LabelList
+            dataKey="value"
+            position="top"
+            content={(props: any) => {
+              const { x, y, width, value, index } = props;
+     
+              if (index !== activeIndex) return null;
+              
+              return (
+                <text
+                  x={x + width / 2}
+                  y={y - 10}
+                  fill="#4F46E5" 
+                  textAnchor="middle"
+                  className="font-bold text-sm transition-opacity duration-300"
+                >
+                  {value}
+                </text>
+              );
+            }}
+          />
                   {data.chart.map((entry: any, index: number) => (
                     <Cell
                       key={`cell-${index}`}

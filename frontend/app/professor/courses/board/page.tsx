@@ -2,6 +2,18 @@
 import React, { useState } from 'react';
 import { Users, Search, Filter, ChevronLeft, XCircle, MessageSquare } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { formatDistanceToNow } from 'date-fns';
+
+const formatTimeAgo = (dateString: string) => {
+    try {
+        const date = new Date(dateString);
+        return formatDistanceToNow(date, {
+            addSuffix: true,
+        });
+    } catch (error) {
+        return dateString;
+    }
+};
 
 const MOCK_STUDENTS = [
     { id: 1, name: 'สมปอง อยากรวย', questions: 5, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1', status: 'online' },
@@ -17,7 +29,7 @@ const INITIAL_QUESTIONS = [
         user: 'สมปอง อยากรวย',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1',
         content: 'ไก่กับไข่อะไรเกิดก่อนกัน',
-        time: '5m ago',
+        createdAt: new Date(Date.now() - 60000).toISOString(),
         status: 'UNANSWERED',
         type: 'question',
         replies: 0,
@@ -28,7 +40,7 @@ const INITIAL_QUESTIONS = [
         user: 'สมปอง อยากรวย',
         avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=1',
         content: 'คำถาม 2',
-        time: '5m ago',
+        createdAt: new Date(Date.now() - 60000).toISOString(),
         status: 'ANSWERED',
         type: 'question',
         replies: 0,
@@ -39,6 +51,7 @@ const INITIAL_QUESTIONS = [
 export default function BoardPage() {
     const router = useRouter();
     const [studentSearch, setStudentSearch] = useState('');
+        const [now, setNow] = useState(Date.now());
 
     const [questions, setQuestions] = useState(INITIAL_QUESTIONS);
 
@@ -152,8 +165,6 @@ export default function BoardPage() {
                                 onMarkAnswered={() => handleMarkAnswered(q.id)}
                                 onUnmarked={() => handleUnmarked(q.id)}
                                 onDelete={() => handleDelete(q.id)}
-                                onPostReply={(reply: string) => handlePostReply(q.id, reply)}
-                                onDeleteReply={(id: number, index: number) => handleDeleteReply(id, index)}
                             />
                         ))}
                     </div>
@@ -195,7 +206,9 @@ function ActivityCard({ data, onMarkAnswered, onUnmarked, onPostReply, onDelete,
                 <div className="flex-1">
                     <div className="flex items-baseline gap-2 mb-1">
                         <span className="font-bold text-slate-800">{data.user}</span>
-                        <span className="text-xs text-slate-400">{data.time}</span>
+                        <span className="text-slate-400 text-[11px] font-medium">
+                        {formatTimeAgo(data.createdAt)}
+                    </span>
                     </div>
 
                     {isBoard ? (
