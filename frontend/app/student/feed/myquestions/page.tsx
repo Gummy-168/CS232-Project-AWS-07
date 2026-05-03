@@ -135,7 +135,7 @@ export default function Myquestions() {
 
           <div className="flex flex-wrap items-center gap-3 mb-8">
             <div className="flex items-center gap-2">
-              {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
+              {["All", "Answered", "Unanswered", ].map((btnLabel) => (
                 <button
                   key={btnLabel}
                   onClick={() => setFilter(btnLabel)}
