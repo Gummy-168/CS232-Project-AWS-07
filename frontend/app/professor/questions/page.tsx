@@ -169,81 +169,83 @@ export default function ProfessorDashboard() {
   }
 
   return (
-    <div className="flex-1 p-8 bg-[#FCF9F8] min-h-screen font-sans text-slate-700">
+    <div className="h-full bg-[#FCF9F8] font-sans text-slate-700 overflow-y-auto">
+      {/* Header */}
       <Header
         professorName={data?.professor?.name}
+        codeId={data?.course?.code}
         onJoinCourse={() => setIsModalOpen(true)}
         mode="questions"
       />
-
       <CreateCourse
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
+      <main className="px-8 pt-[130px] pb-10 w-full">
+        {/* Course Card */}
 
-      {/* Course Card */}
+        <section className="bg-white rounded-3xl shadow-sm border border-slate-50 text-center mb-10 p-10 max-w-6xl mx-auto">
+          <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">
+            {data?.course?.title}
+          </h2>
+          <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
+            Create Board
+          </button>
+        </section>
 
-      <section className="bg-white rounded-3xl p-13 shadow-sm border border-slate-50 text-center mb-10 mt-13 max-w-6xl mx-auto">
-        <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">
-          {data?.course?.title}
-        </h2>
-        <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
-          Create Board
-        </button>
-      </section>
+        {/* Activity Timeline */}
+        <section className="max-w-6xl mx-auto mt-10">
+          <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
+            ActivityTimeline
+          </h3>
 
-      {/* Activity Timeline */}
-      <section className="max-w-5xl mx-auto mt-10">
-        <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
-          ActivityTimeline
-        </h3>
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="flex items-center gap-2">
+              {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
+                <button
+                  key={btnLabel}
+                  onClick={() => setFilter(btnLabel)}
+                  className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                    filter === btnLabel
+                      ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                      : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
+                  }`}
+                >
+                  {btnLabel}
+                </button>
+              ))}
+            </div>
 
-        <div className="flex flex-wrap items-center gap-3 mb-8">
-          <div className="flex items-center gap-2">
-            {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
-              <button
-                key={btnLabel}
-                onClick={() => setFilter(btnLabel)}
-                className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                  filter === btnLabel
-                    ? "bg-[#5B41FF] text-white border-[#5B41FF]"
-                    : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-              >
-                {btnLabel}
-              </button>
+            <div className="relative flex-1 max-w-xs ml-auto">
+              <Search
+                className="absolute left-3 top-2.5 text-slate-400"
+                size={15}
+              />
+              <input
+                type="text"
+                value={activitySearch}
+                onChange={(e) => setActivitySearch(e.target.value)}
+                placeholder="Search my questions..."
+                className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6 min-h-[60vh]">
+            {filteredActivities.map((item) => (
+              <ActivityCard
+                key={item.id}
+                data={item}
+                onMarkAnswered={() => handleMarkAnswered(item.id)}
+                onUnmarked={() => handleUnmarked(item.id)}
+                onPostReply={(text: string) => handlePostReply(item.id, text)}
+                onDelete={() => handleDelete(item.id)}
+                onDeleteReply={handleDeleteReply}
+              />
             ))}
           </div>
-
-          <div className="relative flex-1 max-w-xs ml-auto">
-            <Search
-              className="absolute left-3 top-2.5 text-slate-400"
-              size={15}
-            />
-            <input
-              type="text"
-              value={activitySearch}
-              onChange={(e) => setActivitySearch(e.target.value)}
-              placeholder="Search my questions..."
-              className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-6 min-h-[60vh]">
-          {filteredActivities.map((item) => (
-            <ActivityCard
-              key={item.id}
-              data={item}
-              onMarkAnswered={() => handleMarkAnswered(item.id)}
-              onUnmarked={() => handleUnmarked(item.id)}
-              onPostReply={(text: string) => handlePostReply(item.id, text)}
-              onDelete={() => handleDelete(item.id)}
-              onDeleteReply={handleDeleteReply}
-            />
-          ))}
-        </div>
-      </section>
+        </section>
+      </main>
     </div>
   );
 }

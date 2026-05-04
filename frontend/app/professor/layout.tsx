@@ -6,11 +6,11 @@ export default function ProfessorLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex">
+    <div className="flex h-screen overflow-hidden">
       <ProfessorSidebar />
-      <main className="flex-1 bg-slate-50 min-h-screen">
+      <div className="flex-1 ml-64 h-full overflow-y-auto">
         {children}
-      </main>
+      </div>
     </div>
   );
 }

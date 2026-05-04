@@ -7,6 +7,7 @@ interface HeaderProps {
   studentId?: string;
   onJoinCourse?: () => void;
   courseTitle?: string;
+  codeId?: string;
   mode?:
     | "dashboard"
     | "course"
@@ -15,7 +16,8 @@ interface HeaderProps {
     | "allquestions"
     | "myquestions"
     | "analysis"
-    | "settings";
+    | "settings"
+    | "settingsprof";
   buttonLabel?: string;
 }
 
@@ -25,6 +27,7 @@ export default function Header({
   studentId,
   onJoinCourse,
   courseTitle,
+  codeId,
   mode = "dashboard",
   buttonLabel,
 }: HeaderProps) {
@@ -129,6 +132,34 @@ export default function Header({
                 </h1>
                 <p className="text-gray-500 text-sm font-medium">
                   Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
+          </>
+          ) : mode === "settingsprof" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {"Settings"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  {professorName || "Professor not found"}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : mode === "course" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-8 bg-[#FD64A4]" />
+
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {courseTitle || "My Course"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  {professorName || "Professor not found"}
                 </p>
               </div>
             </div>
