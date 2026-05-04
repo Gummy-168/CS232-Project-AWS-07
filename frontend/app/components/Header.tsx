@@ -1,6 +1,9 @@
 "use client";
 import { Bell } from "lucide-react";
-
+import { NotificationOverlay } from "@/app/components/NotificationOverlay";
+import { NotificationOverlayProf } from "@/app/components/NotificationOverlayProf";
+import { useState } from "react";
+import { useRef } from "react";
 interface HeaderProps {
   studentName?: string;
   professorName?: string;
@@ -44,6 +47,8 @@ export default function Header({
 
   const resolvedLabel =
     buttonLabel ?? (mode === "questions" ? "+ Create Course" : "+ Join Course");
+  const notiRef = useRef<HTMLButtonElement>(null);
+  const [showNoti, setShowNoti] = useState(false);
 
   return (
     <header className="fixed top-0 left-67 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
@@ -136,7 +141,7 @@ export default function Header({
               </div>
             </div>
           </>
-          ) : mode === "settingsprof" ? (
+        ) : mode === "settingsprof" ? (
           <>
             <div className="flex items-center gap-3">
               <div>
@@ -190,10 +195,29 @@ export default function Header({
           {resolvedLabel}
         </button>
 
-        <button className="relative p-2 rounded-full hover:bg-gray-100 transition">
+        <button
+          ref={notiRef}
+          onClick={() => setShowNoti((v) => !v)}
+          className="relative p-2 rounded-full hover:bg-gray-100 transition"
+        >
           <Bell size={20} className="text-gray-500" />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D1388D] rounded-full" />
         </button>
+        {mode === "course" ||
+        mode === "settingsprof" ||
+        mode === "questions" ? (
+          <NotificationOverlayProf
+            isOpen={showNoti}
+            onClose={() => setShowNoti(false)}
+            anchorRef={notiRef}
+          />
+        ) : (
+          <NotificationOverlay
+            isOpen={showNoti}
+            onClose={() => setShowNoti(false)}
+            anchorRef={notiRef}
+          />
+        )}
 
         <div className="w-9 h-9 rounded-full bg-[#513FDF] flex items-center justify-center text-white font-semibold text-sm cursor-pointer">
           N
