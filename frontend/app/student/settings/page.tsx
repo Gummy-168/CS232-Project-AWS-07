@@ -57,7 +57,7 @@ const StudentProfilePage = () => {
   };
 
   return (
-    <div className="h-full bg-[#F8F9FD] font-sans text-slate-700 overflow-y-auto">
+    <div className="h-full bg-[#F9F9F9] font-sans text-slate-700 overflow-y-auto">
       <Header
         studentName={student.name}
         studentId={student.id}

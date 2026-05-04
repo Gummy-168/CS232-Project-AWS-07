@@ -68,7 +68,7 @@ const Dashboard = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8 font-sans text-slate-700">
+    <div className="min-h-screen bg-[#F9F9F9] p-8 font-sans text-slate-700">
       <Header
         studentName={data?.student?.name}
         studentId={data?.student?.id}
@@ -79,7 +79,7 @@ const Dashboard = () => {
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
       />
-      <main className="p-8 pt-[120px] space-y-6 h-full overflow-y-auto pb-10">
+      <main className="p-8 pt-[120px] space-y-6 h-full overflow-y-auto pb-10 ">
         {/*  Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <StatCard
