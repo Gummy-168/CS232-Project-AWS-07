@@ -7,7 +7,15 @@ interface HeaderProps {
   studentId?: string;
   onJoinCourse?: () => void;
   courseTitle?: string;
-  mode?: "dashboard" | "course" | "questions";
+  mode?:
+    | "dashboard"
+    | "course"
+    | "questions"
+    | "board"
+    | "allquestions"
+    | "myquestions"
+    | "analysis"
+    | "settings";
   buttonLabel?: string;
 }
 
@@ -20,7 +28,6 @@ export default function Header({
   mode = "dashboard",
   buttonLabel,
 }: HeaderProps) {
-
   function renderName(name: string) {
     return name.split(/([\u0E00-\u0E7F]+)/).map((part, i) => {
       const isThai = /[\u0E00-\u0E7F]/.test(part);
@@ -32,10 +39,11 @@ export default function Header({
     });
   }
 
-  const resolvedLabel = buttonLabel ?? (mode === "questions" ? "+ Create Course" : "+ Join Course");
+  const resolvedLabel =
+    buttonLabel ?? (mode === "questions" ? "+ Create Course" : "+ Join Course");
 
   return (
-    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-4 bg-[#F9F9F9]">
+    <header className="fixed top-0 left-67 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
       {/* Left */}
       <div className="space-y-1 ">
         {mode === "dashboard" ? (
@@ -59,14 +67,85 @@ export default function Header({
               </span>
             </h1>
           </>
+        ) : mode === "board" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-8 bg-[#FD64A4]" />
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {courseTitle || "My Course"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : mode === "allquestions" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {"All Questions"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : mode === "myquestions" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {"My Questions"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : mode === "analysis" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {"Analytics"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
+          </>
+        ) : mode === "settings" ? (
+          <>
+            <div className="flex items-center gap-3">
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {"Settings"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
+          </>
         ) : (
           <>
-            <h1 className="text-3xl font-regular text-[#1B1B1B]">
-              {courseTitle || "My Course"}
-            </h1>
-            <p className="text-gray-500 text-sm font-medium">
-              Student ID: {studentId || "..."}
-            </p>
+            <div className="flex items-center gap-3">
+              <div className="w-4 h-8 bg-[#FD64A4]" />
+              <div>
+                <h1 className="text-3xl font-regular text-[#1B1B1B]">
+                  {courseTitle || "My Course"}
+                </h1>
+                <p className="text-gray-500 text-sm font-medium">
+                  Student ID: {studentId || "..."}
+                </p>
+              </div>
+            </div>
           </>
         )}
       </div>

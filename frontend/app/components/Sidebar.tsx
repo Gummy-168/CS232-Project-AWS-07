@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import JoinCourse from './joincourse';
+import JoinCourse from "./joincourse";
 import {
   LayoutDashboard,
   BookOpen,
@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronRight,
   PlusCircle,
+  User,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -75,27 +76,30 @@ export default function Sidebar() {
               <div className="ml-4 mt-2 space-y-1">
                 <Link
                   href="/student/courses"
-                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${pathname === "/student/courses"
+                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
+                    pathname === "/student/courses" ||
+                    pathname.startsWith("/student/courses/")
                       ? "text-[#7B61FF] bg-[#FAF8FF]"
                       : "text-slate-400 hover:text-[#7B61FF]"
-                    }`}
+                  }`}
                 >
-                  {pathname === "/student/courses" && (
+                  {(pathname === "/student/courses" ||
+                    pathname.startsWith("/student/courses/")) && (
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
                   )}
-                  <div
-                    className={`flex items-center gap-3 ${pathname === "/student/courses" ? "pl-4" : "pl-4"}`}
-                  >
+                  <div className="flex items-center gap-3 pl-4">
                     CS232 - Cloud
                   </div>
                 </Link>
+
                 <button
                   onClick={() => setIsJoinOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl w-full text-slate-400 hover:bg-slate-50 hover:text-emerald-500 transition text-sm font-medium"
+                  className="flex items-center gap-2 px-4 py-2 rounded-full w-full text-[#A1A1AA] bg-slate-100 hover:bg-slate-200 transition text-sm font-regular"
                 >
                   <PlusCircle size={16} />
                   Join Course
                 </button>
+
                 <JoinCourse
                   isOpen={isJoinOpen}
                   onClose={() => setIsJoinOpen(false)}
@@ -124,30 +128,42 @@ export default function Sidebar() {
               <div className="ml-4 mt-2 space-y-1">
                 <Link
                   href="/student/feed/allquestions"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === "/student/feed/allquestions" ? "text-[#7B61FF] bg-purple-50" : "text-slate-400 hover:text-[#7B61FF]"}`}
+                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
+                    pathname === "/student/feed/allquestions"
+                      ? "text-[#7B61FF] bg-[#FAF8FF]"
+                      : "text-slate-400 hover:text-[#7B61FF]"
+                  }`}
                 >
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full ${pathname === "/student/feed/allquestions" ? "bg-[#7B61FF]" : "bg-slate-300"}`}
-                  ></div>
-                  All Questions
+                  {pathname === "/student/feed/allquestions" && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
+                  )}
+                  <BarChart2 size={16} className="ml-4 shrink-0" />
+                  <span>All Questions</span>
                 </Link>
+
                 <Link
                   href="/student/feed/myquestions"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-xl w-full text-sm font-medium transition-all ${pathname === "/student/feed/myquestions" ? "text-[#7B61FF] bg-purple-50" : "text-slate-400 hover:text-[#7B61FF]"}`}
+                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
+                    pathname === "/student/feed/myquestions"
+                      ? "text-[#7B61FF] bg-[#FAF8FF]"
+                      : "text-slate-400 hover:text-[#7B61FF]"
+                  }`}
                 >
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full ${pathname === "/student/feed/myquestions" ? "bg-[#7B61FF]" : "bg-slate-300"}`}
-                  ></div>
-                  My Questions
+                  {pathname === "/student/feed/myquestions" && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
+                  )}
+                  <User size={16} className="ml-4 shrink-0" />
+                  <span>My Questions</span>
                 </Link>
               </div>
             )}
           </div>
 
           {/* Analytics */}
+
           <Link
             href="/student/analytics"
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${pathname === "/analytics" ? activeStyle : inactiveStyle}`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${pathname === "/student/analytics" ? activeStyle : inactiveStyle}`}
           >
             <BarChart2 size={20} />
             <span>Analytics</span>
@@ -156,7 +172,7 @@ export default function Sidebar() {
           {/* Settings */}
           <Link
             href="/student/settings"
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${pathname === "/settings" ? activeStyle : inactiveStyle}`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-2xl transition-all ${pathname === "/student/settings" ? activeStyle : inactiveStyle}`}
           >
             <Settings size={20} />
             <span>Settings</span>

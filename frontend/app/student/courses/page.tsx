@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Contact, Clock,  } from "lucide-react";
-import Link from 'next/link';
+import { Search, Contact, Clock } from "lucide-react";
+import Link from "next/link";
 import JoinCourse from "../../components/joincourse";
 import Header from "../../components/Header";
 
@@ -110,7 +110,7 @@ export default function StudentClass() {
   }
 
   return (
-    <div className="flex-1 bg-[#FCF9F8] min-h-screen font-sans text-slate-700">
+    <div className="h-full overflow-y-auto bg-[#FCF9F8]">
       <Header
         studentName={data?.student?.name}
         studentId={data?.student?.id}
@@ -124,7 +124,8 @@ export default function StudentClass() {
         onClose={() => setIsJoinModalOpen(false)}
       />
 
-      <main className="p-8 pt-[100px] space-y-6 left-30 h-full">
+      <main className="p-8 pt-[140px] space-y-6 left-30 h-full pb-10 overflow-y-auto">
+        {" "}
         {/* SESSION CARD */}
         <section className="bg-white rounded-[30px] p-5 shadow-lg border border-slate-50 overflow-hidden relative text-left max-w-6xl mx-auto">
           <div className="flex items-center gap-2 mb-4 text-[#D1388D] text-xs font-semibold tracking-wider uppercase">
@@ -162,19 +163,18 @@ export default function StudentClass() {
           </div>
 
           <div className="flex items-center gap-6">
-            <Link 
-                href="/student/courses/board"
-                className="inline-block bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all"
-              >
-                Join Board
-              </Link>
+            <Link
+              href="/student/courses/board"
+              className="inline-block bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all"
+            >
+              Join Board
+            </Link>
             <p className="text-sm text-slate-500 font-medium">
               <span className="text-slate-700">12</span> students are currently
               asking questions.
             </p>
           </div>
         </section>
-
         {/* ACTIVITY TIMELINE */}
         <section className="max-w-5xl mx-auto mt-10">
           <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
@@ -219,7 +219,6 @@ export default function StudentClass() {
             ))}
           </div>
         </section>
-        
       </main>
     </div>
   );

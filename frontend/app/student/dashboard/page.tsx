@@ -56,7 +56,7 @@ export default function Dashboard() {
         onClose={() => setIsJoinModalOpen(false)}
       />
 
-      <main className="p-8 pt-[80px] space-y-6 h-full">
+      <main className="p-8 pt-[140px] space-y-6 h-full">
         {!data ? (
           <div>Loading...</div>
         ) : (
