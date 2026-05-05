@@ -1,11 +1,16 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, CheckCircle2,Plus } from "lucide-react";
+import { ChevronLeft, CheckCircle2, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
-import AskModal from "../../../components/askmodal";
 import Header from "../../../components/Header";
 
+//mock data
+const data = {
+  professor: { name: "อาจารย์สะปุกนิก", id: "PRF000001" },
+  session: { title: "CS232: Intro to Cloud Computing" },
+};
+ 
 const formatTimeAgo = (dateString: string) => {
   try {
     const date = new Date(dateString);
@@ -19,13 +24,7 @@ const formatTimeAgo = (dateString: string) => {
 
 const LabDiscussionPage = () => {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
-  //  Mock Data
-  const data = {
-    student: { name: "สมชาย ใจดี", id: "6700000000" },
-    session: { title: "CS232: Intro to Cloud Computing" },
-  };
+
   const labInfo = {
     title: "Lab 5 : RDS",
     date: "30/03/2026",
@@ -125,8 +124,7 @@ const LabDiscussionPage = () => {
     <div className="h-full bg-[#FCF9F8] flex flex-col overflow-hidden font-sans">
       {/* Fixed Top Header (ชื่อ course) */}
       <Header
-        studentName={data.student.name}
-        studentId={data.student.id}
+        professorName={data.professor.name} 
         onJoinCourse={() => setIsJoinModalOpen(true)}
         courseTitle={data.session.title}
         mode="course"
@@ -174,19 +172,6 @@ const LabDiscussionPage = () => {
           ))}
         </div>
       </div>
-
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-15 right-15 w-20 h-20 rounded-full bg-gradient-to-br from-[#6443D9] to-[#EA60AB] text-white shadow-lg shadow-purple-300 hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-40"
-      >
-        <Plus size={30} />
-      </button>
-
-      <AskModal
-        isOpen={open}
-        onClose={() => setOpen(false)}
-        onAdd={handleAddDiscussion}
-      />
     </div>
   );
 };

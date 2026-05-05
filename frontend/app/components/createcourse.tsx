@@ -120,69 +120,6 @@ const CreateCourse = ({
             />
           </div>
 
-          {/* Section */}
-          <div>
-            <label className="text-sm font-bold text-slate-700 mb-1 block">
-              เลข Section <span className="text-red-500 font-normal">*</span>
-            </label>
-            <input
-              type="text"
-              placeholder="เช่น 540001"
-              value={form.section}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, section: e.target.value }))
-              }
-              className="w-full px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 text-sm"
-            />
-          </div>
-
-          {/* Schedule */}
-          <div>
-            <label className="text-sm font-bold text-slate-700 mb-2 block">
-              วันและเวลาที่สอน{" "}
-              <span className="text-red-500 font-normal">*</span>
-            </label>
-            <div className="flex flex-wrap gap-2 mb-3">
-              {days.map((day) => {
-                const isSelected = selectedDays.includes(day);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    onClick={() => toggleDay(day)}
-                    className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
-                      isSelected
-                        ? "bg-[#5B41FF] text-white border-[#5B41FF]"
-                        : "text-slate-400 border-slate-200 bg-white hover:border-[#5B41FF] hover:text-[#5B41FF]"
-                    }`}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Time */}
-            <div className="flex items-center gap-2">
-              <input
-                type="time"
-                value={form.startTime}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, startTime: e.target.value }))
-                }
-                className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:border-[#5B41FF] text-sm"
-              />
-              <span className="text-slate-400">ถึง</span>
-              <input
-                type="time"
-                value={form.endTime}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, endTime: e.target.value }))
-                }
-                className="flex-1 px-4 py-3 rounded-2xl border border-slate-200 focus:outline-none focus:border-[#5B41FF] text-sm"
-              />
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

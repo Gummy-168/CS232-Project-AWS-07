@@ -51,22 +51,18 @@ const ProfessorSettingsPage = () => {
   const [displayName, setDisplayName] = useState(professorInfo.displayName);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [data, setData] = useState<any>(null);
-  
+
   useEffect(() => {
     fetchProfessorData().then(setData);
   }, []);
-
+  const [showSuccess, setShowSuccess] = useState(false);
   const handleSaveProfile = async () => {
     try {
-      console.log("Saving to Database...", displayName);
-
       await new Promise((resolve) => setTimeout(resolve, 1000));
-
       setIsEditing(false);
-      alert("อัปเดตชื่อสำเร็จ!");
+      setShowSuccess(true);
     } catch (error) {
       console.error("Update failed", error);
-      alert("เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     }
   };
   const handleCreateCourse = () => {};
@@ -258,6 +254,34 @@ const ProfessorSettingsPage = () => {
           </div>
         </div>
       </main>
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-10 shadow-2xl flex flex-col items-center gap-4 w-80">
+            <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                <circle cx="16" cy="16" r="16" fill="#d1fae5" />
+                <path
+                  d="M9 16l5 5 9-9"
+                  stroke="#10b981"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-slate-800">อัปเดตสำเร็จ!</h3>
+            <p className="text-sm text-slate-400 text-center">
+              ข้อมูลโปรไฟล์ของคุณถูกบันทึกเรียบร้อยแล้ว
+            </p>
+            <button
+              onClick={() => setShowSuccess(false)}
+              className="mt-2 px-8 py-2.5 rounded-2xl bg-indigo-500 text-white text-sm font-medium hover:bg-indigo-600 active:scale-95 transition-all"
+            >
+              ตกลง
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

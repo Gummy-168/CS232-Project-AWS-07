@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Contact, Clock } from "lucide-react";
+import { Search, Contact, Clock, PenLine } from "lucide-react";
 import Link from "next/link";
 import JoinCourse from "../../components/joincourse";
 import Header from "../../components/Header";
@@ -30,7 +30,8 @@ const INITIAL_ACTIVITIES = [
     content: "ไก่กับไข่อะไรเกิดก่อนกัน",
     status: "UNANSWERED",
     type: "question",
-    replies: 0,
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
   },
   {
@@ -39,8 +40,15 @@ const INITIAL_ACTIVITIES = [
     time: "2m ago",
     content: "อยากทราบว่า EC2 ทำงานยังไงหรอครับ",
     status: "UNANSWERED",
-    type: "question",
-    replies: 3,
+    replies: [
+      {
+        user: "มะพร้าว ส้มโอ",
+        avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot",
+        time: "1m ago",
+        text: "EC2 คือ virtual server บน AWS ครับ",
+      },
+    ],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tung",
   },
   {
@@ -60,8 +68,15 @@ const INITIAL_ACTIVITIES = [
     content: "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้",
     status: "ANSWERED",
     type: "question",
-    professorReply: "ลองตรวจ step 4 อีกครั้งค่ะ",
-    replies: 9,
+    replies: [
+      {
+        user: "Aj. Noon",
+        avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Professor",
+        time: "30s ago",
+        text: "ถูกต้องค่ะ",
+        isProfessor: true,
+      },
+    ],
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Coconut",
   },
 ];
@@ -70,14 +85,46 @@ const INITIAL_ACTIVITIES = [
 
 export default function StudentClass() {
   const [data, setData] = useState(null);
-  const [activities] = useState(INITIAL_ACTIVITIES);
+  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isPostOpen, setIsPostOpen] = useState(false);
 
   useEffect(() => {
     fetchDashboardData().then(setData);
   }, []);
+
+  const toggleReplies = (id: number) => {
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, showReplies: !a.showReplies } : a,
+      ),
+    );
+  };
+
+  const postReply = (id: number, text: string) => {
+    if (!text.trim()) return;
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              showReplies: true,
+              replies: [
+                ...a.replies,
+                {
+                  user: data.student.name,
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.student.id}`,
+                  time: "just now",
+                  text,
+                },
+              ],
+            }
+          : a,
+      ),
+    );
+  };
 
   const filteredActivities = useMemo(() => {
     return activities.filter((item) => {
@@ -101,6 +148,35 @@ export default function StudentClass() {
     });
   }, [activities, filter, activitySearch]);
 
+  const handleCreatePost = ({
+    title,
+    detail,
+    anonymous,
+  }: {
+    title: string;
+    detail: string;
+    tags: string[];
+    anonymous: boolean;
+  }) => {
+    const newPost = {
+      id: Date.now(),
+      user: anonymous ? "ไม่ระบุตัวตน" : data.student.name,
+      avatar: anonymous
+        ? "https://api.dicebear.com/7.x/identicon/svg?seed=anon"
+        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.student.id}`,
+      time: "just now",
+      content: title,
+      subContent: detail || undefined,
+      status: "UNANSWERED",
+      type: "question",
+      replies: [],
+      showReplies: false,
+    };
+    setActivities((prev) => [newPost, ...prev]);
+    setFilter("All");
+    setIsPostOpen(false);
+  };
+
   if (!data) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -116,7 +192,7 @@ export default function StudentClass() {
         studentId={data?.student?.id}
         onJoinCourse={() => setIsJoinModalOpen(true)}
         courseTitle={data?.session?.title}
-        mode="course"
+        mode="courses"
       />
 
       <JoinCourse
@@ -215,30 +291,213 @@ export default function StudentClass() {
 
           <div className="space-y-6 min-h-[60vh] transition-all duration-200">
             {filteredActivities.map((item) => (
-              <StudentActivityCard key={item.id} data={item} />
+              <StudentActivityCard
+                key={item.id}
+                data={item}
+                onToggleReplies={toggleReplies}
+                onPostReply={postReply}
+              />
             ))}
           </div>
         </section>
       </main>
+      {/* FAB Button */}
+      <button
+        onClick={() => setIsPostOpen(true)}
+        className="fixed bottom-15 right-15 w-20 h-20 rounded-full bg-gradient-to-br from-[#6443D9] to-[#EA60AB] text-white shadow-lg shadow-purple-300 hover:scale-110 active:scale-95 transition-all flex items-center justify-center z-40"
+      >
+        <PenLine size={30} />
+      </button>
+
+      {/* Create Post Overlay */}
+      <CreatePostModal
+        isOpen={isPostOpen}
+        onClose={() => setIsPostOpen(false)}
+        courseTitle={data?.session?.title}
+        onPost={handleCreatePost}
+      />
+    </div>
+  );
+}
+
+function CreatePostModal({
+  isOpen,
+  onClose,
+  courseTitle,
+  onPost,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  courseTitle?: string;
+  onPost: (post: {
+    title: string;
+    detail: string;
+    tags: string[];
+    anonymous: boolean;
+  }) => void;
+}) {
+  const [title, setTitle] = useState("");
+  const [detail, setDetail] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [anonymous, setAnonymous] = useState(false);
+
+  const tags = ["Midterm", "Final", "Project", "Homework"];
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  };
+  const handlePost = () => {
+    if (!title.trim()) return;
+    onPost({ title, detail, tags: selectedTags, anonymous });
+    // reset
+    setTitle("");
+    setDetail("");
+    setSelectedTags([]);
+    setAnonymous(false);
+    onClose();
+  };
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-xl font-bold text-[#1B1B1B]">Create a Post</h2>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 text-xl leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Course badge */}
+        <div className="bg-[#EEF0FF] text-[#5B41FF] text-xs font-medium px-4 py-2 rounded-xl mb-5">
+          Posting to {courseTitle || "My Course"}
+        </div>
+
+        {/* Title */}
+        <div className="mb-4">
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">
+            หัวข้อคำถาม <span className="text-red-500 font-regular">*</span>
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="เช่น ไก่กับไข่อะไรเกิดก่อนกัน"
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 transition"
+          />
+        </div>
+
+        {/* Detail */}
+        <div className="mb-5">
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">
+            รายละเอียดเพิ่มเติม{" "}
+            <span className="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <textarea
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            placeholder="อธิบายคำถามเพิ่มเติม"
+            rows={3}
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 transition resize-none"
+          />
+        </div>
+
+        {/* Tags */}
+        <div className="mb-5">
+          <label className="text-sm font-semibold text-slate-700 mb-2 block">
+            Tag <span className="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <div className="flex gap-2 flex-wrap">
+            {tags.map((tag) => (
+              <button
+                key={tag}
+                onClick={() => toggleTag(tag)}
+                className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  selectedTags.includes(tag)
+                    ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                    : "text-slate-500 border-slate-200 bg-white hover:border-[#5B41FF] hover:text-[#5B41FF]"
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Anonymous toggle */}
+        <div className="flex items-center justify-between bg-slate-50 rounded-2xl px-4 py-3 mb-6">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <span>👁</span>
+            <span>แสดงชื่อแบบไม่ระบุตัวตน</span>
+          </div>
+          <button
+            onClick={() => setAnonymous((v) => !v)}
+            className={`w-11 h-6 rounded-full transition-all relative ${
+              anonymous ? "bg-[#5B41FF]" : "bg-slate-300"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                anonymous ? "left-5" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 rounded-2xl border border-slate-200 text-slate-500 text-sm hover:bg-slate-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePost}
+            disabled={!title.trim()}
+            className="px-8 py-2.5 rounded-2xl bg-gradient-to-r from-[#6443D9] to-[#EA60AB] text-white text-sm font-medium shadow-md disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
+          >
+            Post
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ---------------- SUB COMPONENT ---------------- */
-
-function StudentActivityCard({ data }: any) {
+function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
+  const [draft, setDraft] = useState("");
   const isBoard = data.status?.toUpperCase().trim() === "BOARD";
   const isAnswered = data.status?.toUpperCase().trim() === "ANSWERED";
 
+  const handleSend = () => {
+    onPostReply(data.id, draft);
+    setDraft("");
+  };
+
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
+      {/* Badge มุมขวาบน — เหมือนเดิม */}
       <div
         className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-regular ${
           isAnswered
-            ? "bg-emerald-50 text-emerald-500 "
+            ? "bg-emerald-50 text-emerald-500"
             : isBoard
               ? "bg-red-50 text-red-400"
-              : "bg-orange-50 text-orange-400 "
+              : "bg-orange-50 text-orange-400"
         }`}
       >
         {isAnswered ? (
@@ -288,19 +547,23 @@ function StudentActivityCard({ data }: any) {
                     {data.subContent}
                   </p>
                 )}
-                <button className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all">
+                <Link
+                  href="/student/courses/boardreview"
+                  className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all w-fit"
+                >
                   <span>👁</span> Review Session
-                </button>
+                </Link>
               </div>
             </div>
           ) : (
             <div>
               <p className="text-slate-700 mb-3">{data.content}</p>
 
+              {/* Professor reply string*/}
               {data.professorReply && (
-                <div className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
+                <div className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4] mb-3">
+                  <div className="flex items-center mb-2">
+                    <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded uppercase tracking-wider">
                       Professor Reply
                     </span>
                   </div>
@@ -310,11 +573,94 @@ function StudentActivityCard({ data }: any) {
                 </div>
               )}
 
+              {/* Professor replies*/}
+              {data.replies?.some((r: any) => r.isProfessor) && (
+                <div className="space-y-2 mb-3">
+                  {data.replies
+                    .filter((r: any) => r.isProfessor)
+                    .map((r: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex-1 border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4]">
+                          <span className="bg-emerald-400 text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
+                            Professor Reply
+                          </span>
+                          <p className="text-sm text-slate-700 mt-1">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* Reply button */}
               <div className="flex items-center gap-4 text-[13px]">
-                <span className="text-slate-400 flex items-center gap-1">
-                  ↩ {data.replies || 0}
-                </span>
+                <button
+                  onClick={() => onToggleReplies(data.id)}
+                  className="text-slate-400 hover:text-[#5B41FF] flex items-center gap-1 transition-colors"
+                >
+                  ↩{" "}
+                  {data.replies?.filter((r: any) => !r.isProfessor).length > 0
+                    ? data.replies.filter((r: any) => !r.isProfessor).length
+                    : ""}{" "}
+                  {data.showReplies ? "ซ่อน replies" : "reply"}
+                </button>
               </div>
+
+              {/* Student replies*/}
+              {data.showReplies && (
+                <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                  {data.replies
+                    ?.filter((r: any) => !r.isProfessor)
+                    .map((r: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <img
+                          src={r.avatar}
+                          className="w-8 h-8 rounded-full flex-shrink-0"
+                        />
+                        <div className="bg-slate-50 rounded-xl px-3 py-2 flex-1">
+                          <span className="text-sm font-semibold text-slate-700">
+                            {r.user}
+                          </span>
+                          <span className="text-xs text-slate-400 ml-2">
+                            {r.time}
+                          </span>
+                          <p className="text-sm text-slate-600 mt-0.5">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Compose box */}
+                  <div className="flex gap-3 items-end pt-1">
+                    <img
+                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=me`}
+                      className="w-8 h-8 rounded-full flex-shrink-0"
+                    />
+                    <textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder="เขียน reply... (Enter เพื่อส่ง)"
+                      rows={1}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-[#5B41FF] transition-colors"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!draft.trim()}
+                      className="bg-[#5B41FF] disabled:opacity-40 text-white rounded-lg w-9 h-9 flex items-center justify-center hover:opacity-85 transition-opacity flex-shrink-0"
+                    >
+                      ↑
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

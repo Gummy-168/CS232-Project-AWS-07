@@ -4,6 +4,7 @@ import AskModal from "../../components/askmodal";
 import JoinCourse from "../../components/joincourse";
 import Header from "../../components/Header";
 import { Contact, Clock } from "lucide-react";
+import Link from "next/link";
 
 const fetchDashboardData = async () => {
   return new Promise((resolve) => {
@@ -110,12 +111,12 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-6">
-                  <button
-                    onClick={() => setOpen(true)}
+                  <Link
+                    href="/student/courses/board"
                     className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-12 py-3 rounded-full text-lg shadow-xl shadow-purple-100 hover:scale-105 active:scale-95 transition-all"
                   >
                     Ask Now
-                  </button>
+                  </Link>
                   <p className="text-sm text-slate-500 font-medium">
                     <span className="text-slate-700">12</span> students are
                     currently asking questions.

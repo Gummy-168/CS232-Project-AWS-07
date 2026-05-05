@@ -18,8 +18,8 @@ import {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [isFeedOpen, setIsFeedOpen] = useState(false);
-  const [isCourseOpen, setIsCourseOpen] = useState(true);
+  const [isFeedOpen, setIsFeedOpen] = useState(pathname.includes("/feed"));
+const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
   const [isJoinOpen, setIsJoinOpen] = useState(false);
 
   // Active

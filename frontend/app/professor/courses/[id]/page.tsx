@@ -23,9 +23,12 @@ const fetchProfessorData = async () => {
 };
 
 const StudentDetailPage = ({ params }: { params: { id: string } }) => {
+  const { id } = React.use(params);
   const router = useRouter();
   const [data, setData] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+
   useEffect(() => {
     fetchProfessorData().then(setData);
   }, []);
@@ -52,9 +55,9 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
       courseCode: "CS232-54001",
       time: "1 sec ago",
       content: "ไก่กับไข่อะไรเกิดก่อนกัน",
-      replies: 0,
+      replies: [],
+      showReplies: false,
       status: "UNANSWERED",
-      professorReplies: [],
       type: "question",
     },
 
@@ -65,9 +68,17 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
       courseCode: "CS232-54001",
       time: "2 hours ago",
       content: "ทำแลปไม่ได้ค่ะ ตรงส่วนเชื่อมต่อ Database",
-      replies: 1,
       status: "ANSWERED",
-      professorReplies: ["ลองเช็คไฟล์ .env อีกรอบนะคะว่าใส่พอร์ตถูกไหม"],
+      replies: [
+        {
+          user: "อาจารย์สะปุกนิก",
+          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=PRF000001",
+          time: "1h ago",
+          text: "ลองเช็คไฟล์ .env อีกรอบนะคะว่าใส่พอร์ตถูกไหม",
+          isProfessor: true,
+        },
+      ],
+      showReplies: false,
       type: "question",
     },
   ]);
@@ -90,20 +101,36 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
     );
   };
 
-  const handlePostReply = (id: number, text: string) => {
+  const toggleReplies = (id: number) => {
     setActivities((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const newReplies = [...(item.professorReplies || []), text];
-          return {
-            ...item,
-            professorReplies: newReplies,
-            status: "ANSWERED",
-            replies: (item.replies || 0) + 1,
-          };
-        }
-        return item;
-      }),
+      prev.map((a) =>
+        a.id === id ? { ...a, showReplies: !a.showReplies } : a,
+      ),
+    );
+  };
+
+  const handlePostReply = (id: number, text: string) => {
+    if (!text.trim()) return;
+    setActivities((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "ANSWERED",
+              showReplies: true,
+              replies: [
+                ...item.replies,
+                {
+                  user: data.professor.name,
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.professor.id}`,
+                  time: "just now",
+                  text,
+                  isProfessor: true,
+                },
+              ],
+            }
+          : item,
+      ),
     );
   };
 
@@ -111,14 +138,15 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
     setActivities((prev) =>
       prev.map((item) => {
         if (item.id === activityId) {
-          const filtered = item.professorReplies.filter(
-            (_, i) => i !== replyIndex,
+          const filtered = item.replies.filter(
+            (_: any, i: number) => i !== replyIndex,
           );
           return {
             ...item,
-            professorReplies: filtered,
-            status: filtered.length > 0 ? "ANSWERED" : "UNANSWERED",
-            replies: Math.max(0, (item.replies || 0) - 1),
+            replies: filtered,
+            status: filtered.some((r: any) => r.isProfessor)
+              ? "ANSWERED"
+              : "UNANSWERED",
           };
         }
         return item;
@@ -127,7 +155,12 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
   };
 
   const handleDelete = (id: number) => {
-    setActivities((prev) => prev.filter((item) => item.id !== id));
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = () => {
+    setActivities((prev) => prev.filter((q) => q.id !== deleteTarget));
+    setDeleteTarget(null);
   };
 
   const filteredActivities = useMemo(() => {
@@ -165,6 +198,14 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
     },
   ];
   const handleCreateCourse = () => {};
+  function InfoBox({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-slate-50 rounded-2xl px-5 py-4 border border-slate-100">
+      <p className="text-[11px] text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+      <p className="text-slate-700 font-medium">{value}</p>
+    </div>
+  );
+}
 
   return (
     <div className="h-full bg-[#FCF9F8] font-sans text-slate-700 overflow-y-auto">
@@ -178,7 +219,6 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
       <CreateCourse
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onCreateCourse={handleCreateCourse}
       />
       <main className="px-8 pt-[140px] pb-10 w-full">
         <div className="max-w-6xl mx-auto bg-white rounded-[40px] shadow-sm border border-slate-50 p-8 md:p-12">
@@ -268,27 +308,52 @@ const StudentDetailPage = ({ params }: { params: { id: string } }) => {
                 <ActivityCard
                   key={activity.id}
                   data={activity}
+                  onToggleReplies={toggleReplies}
                   onMarkAnswered={() => handleMarkAnswered(activity.id)}
                   onUnmarked={() => handleUnmarked(activity.id)}
                   onPostReply={(text: string) =>
                     handlePostReply(activity.id, text)
                   }
                   onDelete={() => handleDelete(activity.id)}
-                  onDeleteReply={(activityId: number, index: number) =>
-                    handleDeleteReply(activityId, index)
-                  }
+                  onDeleteReply={handleDeleteReply}
                 />
               ))}
             </div>
           </div>
         </div>
       </main>
+      {/* Delete Confirm Modal */}
+      {deleteTarget !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl p-6 shadow-xl w-80 text-center">
+            <p className="text-slate-700 font-medium mb-1">ลบคำถามนี้?</p>
+            <p className="text-sm text-slate-400 mb-6">
+              การกระทำนี้ไม่สามารถย้อนกลับได้
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-5 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm hover:bg-slate-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-5 py-2 rounded-xl bg-rose-500 text-white text-sm hover:bg-rose-600 transition-colors"
+              >
+                ลบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 // ActivityCard
 function ActivityCard({
   data,
+  onToggleReplies,
   onMarkAnswered,
   onUnmarked,
   onPostReply,
@@ -296,13 +361,11 @@ function ActivityCard({
   onDeleteReply,
 }: any) {
   const [replyText, setReplyText] = useState("");
-  const [showReplyBox, setShowReplyBox] = useState(false);
   const isBoard = data.type === "board";
   const isAnswered = data.status === "ANSWERED";
 
   return (
     <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative">
-      {/* Status Badge */}
       <div
         className={`absolute top-6 right-6 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] ${
           isAnswered
@@ -336,7 +399,7 @@ function ActivityCard({
             <circle cx="5" cy="7" r="0.6" fill="white" />
           </svg>
         )}
-        {data.status}
+        {isAnswered ? "ANSWERED" : isBoard ? "BOARD" : "UNANSWERED"}
       </div>
 
       <div className="flex gap-4">
@@ -365,42 +428,50 @@ function ActivityCard({
             <>
               <p className="text-slate-700 mb-4">{data.content}</p>
 
-              {/* Professor Replies Loop */}
-              <div className="space-y-3 mb-4">
-                {data.professorReplies?.map((reply: string, index: number) => (
-                  <div
-                    key={index}
-                    className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4] relative group"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded  uppercase tracking-wider">
-                        Professor Reply
-                      </span>
-                      <button
-                        onClick={() => onDeleteReply(data.id, index)}
-                        className="text-rose-400 hover:text-rose-600 transition-colors text-xs px-1"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <p className="text-sm text-slate-700 font-medium">
-                      {reply}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              {/* Professor replies — แสดงตลอด */}
+              {data.replies?.some((r: any) => r.isProfessor) && (
+                <div className="space-y-2 mb-3">
+                  {data.replies
+                    .map((r: any, realIndex: number) => ({ r, realIndex }))
+                    .filter(({ r }) => r.isProfessor)
+                    .map(({ r, realIndex }) => (
+                      <div key={realIndex} className="flex gap-3">
+                        <img
+                          src={r.avatar}
+                          className="w-8 h-8 rounded-full flex-shrink-0"
+                        />
+                        <div className="flex-1 border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4]">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="bg-emerald-400 text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
+                              Professor Reply
+                            </span>
+                            <button
+                              onClick={() => onDeleteReply(data.id, realIndex)}
+                              className="text-rose-400 hover:text-rose-600 transition-colors text-xs px-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <p className="text-sm text-slate-700 mt-1">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
 
-              <div className="flex items-center gap-4 text-[13px]">
-                <span className="text-slate-400 flex items-center gap-1 font-medium">
-                  ↩ {data.replies || 0} Replies
-                </span>
+              {/* Reply toggle + Mark/Delete ในบรรทัดเดียวกัน */}
+              <div className="flex items-center justify-between text-[13px] mb-2">
+                <button
+                  onClick={() => onToggleReplies(data.id)}
+                  className="text-slate-400 hover:text-[#5B41FF] flex items-center gap-1 transition-colors"
+                >
+                  ↩{" "}
+                  {data.replies?.filter((r: any) => !r.isProfessor).length || 0}{" "}
+                  {data.showReplies ? "ซ่อน replies" : "replies"}
+                </button>
                 <div className="ml-auto flex gap-2">
-                  <button
-                    onClick={() => setShowReplyBox(!showReplyBox)}
-                    className={`px-3 py-1 rounded-md border transition-all ${showReplyBox ? "text-[#5B41FF] border-[#5B41FF] bg-purple-50" : "text-slate-400 border-slate-200 hover:border-slate-300"}`}
-                  >
-                    Reply
-                  </button>
                   {isAnswered ? (
                     <button
                       onClick={onUnmarked}
@@ -425,37 +496,72 @@ function ActivityCard({
                 </div>
               </div>
 
-              {showReplyBox && (
-                <div className="mt-4 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Add a new reply as Instructor..."
-                    className="w-full bg-transparent border-none resize-none text-sm focus:outline-none h-16 text-slate-600 placeholder:text-slate-400 font-medium"
-                    autoFocus
-                  />
-                  <div className="flex justify-end gap-2 mt-2">
-                    <button
-                      onClick={() => {
-                        setShowReplyBox(false);
-                        setReplyText("");
-                      }}
-                      className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] hover:bg-slate-50 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (replyText.trim()) {
-                          onPostReply(replyText);
-                          setReplyText("");
-                          setShowReplyBox(false);
+              {/* Student replies + compose box */}
+              {data.showReplies && (
+                <div className="pt-3 border-t border-slate-100 space-y-3 mb-3">
+                  {data.replies
+                    ?.filter((r: any) => !r.isProfessor)
+                    .map((r: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <img
+                          src={r.avatar}
+                          className="w-8 h-8 rounded-full flex-shrink-0"
+                        />
+                        <div className="bg-slate-50 rounded-xl px-3 py-2 flex-1">
+                          <span className="text-sm font-semibold text-slate-700">
+                            {r.user}
+                          </span>
+                          <span className="text-xs text-slate-400 ml-2">
+                            {r.time}
+                          </span>
+                          <p className="text-sm text-slate-600 mt-0.5">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                  <div className="mt-2 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (replyText.trim()) {
+                            onPostReply(replyText);
+                            setReplyText("");
+                          }
                         }
                       }}
-                      className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-[13px]  hover:shadow-md transition-all active:scale-95"
-                    >
-                      Post Reply
-                    </button>
+                      placeholder="Add a new reply as Instructor... (Enter เพื่อส่ง)"
+                      rows={2}
+                      className="w-full bg-transparent border-none resize-none text-sm focus:outline-none text-slate-600"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button
+                        onClick={() => {
+                          onToggleReplies(data.id);
+                          setReplyText("");
+                        }}
+                        className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] hover:bg-slate-50 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (replyText.trim()) {
+                            onPostReply(replyText);
+                            setReplyText("");
+                          }
+                        }}
+                        disabled={!replyText.trim()}
+                        className="bg-[#5B41FF] disabled:opacity-40 text-white px-6 py-1.5 rounded-xl text-[13px] hover:shadow-md transition-all active:scale-95"
+                      >
+                        Post Reply
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -466,17 +572,5 @@ function ActivityCard({
     </div>
   );
 }
-
-const InfoBox = ({ label, value }: { label: string; value: string }) => (
-  <div className="space-y-2">
-    <div className="flex items-center gap-2">
-      <div className="w-1.5 h-4 bg-[#AE2466] rounded-full"></div>
-      <label className="text-sm  text-slate-800">{label}</label>
-    </div>
-    <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl text-slate-600 font-medium">
-      {value}
-    </div>
-  </div>
-);
 
 export default StudentDetailPage;
