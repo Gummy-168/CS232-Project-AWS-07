@@ -1,30 +1,13 @@
 "use client";
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import CreateCourse from "../../components/createcourse";
 import { Search } from "lucide-react";
 import Header from "@/app/components/Header";
-
-interface ProfessorPageData {
-  professor: { name: string; id: string };
-  course: { title: string };
-}
-
-interface ProfessorActivity {
-  id: number;
-  user: string;
-  time: string;
-  content: string;
-  status: "UNANSWERED" | "ANSWERED" | "BOARD";
-  type: "question" | "board";
-  replies: number;
-  professorReplies: string[];
-  avatar: string;
-  subContent?: string;
-}
+import Link from "next/link";
 
 /* ---------------- MOCK API ---------------- */
 
-const fetchProfessorData = async (): Promise<ProfessorPageData> => {
+const fetchProfessorData = async () => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
@@ -39,51 +22,67 @@ const fetchProfessorData = async (): Promise<ProfessorPageData> => {
 
 /* ---------------- MOCK DATA ---------------- */
 
-const INITIAL_ACTIVITIES: ProfessorActivity[] = [
+const INITIAL_ACTIVITIES = [
   {
     id: 1,
+    subject: "CS232",
+    section: "100001",
     user: "สมปอง กุ๊กกิ๊ก",
     time: "1 sec ago",
     content: "ไก่กับไข่อะไรเกิดก่อนกัน",
     status: "UNANSWERED",
     type: "question",
-    replies: 0,
-    professorReplies: [],
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
   },
   {
     id: 2,
+    subject: "CS232",
+    section: "100001",
     user: "ทุงทุงทุง",
     time: "2m ago",
     content: "อยากทราบว่า EC2 ทำงานยังไงหรอครับ",
     status: "UNANSWERED",
     type: "question",
-    replies: 0,
-    professorReplies: [],
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tung",
   },
   {
     id: 3,
+    subject: "CS232",
+    section: "100001",
     user: "CS232 Course Bot",
     time: "1d ago",
     content: "Lab 5 : RDS",
     subContent: "สามารถดูคำถามย้อนหลังได้ที่นี่ ทั้งหมด 5 คำถาม",
     status: "BOARD",
     type: "board",
-    replies: 0,
-    professorReplies: [],
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot",
   },
   {
     id: 4,
+    subject: "CS232",
+    section: "100002",
     user: "มะพร้าว ส้มโอ",
     time: "2h ago",
     content:
       "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้ มีใครสามารถทำได้บ้างไหมครับ",
     status: "ANSWERED",
     type: "question",
-    replies: 1,
-    professorReplies: ["ติดปัญหาส่วนไหนคะ ลองดู...ใหม่ค่ะ"],
+    replies: [
+      {
+        user: "อาจารย์สะปุกนิก",
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=PRF000001",
+        time: "1h ago",
+        text: "ติดปัญหาส่วนไหนคะ ลองดู...ใหม่ค่ะ",
+        isProfessor: true,
+      },
+    ],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Coconut",
   },
 ];
@@ -91,11 +90,21 @@ const INITIAL_ACTIVITIES: ProfessorActivity[] = [
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function ProfessorDashboard() {
-  const [data, setData] = useState<ProfessorPageData | null>(null);
+  const [data, setData] = useState(null);
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+
+  const handleDelete = (id: number) => {
+    setDeleteTarget(id);
+  };
+
+  const confirmDelete = () => {
+    setActivities((prev) => prev.filter((item) => item.id !== deleteTarget));
+    setDeleteTarget(null);
+  };
 
   useEffect(() => {
     fetchProfessorData().then(setData);
@@ -116,20 +125,36 @@ export default function ProfessorDashboard() {
       ),
     );
   };
+  const toggleReplies = (id: number) => {
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, showReplies: !a.showReplies } : a,
+      ),
+    );
+  };
 
   const handlePostReply = (id: number, text: string) => {
+    if (!text.trim()) return;
     setActivities((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          return {
-            ...item,
-            status: "ANSWERED",
-            professorReplies: [...(item.professorReplies || []), text],
-            replies: (item.replies || 0) + 1,
-          };
-        }
-        return item;
-      }),
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              status: "ANSWERED",
+              showReplies: true,
+              replies: [
+                ...item.replies,
+                {
+                  user: data.professor.name,
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.professor.id}`,
+                  time: "just now",
+                  text,
+                  isProfessor: true,
+                },
+              ],
+            }
+          : item,
+      ),
     );
   };
 
@@ -137,23 +162,20 @@ export default function ProfessorDashboard() {
     setActivities((prev) =>
       prev.map((item) => {
         if (item.id === activityId) {
-          const filteredReplies = item.professorReplies.filter(
-            (_, i) => i !== replyIndex,
+          const filtered = item.replies.filter(
+            (_: any, i: number) => i !== replyIndex,
           );
           return {
             ...item,
-            professorReplies: filteredReplies,
-            replies: Math.max(0, (item.replies || 0) - 1),
-            status: filteredReplies.length > 0 ? "ANSWERED" : "UNANSWERED",
+            replies: filtered,
+            status: filtered.some((r: any) => r.isProfessor)
+              ? "ANSWERED"
+              : "UNANSWERED",
           };
         }
         return item;
       }),
     );
-  };
-
-  const handleDelete = (id: number) => {
-    setActivities((prev) => prev.filter((item) => item.id !== id));
   };
 
   const filteredActivities = useMemo(() => {
@@ -187,89 +209,115 @@ export default function ProfessorDashboard() {
   }
 
   return (
-    <div className="flex-1 p-8 bg-[#FCF9F8] min-h-screen font-sans text-slate-700">
+    <div className="h-full bg-[#FCF9F8] font-sans text-slate-700 overflow-y-auto">
+      {/* Header */}
       <Header
         professorName={data?.professor?.name}
+        codeId={data?.course?.code}
         onJoinCourse={() => setIsModalOpen(true)}
         mode="questions"
       />
-
       <CreateCourse
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
       />
+      <main className="px-8 pt-[130px] pb-10 w-full">
+        {/* Course Card */}
 
-      {/* Course Card */}
+        <section className="bg-white rounded-3xl shadow-sm border border-slate-50 text-center mb-10 p-10 max-w-6xl mx-auto">
+          <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">
+            {data?.course?.title}
+          </h2>
+          <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
+            Create Board
+          </button>
+        </section>
 
-      <section className="bg-white rounded-3xl p-13 shadow-sm border border-slate-50 text-center mb-10 mt-13 max-w-6xl mx-auto">
-        <h2 className="text-2xl font-regular text-[#1B1B1B] mb-6">
-          {data?.course?.title}
-        </h2>
-        <button className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all">
-          Create Board
-        </button>
-      </section>
+        {/* Activity Timeline */}
+        <section className="max-w-6xl mx-auto mt-10">
+          <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
+            ActivityTimeline
+          </h3>
 
-      {/* Activity Timeline */}
-      <section className="max-w-5xl mx-auto mt-10">
-        <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
-          ActivityTimeline
-        </h3>
+          <div className="flex flex-wrap items-center gap-3 mb-8">
+            <div className="flex items-center gap-2">
+              {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
+                <button
+                  key={btnLabel}
+                  onClick={() => setFilter(btnLabel)}
+                  className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                    filter === btnLabel
+                      ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                      : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
+                  }`}
+                >
+                  {btnLabel}
+                </button>
+              ))}
+            </div>
 
-        <div className="flex flex-wrap items-center gap-3 mb-8">
-          <div className="flex items-center gap-2">
-            {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
-              <button
-                key={btnLabel}
-                onClick={() => setFilter(btnLabel)}
-                className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
-                  filter === btnLabel
-                    ? "bg-[#5B41FF] text-white border-[#5B41FF]"
-                    : "text-slate-400 border-slate-200 hover:border-slate-300 bg-white"
-                }`}
-              >
-                {btnLabel}
-              </button>
+            <div className="relative flex-1 max-w-xs ml-auto">
+              <Search
+                className="absolute left-3 top-2.5 text-slate-400"
+                size={15}
+              />
+              <input
+                type="text"
+                value={activitySearch}
+                onChange={(e) => setActivitySearch(e.target.value)}
+                placeholder="Search my questions..."
+                className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6 min-h-[60vh]">
+            {filteredActivities.map((item) => (
+              <ActivityCard
+                key={item.id}
+                data={item}
+                onToggleReplies={toggleReplies}
+                onMarkAnswered={() => handleMarkAnswered(item.id)}
+                onUnmarked={() => handleUnmarked(item.id)}
+                onPostReply={(text: string) => handlePostReply(item.id, text)}
+                onDelete={() => handleDelete(item.id)}
+                onDeleteReply={handleDeleteReply}
+              />
             ))}
           </div>
-
-          <div className="relative flex-1 max-w-xs ml-auto">
-            <Search
-              className="absolute left-3 top-2.5 text-slate-400"
-              size={15}
-            />
-            <input
-              type="text"
-              value={activitySearch}
-              onChange={(e) => setActivitySearch(e.target.value)}
-              placeholder="Search my questions..."
-              className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
-            />
+        </section>
+      </main>
+      {/* Delete Confirm Modal */}
+      {deleteTarget !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl p-6 shadow-xl w-80 text-center">
+            <p className="text-slate-700 font-medium mb-1">ลบคำถามนี้?</p>
+            <p className="text-sm text-slate-400 mb-6">
+              การกระทำนี้ไม่สามารถย้อนกลับได้
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-5 py-2 rounded-xl border border-slate-200 text-slate-500 text-sm hover:bg-slate-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-5 py-2 rounded-xl bg-rose-500 text-white text-sm hover:bg-rose-600 transition-colors"
+              >
+                ลบ
+              </button>
+            </div>
           </div>
         </div>
-
-        <div className="space-y-6 min-h-[60vh]">
-          {filteredActivities.map((item) => (
-            <ActivityCard
-              key={item.id}
-              data={item}
-              onMarkAnswered={() => handleMarkAnswered(item.id)}
-              onUnmarked={() => handleUnmarked(item.id)}
-              onPostReply={(text: string) => handlePostReply(item.id, text)}
-              onDelete={() => handleDelete(item.id)}
-              onDeleteReply={handleDeleteReply}
-            />
-          ))}
-        </div>
-      </section>
+      )}
     </div>
   );
 }
-
-/* ---------------- SUB COMPONENT ---------------- */
-
 function ActivityCard({
   data,
+  onToggleReplies,
   onMarkAnswered,
   onUnmarked,
   onPostReply,
@@ -283,6 +331,7 @@ function ActivityCard({
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
+      {/* Badge */}
       <div
         className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
           isAnswered
@@ -316,7 +365,7 @@ function ActivityCard({
             <circle cx="5" cy="7" r="0.6" fill="white" />
           </svg>
         )}
-        {data.status}
+        {isAnswered ? "ANSWERED" : isBoard ? "BOARD" : "UNANSWERED"}
       </div>
 
       <div className="flex gap-4">
@@ -326,7 +375,12 @@ function ActivityCard({
           className="w-12 h-12 rounded-full bg-slate-100"
         />
         <div className="flex-1">
-          <div className="flex items-baseline gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {(data.subject || data.section) && (
+              <span className="text-[11px] font-medium bg-gray-100 text-gray-400 px-2.5 py-1 rounded-lg tracking-wide uppercase">
+                {[data.subject, data.section].filter(Boolean).join(" | ")}
+              </span>
+            )}
             <span className="font-bold text-slate-800">{data.user}</span>
             <span className="text-xs text-slate-400">{data.time}</span>
           </div>
@@ -339,59 +393,58 @@ function ActivityCard({
               {data.subContent && (
                 <p className="text-sm text-slate-500 mb-4">{data.subContent}</p>
               )}
-              <button className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all">
+              <Link
+                href="/professor/courses/boardreview"
+                className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all w-fit"
+              >
                 <span>👁</span> Review Session
-              </button>
+              </Link>
             </div>
           ) : (
             <>
               <p className="text-slate-700 mb-4">{data.content}</p>
 
-              {/* Professor Replies */}
-              <div className="space-y-3 mb-4">
-                {data.professorReplies?.map((reply: string, index: number) => (
-                  <div
-                    key={index}
-                    className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
-                        Professor Reply
-                      </span>
-                      <button
-                        onClick={() => onDeleteReply(data.id, index)}
-                        className="text-rose-400 hover:text-rose-600 transition-colors text-xs font-bold px-1"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                    <p className="text-sm text-slate-700 font-medium">
-                      {reply}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              {/* Professor replies — แสดงตลอด */}
+              {data.replies?.some((r: any) => r.isProfessor) && (
+                <div className="space-y-2 mb-3">
+                  {data.replies
+                    .map((r: any, realIndex: number) => ({ r, realIndex }))
+                    .filter(({ r }) => r.isProfessor)
+                    .map(({ r, realIndex }) => (
+                      <div key={realIndex} className="flex gap-3">
+                        <div className="flex-1 border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4]">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="bg-emerald-400 text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
+                              Professor Reply
+                            </span>
+                            <button
+                              onClick={() => onDeleteReply(data.id, realIndex)}
+                              className="text-rose-400 hover:text-rose-600 transition-colors text-xs font-bold px-1"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <p className="text-sm text-slate-700 mt-1">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
 
-              {/* Bottom row */}
-              <div className="flex items-center gap-4 text-[13px] font-regular">
-                {/* Reply count ซ้าย — กดไม่ได้ */}
-                <span className="text-slate-400 flex items-center gap-1">
-                  ↩ {data.replies || 0}
-                </span>
-                {/* ปุ่มขวา */}
-                <div className="ml-auto flex gap-2">
-                  {/* Reply toggle */}
-                  <button
-                    onClick={() => setShowReplyBox(!showReplyBox)}
-                    className={`px-3 py-1 rounded-md border transition-colors ${
-                      showReplyBox
-                        ? "text-[#5B41FF] border-[#5B41FF] bg-purple-50"
-                        : "text-slate-400 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    Reply
-                  </button>
+              {/* Reply toggle + Mark/Delete*/}
+              <div className="flex items-center justify-between text-[13px] mb-2">
+                <button
+                  onClick={() => onToggleReplies(data.id)}
+                  className="text-slate-400 hover:text-[#5B41FF] flex items-center gap-1 transition-colors"
+                >
+                  ↩{" "}
+                  {data.replies?.filter((r: any) => !r.isProfessor).length || 0}{" "}
+                  {data.showReplies ? "ซ่อน replies" : "replies"}
+                </button>
 
+                <div className="flex gap-2">
                   {isAnswered ? (
                     <button
                       onClick={onUnmarked}
@@ -407,7 +460,6 @@ function ActivityCard({
                       Mark Answered
                     </button>
                   )}
-
                   <button
                     onClick={onDelete}
                     className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md hover:bg-rose-50 transition-colors"
@@ -417,38 +469,73 @@ function ActivityCard({
                 </div>
               </div>
 
-              {/* Reply box — แสดงเมื่อกด Reply */}
-              {showReplyBox && (
-                <div className="mt-4 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Add a new reply as Instructor..."
-                    className="w-full bg-transparent border-none resize-none text-sm focus:outline-none h-16 text-slate-600"
-                    autoFocus
-                  />
-                  <div className="flex justify-end gap-2 mt-2">
-                    <button
-                      onClick={() => {
-                        setShowReplyBox(false);
-                        setReplyText("");
-                      }}
-                      className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] font-regular hover:bg-slate-50 transition-all"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (replyText.trim()) {
-                          onPostReply(replyText);
-                          setReplyText("");
-                          setShowReplyBox(false);
+              {/* Student replies + compose box*/}
+              {data.showReplies && (
+                <div className="pt-3 border-t border-slate-100 space-y-3 mb-3">
+                  {data.replies
+                    ?.filter((r: any) => !r.isProfessor)
+                    .map((r: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <img
+                          src={r.avatar}
+                          className="w-8 h-8 rounded-full flex-shrink-0"
+                        />
+                        <div className="bg-slate-50 rounded-xl px-3 py-2 flex-1">
+                          <span className="text-sm font-semibold text-slate-700">
+                            {r.user}
+                          </span>
+                          <span className="text-xs text-slate-400 ml-2">
+                            {r.time}
+                          </span>
+                          <p className="text-sm text-slate-600 mt-0.5">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Compose box อยู่ใน toggle */}
+                  <div className="mt-2 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (replyText.trim()) {
+                            onPostReply(replyText);
+                            setReplyText("");
+                          }
                         }
                       }}
-                      className="bg-[#5B41FF] text-white px-6 py-1.5 rounded-xl text-[13px] font-regular hover:shadow-md transition-all active:scale-95"
-                    >
-                      Post Reply
-                    </button>
+                      placeholder="Add a new reply as Instructor... (Enter เพื่อส่ง)"
+                      rows={2}
+                      className="w-full bg-transparent border-none resize-none text-sm focus:outline-none text-slate-600"
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2 mt-2">
+                      <button
+                        onClick={() => {
+                          onToggleReplies(data.id);
+                          setReplyText("");
+                        }}
+                        className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] hover:bg-slate-50 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (replyText.trim()) {
+                            onPostReply(replyText);
+                            setReplyText("");
+                          }
+                        }}
+                        disabled={!replyText.trim()}
+                        className="bg-[#5B41FF] disabled:opacity-40 text-white px-6 py-1.5 rounded-xl text-[13px] hover:shadow-md transition-all active:scale-95"
+                      >
+                        Post Reply
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

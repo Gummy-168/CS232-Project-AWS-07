@@ -1,35 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { Search } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Search, Contact, Clock } from "lucide-react";
 import JoinCourse from "../../../components/joincourse";
 import Header from "../../../components/Header";
+import Link from "next/link";
 
-interface FeedPageData {
-  student: { name: string; id: string };
-  session: {
-    title: string;
-    time: string;
-    instructor: string;
-    timeLeft: string;
-  };
-}
-
-interface FeedActivity {
-  id: number;
-  user: string;
-  time: string;
-  content: string;
-  subject: string;
-  status: "UNANSWERED" | "ANSWERED" | "BOARD";
-  type: "question" | "board";
-  replies?: number;
-  avatar: string;
-  subContent?: string;
-  professorReply?: string;
-}
-
-const fetchDashboardData = async (): Promise<FeedPageData> => {
+const fetchDashboardData = async () => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve({
@@ -45,72 +22,118 @@ const fetchDashboardData = async (): Promise<FeedPageData> => {
   });
 };
 
-const INITIAL_ACTIVITIES: FeedActivity[] = [
+const INITIAL_ACTIVITIES = [
   {
     id: 1,
+    subject: "CS232",
+    section: "100001",
     user: "สมปอง กุ๊กกิ๊ก",
     time: "1 sec ago",
     content: "ไก่กับไข่อะไรเกิดก่อนกัน",
-    subject: "CS242",
     status: "UNANSWERED",
     type: "question",
-    replies: 0,
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
   },
   {
     id: 2,
+    subject: "CS232",
+    section: "100001",
     user: "ทุงทุงทุง",
     time: "2m ago",
     content: "อยากทราบว่า EC2 ทำงานยังไงหรอครับ",
-    subject: "CS232",
     status: "UNANSWERED",
     type: "question",
-    replies: 3,
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tung",
   },
   {
     id: 3,
+    subject: "CS232",
+    section: "100001",
     user: "CS232 Course Bot",
     time: "1d ago",
     content: "Lab 5 : RDS",
-    subject: "CS232",
     subContent: "สามารถดูคำถามย้อนหลังได้ที่นี่ ทั้งหมด 5 คำถาม",
     status: "BOARD",
     type: "board",
+    replies: [],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot",
   },
   {
     id: 4,
+    subject: "CS232",
+    section: "100002",
     user: "มะพร้าว ส้มโอ",
     time: "2h ago",
-    content: "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้",
-    subject: "CS232",
+    content:
+      "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้ มีใครสามารถทำได้บ้างไหมครับ",
     status: "ANSWERED",
     type: "question",
-    professorReply: "ลองตรวจ step 4 อีกครั้งค่ะ",
-    replies: 9,
+    replies: [
+      {
+        user: "อาจารย์สะปุกนิก",
+        avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=PRF000001",
+        time: "1h ago",
+        text: "ติดปัญหาส่วนไหนคะ ลองดู...ใหม่ค่ะ",
+        isProfessor: true,
+      },
+    ],
+    showReplies: false,
     avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Coconut",
   },
 ];
 
-
-
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function Allquestions() {
-  const [data, setData] = useState<FeedPageData | null>(null);
-  const [activities] = useState(INITIAL_ACTIVITIES);
+  const [data, setData] = useState(null);
+  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
+  const toggleReplies = (id: number) => {
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id ? { ...a, showReplies: !a.showReplies } : a,
+      ),
+    );
+  };
+
+  const postReply = (id: number, text: string) => {
+    if (!text.trim()) return;
+    setActivities((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              showReplies: true,
+              replies: [
+                ...a.replies,
+                {
+                  user: data.student.name,
+                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.student.id}`,
+                  time: "just now",
+                  text,
+                },
+              ],
+            }
+          : a,
+      ),
+    );
+  };
+
   const subjects = useMemo(() => {
-      const allSubjectsFromData = INITIAL_ACTIVITIES.map(item => item.subject);
-      return ["All Subjects", ...new Set(allSubjectsFromData)];
-    }, []);
-  
-    useEffect(() => {
+    const allSubjectsFromData = INITIAL_ACTIVITIES.map((item) => item.subject);
+    return ["All Subjects", ...new Set(allSubjectsFromData)];
+  }, []);
+
+  useEffect(() => {
     fetchDashboardData().then(setData);
   }, []);
 
@@ -123,7 +146,8 @@ export default function Allquestions() {
         (filter === "Board" && status === "BOARD") ||
         (filter === "Answered" && status === "ANSWERED") ||
         (filter === "Unanswered" && status === "UNANSWERED");
-      const matchesSubject = selectedSubject === "All Subjects" || item.subject === selectedSubject;
+      const matchesSubject =
+        selectedSubject === "All Subjects" || item.subject === selectedSubject;
 
       // 2. ตรวจสอบ Search Query (ค้นหาจากชื่อผู้ใช้ หรือ เนื้อหา)
       const searchLower = activitySearch.toLowerCase().trim();
@@ -151,7 +175,7 @@ export default function Allquestions() {
         studentName={data?.student?.name}
         studentId={data?.student?.id}
         onJoinCourse={() => setIsJoinModalOpen(true)}
-        mode="dashboard"
+        mode="allquestions"
       />
 
       <JoinCourse
@@ -159,66 +183,66 @@ export default function Allquestions() {
         onClose={() => setIsJoinModalOpen(false)}
       />
 
-      <main className="p-8 pt-[100px] space-y-6 left-30 h-full">
-        
-
+      <main className="p-8 pt-[200px] space-y-6 h-full overflow-y-auto pb-10">
         {/* ACTIVITY TIMELINE */}
-        <section className="max-w-5xl mx-auto mt-10">
-          <h3 className="text-2xl font-regular mb-4 text-[#1B1B1B]">
-            ActivityTimeline
-          </h3>
-
-          <div className="flex flex-wrap items-center gap-3 mb-8">
-            <div className="flex items-center gap-2">
-              {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
-                <button
-                  key={btnLabel}
-                  onClick={() => setFilter(btnLabel)}
-                  className={`px-5 py-1.5 rounded-full text-sm font-regular transition-all border ${
-                    filter === btnLabel
-                      ? "bg-[#5B41FF] text-white border-[#5B41FF]"
-                      : "text-slate-400 border-slate-200 hover:bg-slate-200 bg-white"
-                  }`}
-                >
-                  {btnLabel}
-                </button>
-              ))}
-            </div>
-
-            <div className="relative flex-1 max-w-xs ml-auto">
-              <Search
-                className="absolute left-3 top-2.5 text-slate-400"
-                size={15}
-              />
-              <input
-                type="text"
-                value={activitySearch}
-                onChange={(e) => setActivitySearch(e.target.value)}
-                placeholder="Search my questions..."
-                className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
-              />
-            </div>
-          </div>
-          
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
-                <span className="text-sm text-slate-500 mr-2">Subject:</span>
-                {subjects.map((subject) => (
+        <section className="max-w-6xl mx-auto mt-10">
+          <div className="fixed top-[120px] left-64 right-0 z-10 bg-[#FCF9F8] pt-2 pb-4 px-8">
+            <div className="flex flex-wrap items-center gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
                   <button
-                    key={subject}
-                    onClick={() => setSelectedSubject(subject)}
-                    className={`px-4 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all ${
-                      selectedSubject === subject
-                        ? "bg-slate-800 text-white"
-                        : "text-slate-500 bg-slate-100 hover:bg-slate-200"
+                    key={btnLabel}
+                    onClick={() => setFilter(btnLabel)}
+                    className={`px-5 py-1.5 rounded-full text-sm font-regular transition-all border ${
+                      filter === btnLabel
+                        ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                        : "text-slate-400 border-slate-200 hover:bg-slate-200 bg-white"
                     }`}
                   >
-                    {subject}
+                    {btnLabel}
                   </button>
                 ))}
               </div>
+
+              <div className="relative flex-1 max-w-xs ml-auto">
+                <Search
+                  className="absolute left-3 top-2.5 text-slate-400"
+                  size={15}
+                />
+                <input
+                  type="text"
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                  placeholder="Search my questions..."
+                  className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <span className="text-sm text-slate-500 mr-2">Subject:</span>
+              {subjects.map((subject) => (
+                <button
+                  key={subject}
+                  onClick={() => setSelectedSubject(subject)}
+                  className={`px-4 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all ${
+                    selectedSubject === subject
+                      ? "bg-slate-800 text-white"
+                      : "text-slate-500 bg-slate-100 hover:bg-slate-200"
+                  }`}
+                >
+                  {subject}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-6 min-h-[60vh] transition-all duration-200">
             {filteredActivities.map((item) => (
-              <StudentActivityCard key={item.id} data={item} />
+              <StudentActivityCard
+                key={item.id}
+                data={item}
+                onToggleReplies={toggleReplies}
+                onPostReply={postReply}
+              />
             ))}
           </div>
         </section>
@@ -228,21 +252,26 @@ export default function Allquestions() {
 }
 
 /* ---------------- SUB COMPONENT ---------------- */
-
-function StudentActivityCard({ data }: { data: FeedActivity }) {
+function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
+  const [draft, setDraft] = useState("");
   const isBoard = data.status?.toUpperCase().trim() === "BOARD";
   const isAnswered = data.status?.toUpperCase().trim() === "ANSWERED";
 
+  const handleSend = () => {
+    onPostReply(data.id, draft);
+    setDraft("");
+  };
+
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
-      
+      {/* Badge มุมขวาบน — เหมือนเดิม */}
       <div
         className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-regular ${
           isAnswered
-            ? "bg-emerald-50 text-emerald-500 "
+            ? "bg-emerald-50 text-emerald-500"
             : isBoard
               ? "bg-red-50 text-red-400"
-              : "bg-orange-50 text-orange-400 "
+              : "bg-orange-50 text-orange-400"
         }`}
       >
         {isAnswered ? (
@@ -274,17 +303,17 @@ function StudentActivityCard({ data }: { data: FeedActivity }) {
 
       <div className="flex gap-4">
         <img src={data.avatar} className="w-12 h-12 rounded-full" />
-        
+
         <div className="flex-1">
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="font-bold">{data.user}</span>
+          <div className="flex items-center gap-2 mb-2 flex-wrap">
+            {(data.subject || data.section) && (
+              <span className="text-[11px] font-medium bg-gray-100 text-gray-400 px-2.5 py-1 rounded-lg tracking-wide uppercase">
+                {[data.subject, data.section].filter(Boolean).join(" | ")}
+              </span>
+            )}
+            <span className="font-bold text-slate-800">{data.user}</span>
             <span className="text-xs text-slate-400">{data.time}</span>
           </div>
-          <div className="mb-2">
-        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase tracking-tighter">
-          {data.subject || "No Subject"}
-        </span>
-      </div>
 
           {isBoard ? (
             <div className="mt-1">
@@ -297,19 +326,23 @@ function StudentActivityCard({ data }: { data: FeedActivity }) {
                     {data.subContent}
                   </p>
                 )}
-                <button className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all">
+                <Link
+                  href="/student/courses/boardreview"
+                  className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all w-fit"
+                >
                   <span>👁</span> Review Session
-                </button>
+                </Link>
               </div>
             </div>
           ) : (
             <div>
               <p className="text-slate-700 mb-3">{data.content}</p>
 
+              {/* Professor reply string*/}
               {data.professorReply && (
-                <div className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4]">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded font-regular uppercase tracking-wider">
+                <div className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4] mb-3">
+                  <div className="flex items-center mb-2">
+                    <span className="bg-emerald-400 text-white text-[11px] px-2 py-0.5 rounded uppercase tracking-wider">
                       Professor Reply
                     </span>
                   </div>
@@ -319,11 +352,94 @@ function StudentActivityCard({ data }: { data: FeedActivity }) {
                 </div>
               )}
 
+              {/* Professor replies*/}
+              {data.replies?.some((r: any) => r.isProfessor) && (
+                <div className="space-y-2 mb-3">
+                  {data.replies
+                    .filter((r: any) => r.isProfessor)
+                    .map((r: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <div className="flex-1 border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4]">
+                          <span className="bg-emerald-400 text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
+                            Professor Reply
+                          </span>
+                          <p className="text-sm text-slate-700 mt-1">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+
+              {/* Reply button */}
               <div className="flex items-center gap-4 text-[13px]">
-                <span className="text-slate-400 flex items-center gap-1">
-                  ↩ {data.replies || 0}
-                </span>
+                <button
+                  onClick={() => onToggleReplies(data.id)}
+                  className="text-slate-400 hover:text-[#5B41FF] flex items-center gap-1 transition-colors"
+                >
+                  ↩{" "}
+                  {data.replies?.filter((r: any) => !r.isProfessor).length > 0
+                    ? data.replies.filter((r: any) => !r.isProfessor).length
+                    : ""}{" "}
+                  {data.showReplies ? "ซ่อน replies" : "reply"}
+                </button>
               </div>
+
+              {/* Student replies*/}
+              {data.showReplies && (
+                <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+                  {data.replies
+                    ?.filter((r: any) => !r.isProfessor)
+                    .map((r: any, i: number) => (
+                      <div key={i} className="flex gap-3">
+                        <img
+                          src={r.avatar}
+                          className="w-8 h-8 rounded-full flex-shrink-0"
+                        />
+                        <div className="bg-slate-50 rounded-xl px-3 py-2 flex-1">
+                          <span className="text-sm font-semibold text-slate-700">
+                            {r.user}
+                          </span>
+                          <span className="text-xs text-slate-400 ml-2">
+                            {r.time}
+                          </span>
+                          <p className="text-sm text-slate-600 mt-0.5">
+                            {r.text}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Compose box */}
+                  <div className="flex gap-3 items-end pt-1">
+                    <img
+                      src={`https://api.dicebear.com/7.x/avataaars/svg?seed=me`}
+                      className="w-8 h-8 rounded-full flex-shrink-0"
+                    />
+                    <textarea
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder="เขียน reply... (Enter เพื่อส่ง)"
+                      rows={1}
+                      className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:border-[#5B41FF] transition-colors"
+                    />
+                    <button
+                      onClick={handleSend}
+                      disabled={!draft.trim()}
+                      className="bg-[#5B41FF] disabled:opacity-40 text-white rounded-lg w-9 h-9 flex items-center justify-center hover:opacity-85 transition-opacity flex-shrink-0"
+                    >
+                      ↑
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

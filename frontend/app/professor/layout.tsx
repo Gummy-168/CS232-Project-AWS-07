@@ -1,4 +1,3 @@
-import AuthGuard from "../components/AuthGuard";
 import ProfessorSidebar from "../components/profSidebar";
 
 export default function ProfessorLayout({
@@ -7,11 +6,11 @@ export default function ProfessorLayout({
   children: React.ReactNode;
 }) {
   return (
-    <AuthGuard allowedRole="professor">
-      <div className="flex">
-        <ProfessorSidebar />
-        <main className="flex-1 bg-slate-50 min-h-screen">{children}</main>
+    <div className="flex h-screen overflow-hidden">
+      <ProfessorSidebar />
+      <div className="flex-1 ml-64 h-full overflow-y-auto">
+        {children}
       </div>
-    </AuthGuard>
+    </div>
   );
 }

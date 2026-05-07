@@ -1,92 +1,128 @@
 "use client";
-
 import { useState } from "react";
+import { X } from "lucide-react";
 
-export default function AskModal({ isOpen, onClose, onAdd }) {
+interface AskModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onAdd: (payload: any) => void;
+  courseTitle?: string;
+}
+
+export default function AskModal({ isOpen, onClose, onAdd, courseTitle }: AskModalProps) {
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [anonymous, setAnonymous] = useState(false);
 
-  if (!isOpen) return null;
+  const tags = ["Midterm", "Final", "Project", "Homework"];
 
-  const handleSubmit = async () => {
-    if (!title.trim() || !detail.trim()) {
-      alert("กรุณากรอกหัวข้อและรายละเอียด");
-      return;
-    }
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
-    const payload = {
-      id: Date.now(), 
-      title,
-      detail,
-      anonymous,
-      status: "IN DISCUSSION",
-      createdAt: new Date().toISOString(),
-      // สมมติข้อมูล User เบื้องต้น
-      user: anonymous ? "Anonymous" : "สมปอง อยากรวย",
-      avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=shiba",
-      isSolved: false
-    };
-
-    console.log("SEND:", payload);
-
-    
-    await new Promise((res) => setTimeout(res, 500));
-
-
-    if (onAdd) {
-      onAdd(payload);
-    }
-
-    alert("Posted!");
-
-
+  const handlePost = () => {
+    if (!title.trim()) return;
+    onAdd({ title, detail, tags: selectedTags, anonymous });
     setTitle("");
     setDetail("");
-
+    setSelectedTags([]);
+    setAnonymous(false);
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white w-[600px] rounded-3xl p-6 space-y-4 shadow-xl">
+  if (!isOpen) return null;
 
-        <div className="flex justify-between items-center">
-          <h2 className="text-xl font-semibold">Ask a Question</h2>
-          <button onClick={onClose}>✕</button>
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-xl font-bold text-[#1B1B1B]">Create a Post</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
+            <X size={20} />
+          </button>
         </div>
 
-        <input
-          placeholder="หัวข้อคำถาม"
-          className="w-full p-3 rounded-xl bg-gray-100"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        {/* Course badge */}
+        {courseTitle && (
+          <div className="bg-[#EEF0FF] text-[#5B41FF] text-xs font-medium px-4 py-2 rounded-xl mb-5">
+            Posting to {courseTitle}
+          </div>
+        )}
 
-        <textarea
-          placeholder="รายละเอียดเพิ่มเติม"
-          className="w-full p-3 rounded-xl bg-gray-100"
-          rows={4}
-          value={detail}
-          onChange={(e) => setDetail(e.target.value)}
-        />
-
-        <div className="flex items-center justify-between bg-gray-100 p-3 rounded-xl">
-          <span>แสดงชื่อแบบไม่ระบุตัวตน</span>
+        {/* Title */}
+        <div className="mb-4">
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">
+            หัวข้อคำถาม <span className="text-red-400">*</span>
+          </label>
           <input
-            type="checkbox"
-            checked={anonymous}
-            onChange={() => setAnonymous(!anonymous)}
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="เช่น ไก่กับไข่อะไรเกิดก่อนกัน"
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 transition"
           />
         </div>
 
-        <div className="flex justify-end gap-4">
-          <button onClick={onClose}>Cancel</button>
+        {/* Detail */}
+        <div className="mb-5">
+          <label className="text-sm font-semibold text-slate-700 mb-1 block">
+            รายละเอียดเพิ่มเติม{" "}
+            <span className="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <textarea
+            value={detail}
+            onChange={(e) => setDetail(e.target.value)}
+            placeholder="อธิบายคำถามเพิ่มเติม"
+            rows={3}
+            className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 transition resize-none"
+          />
+        </div>
+
+
+        {/* Anonymous toggle */}
+        <div className="flex items-center justify-between bg-slate-50 rounded-2xl px-4 py-3 mb-6">
+          <div className="flex items-center gap-2 text-sm text-slate-600">
+            <span>👁</span>
+            <span>แสดงชื่อแบบไม่ระบุตัวตน</span>
+          </div>
           <button
-            onClick={handleSubmit}
-            className="bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white px-6 py-2 rounded-full shadow-lg shadow-purple-200 hover:scale-105 transition-transform"
+            onClick={() => setAnonymous((v) => !v)}
+            className={`w-11 h-6 rounded-full transition-all relative ${
+              anonymous ? "bg-[#5B41FF]" : "bg-slate-300"
+            }`}
           >
-            Post Question
+            <span
+              className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${
+                anonymous ? "left-5" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-2.5 rounded-2xl border border-slate-200 text-slate-500 text-sm hover:bg-slate-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePost}
+            disabled={!title.trim()}
+            className="px-8 py-2.5 rounded-2xl bg-gradient-to-r from-[#6443D9] to-[#EA60AB] text-white text-sm font-medium shadow-md disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
+          >
+            Post
           </button>
         </div>
       </div>
