@@ -5,6 +5,7 @@ import JoinCourse from "../../components/joincourse";
 import Header from "../../components/Header";
 import { Contact, Clock } from "lucide-react";
 import Link from "next/link";
+import { useAuthSession } from "../../hooks/useAuthSession";
 
 const fetchDashboardData = async () => {
   return new Promise((resolve) => {
@@ -30,6 +31,7 @@ export default function Dashboard() {
   const [data, setData] = useState(null);
   const [open, setOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const { session } = useAuthSession();
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   useEffect(() => {
@@ -47,8 +49,8 @@ export default function Dashboard() {
   return (
     <div className="h-screen bg-[#FCF9F8] overflow-hidden">
       <Header
-        studentName={data?.student?.name}
-        studentId={data?.student?.id}
+        studentName={session?.nickname}
+        studentId={session?.userId}
         onJoinCourse={() => setIsJoinModalOpen(true)}
         mode="dashboard"
       />

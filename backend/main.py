@@ -51,6 +51,7 @@ def login(user_login: UserLogin, db: Session = Depends(get_db)) -> TokenResponse
         db=db,
         email=user_login.email,
         password=user_login.password,
+        selected_role=user_login.role,
     )
 
 

@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   FileText,
@@ -12,11 +12,20 @@ import {
   LogOut,
 } from "lucide-react";
 import CreateCourse from "../components/createcourse"; // ✅ import modal
+import { clearStoredSession } from "../lib/auth";
 
 export default function ProfessorSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCourseOpen, setIsCourseOpen] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false); // ✅ เพิ่ม
+
+  const handleLogout = () => {
+    clearStoredSession();
+    window.localStorage.removeItem("token");
+    window.localStorage.removeItem("user");
+    router.replace("/");
+  };
 
   const activeStyle =
     "bg-gradient-to-r from-[#F063AC] to-[#895EE7] text-white shadow-lg shadow-purple-100";
@@ -108,7 +117,10 @@ export default function ProfessorSidebar() {
 
         {/* Bottom Section */}
         <div className="pt-6 border-t border-slate-100 mb-2">
-          <button className="flex items-center gap-3.5 px-4 py-3 text-[#FF7EB3] hover:text-rose-600 font-extrabold transition-colors w-full group rounded-2xl">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-3.5 px-4 py-3 text-[#FF7EB3] hover:text-rose-600 font-extrabold transition-colors w-full group rounded-2xl"
+          >
             <LogOut
               size={20}
               className="group-hover:-translate-x-1 transition-transform"

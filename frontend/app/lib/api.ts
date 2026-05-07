@@ -22,6 +22,7 @@ export class ApiError extends Error {
 export interface LoginPayload {
   email: string;
   password: string;
+  role: UserRole;
 }
 
 export interface RegisterPayload {
@@ -36,6 +37,8 @@ interface LoginResponse {
   access_token: string;
   token_type: string;
   role: UserRole;
+  redirect_to: string;
+  nickname: string;
 }
 
 interface RegisterResponse {
@@ -91,9 +94,9 @@ export async function loginUser(payload: LoginPayload) {
 export function buildSessionFromLogin(
   login: LoginResponse,
   payload: LoginPayload,
-  nickname?: string,
 ): AuthSession {
-  const derivedNickname = nickname || payload.email.split("@")[0] || login.access_token;
+  const derivedNickname =
+    login.nickname?.trim() || payload.email.split("@")[0] || login.access_token;
 
   return {
     accessToken: login.access_token,

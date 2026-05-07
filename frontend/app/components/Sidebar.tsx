@@ -2,8 +2,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import JoinCourse from "./joincourse";
+import { clearStoredSession } from "../lib/auth";
 import {
   LayoutDashboard,
   BookOpen,
@@ -18,9 +19,17 @@ import {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isFeedOpen, setIsFeedOpen] = useState(pathname.includes("/feed"));
-const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
+  const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
   const [isJoinOpen, setIsJoinOpen] = useState(false);
+
+  const handleLogout = () => {
+    clearStoredSession();
+    window.localStorage.removeItem("token");
+    window.localStorage.removeItem("user");
+    router.replace("/");
+  };
 
   // Active
   const activeStyle =
@@ -181,7 +190,10 @@ const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
       </div>
 
       <div className="pt-6 border-t border-slate-100">
-        <button className="flex items-center gap-3 px-4 py-2 text-rose-400 hover:text-rose-600 font-semibold transition-colors w-full">
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-4 py-2 text-rose-400 hover:text-rose-600 font-semibold transition-colors w-full"
+        >
           <LogOut size={20} />
           Logout
         </button>
