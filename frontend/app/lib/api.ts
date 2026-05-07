@@ -36,6 +36,7 @@ export interface RegisterPayload {
 interface LoginResponse {
   access_token: string;
   token_type: string;
+  user_id: string;
   role: UserRole;
   redirect_to: string;
   nickname: string;
@@ -102,7 +103,7 @@ export function buildSessionFromLogin(
     accessToken: login.access_token,
     tokenType: login.token_type,
     role: login.role,
-    userId: login.access_token,
+    userId: login.user_id,
     email: payload.email,
     nickname: derivedNickname,
   };

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, EmailStr
 
+
 class UserLogin(BaseModel):
     """Request schema for user login."""
 
@@ -27,6 +28,7 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: str
+    user_id: str
     role: str
     redirect_to: str
     nickname: str

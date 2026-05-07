@@ -2,7 +2,11 @@ from __future__ import annotations
 
 """User management service for the Classroom Q&A System."""
 
+import os
+from datetime import datetime, timedelta, timezone
+
 from fastapi import HTTPException, status
+from jose import JWTError, jwt
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
@@ -13,6 +17,9 @@ from schemas.user import TokenResponse, UserCreate
 class UserManager:
     """Handles user-related operations."""
 
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-this-secret-in-env")
+    JWT_ALGORITHM = "HS256"
+    JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))
     ROLE_REDIRECTS: dict[str, str] = {
         "student": "/student/dashboard",
         "professor": "/professor/dashboard",
@@ -104,9 +111,11 @@ class UserManager:
             )
 
         redirect_to = cls.ROLE_REDIRECTS.get(normalized_selected_role, "/")
+        access_token = cls.create_access_token(user)
         return TokenResponse(
-            access_token=user.user_id,
-            token_type="session",
+            access_token=access_token,
+            token_type="bearer",
+            user_id=user.user_id,
             role=normalized_selected_role,
             redirect_to=redirect_to,
             nickname=user.nickname,
@@ -149,3 +158,66 @@ class UserManager:
         """Validate that a user exists before logout completes."""
         user: User | None = cls.get_user_by_id(db, user_id)
         return user is not None
+
+    @classmethod
+    def create_access_token(cls, user: User) -> str:
+        """Generate a signed JWT token for a user."""
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            minutes=cls.JWT_EXPIRE_MINUTES
+        )
+        payload = {
+            "sub": user.user_id,
+            "role": user.role,
+            "exp": expires_at,
+        }
+        return jwt.encode(
+            payload,
+            cls.JWT_SECRET_KEY,
+            algorithm=cls.JWT_ALGORITHM,
+        )
+
+    @classmethod
+    def get_current_user(
+        cls,
+        db: Session,
+        token: str,
+    ) -> User:
+        """Resolve the authenticated user from a JWT token."""
+        unauthorized_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )
+
+        try:
+            payload = jwt.decode(
+                token,
+                cls.JWT_SECRET_KEY,
+                algorithms=[cls.JWT_ALGORITHM],
+            )
+        except JWTError as exc:
+            raise unauthorized_exception from exc
+
+        user_id = str(payload.get("sub", "")).strip()
+        if not user_id:
+            raise unauthorized_exception
+
+        user = cls.get_user_by_id(db=db, user_id=user_id)
+        if user is None:
+            raise unauthorized_exception
+
+        return user
+
+    @classmethod
+    def require_professor(
+        cls,
+        db: Session,
+        token: str,
+    ) -> User:
+        """Resolve the current user and ensure they are a professor."""
+        user = cls.get_current_user(db=db, token=token)
+        if user.role != "professor":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only professors can perform this action",
+            )
+        return user

@@ -1,13 +1,16 @@
-from fastapi import FastAPI
-from fastapi import Depends
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import Base, SessionLocal, engine
+from models.user import User
+from schemas.course import CourseCreate, CourseResponse
 from schemas.user import TokenResponse, UserCreate, UserLogin
+from services.course_manager import CourseManager
 from services.user_manager import UserManager
 
+import models.course
 import models.user
 
 app = FastAPI()
@@ -30,6 +33,25 @@ def get_db() -> Session:
         yield db
     finally:
         db.close()
+
+
+def get_bearer_token(authorization: str = Header(default="")) -> str:
+    """Extract a bearer token from the Authorization header."""
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header with Bearer token is required",
+        )
+    return token.strip()
+
+
+def get_current_professor(
+    db: Session = Depends(get_db),
+    token: str = Depends(get_bearer_token),
+):
+    """Resolve the currently authenticated professor."""
+    return UserManager.require_professor(db=db, token=token)
 
 
 @app.get("/")
@@ -66,3 +88,26 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)) -> dict[str, 
         "role": user.role,
         "nickname": user.nickname,
     }
+
+
+@app.post("/courses", response_model=CourseResponse, status_code=status.HTTP_201_CREATED)
+def create_course(
+    course_data: CourseCreate,
+    db: Session = Depends(get_db),
+) -> CourseResponse:
+    """Create a course for the authenticated professor."""
+    # TODO: Re-enable security before deployment
+    professor_id = (course_data.professor_id or "prof001").strip()
+    professor: User | None = UserManager.get_user_by_id(db=db, user_id=professor_id)
+
+    if professor is None or professor.role != "professor":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    return CourseManager.create_course(
+        db=db,
+        course_data=course_data,
+        professor=professor,
+    )

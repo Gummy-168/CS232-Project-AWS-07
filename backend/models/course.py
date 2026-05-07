@@ -1,99 +1,47 @@
 from __future__ import annotations
 
-"""Course model for the Classroom Q&A System."""
+"""Course ORM model for the Classroom Q&A System."""
+
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from database import Base
 
 
-class Course:
-    """Represents a course in the system."""
+class Course(Base):
+    """Represents a course record in the database."""
 
-    def __init__(
-        self,
-        course_code: str,
-        course_name: str,
-        prof_id: str,
-        is_active: bool,
-    ) -> None:
-        """Initialize a course instance."""
-        self._course_code: str = self._normalize_course_code(course_code)
-        self._course_name: str = course_name.strip()
-        self._professor_id: str = prof_id.strip()
-        self._is_active: bool = is_active
+    __tablename__ = "courses"
 
-    @property
-    def course_code(self) -> str:
-        """Get the course code."""
-        return self._course_code
-
-    @course_code.setter
-    def course_code(self, value: str) -> None:
-        """Set the course code."""
-        self._course_code = self._normalize_course_code(value)
-
-    @property
-    def course_name(self) -> str:
-        """Get the course name."""
-        return self._course_name
-
-    @course_name.setter
-    def course_name(self, value: str) -> None:
-        """Set the course name."""
-        self._course_name = value
+    course_code: Mapped[str] = mapped_column(String(50), primary_key=True, index=True)
+    course_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    professor_id: Mapped[str] = mapped_column(
+        String(50),
+        ForeignKey("users.user_id", onupdate="CASCADE", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+    )
 
     @property
     def prof_id(self) -> str:
-        """Get the professor identifier."""
-        return self._professor_id
+        """Expose the professor identifier with the older attribute name."""
+        return self.professor_id
 
     @prof_id.setter
     def prof_id(self, value: str) -> None:
-        """Set the professor identifier."""
-        self._professor_id = value.strip()
+        """Keep compatibility with code that still writes to prof_id."""
+        self.professor_id = value.strip()
 
-    @property
-    def professor_id(self) -> str:
-        """Get the professor identifier using the naming in CODEX.md."""
-        return self._professor_id
-
-    @professor_id.setter
-    def professor_id(self, value: str) -> None:
-        """Set the professor identifier using the naming in CODEX.md."""
-        self._professor_id = value.strip()
-
-    @property
-    def is_active(self) -> bool:
-        """Get the active status."""
-        return self._is_active
-
-    @is_active.setter
-    def is_active(self, value: bool) -> None:
-        """Set the active status."""
-        self._is_active = value
-
-    def set_course_code(self, value: str) -> None:
-        """Update the course code after validating its format."""
-        self.course_code = value
-
-    def generate_enrollment_report(
-        self,
-        enrollment_count: int,
-    ) -> dict[str, int | str | bool]:
-        """Generate a lightweight enrollment report for the course."""
-        return {
-            "course_code": self.course_code,
-            "course_name": self.course_name,
-            "professor_id": self.professor_id,
-            "is_active": self.is_active,
-            "enrollment_count": enrollment_count,
-        }
-
-    def verify_enrollment_eligibility(self, already_enrolled: bool) -> bool:
-        """Check whether a student may enroll in the course."""
-        return self.is_active and not already_enrolled
-
-    @staticmethod
-    def _normalize_course_code(course_code: str) -> str:
-        """Normalize the course code for consistent matching."""
-        normalized_code = course_code.strip().upper()
-        if not normalized_code:
-            raise ValueError("Course code cannot be empty.")
-        return normalized_code
+    def normalize_state(self) -> None:
+        """Normalize string fields before persistence."""
+        self.course_code = self.course_code.strip().upper()
+        self.course_name = self.course_name.strip()
+        self.professor_id = self.professor_id.strip()
