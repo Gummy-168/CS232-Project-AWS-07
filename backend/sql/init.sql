@@ -77,6 +77,25 @@ CREATE TABLE IF NOT EXISTS questions (
         ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS question_replies (
+    reply_id VARCHAR(50) PRIMARY KEY,
+    question_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_question_replies_question_id (question_id),
+    INDEX idx_question_replies_user_id (user_id),
+    CONSTRAINT fk_question_replies_question
+        FOREIGN KEY (question_id) REFERENCES questions(question_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_question_replies_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS notifications (
     notification_id INT AUTO_INCREMENT PRIMARY KEY,
     target_user_id VARCHAR(50) NOT NULL,

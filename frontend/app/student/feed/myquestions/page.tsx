@@ -1,66 +1,23 @@
 "use client";
 
 import React, { useState, useMemo, useEffect } from "react";
-import { Search, Contact, Clock } from "lucide-react";
+import { Search } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import JoinCourse from "../../../components/joincourse";
 import Header from "../../../components/Header";
-
-const fetchDashboardData = async () => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        student: { name: "สมปอง กุ๊กกิ๊ก", id: "670000000" },
-        session: {
-          title: "CS232: Intro to Cloud Computing",
-          time: "13:30 - 16:30",
-          instructor: "Aj. Noon",
-          timeLeft: "45m left",
-        },
-      });
-    }, 600);
-  });
-};
-
-const INITIAL_ACTIVITIES = [
-  {
-    id: 1,
-    subject: "CS232",
-    section: "100001",
-    user: "สมปอง กุ๊กกิ๊ก",
-    time: "1 sec ago",
-    content: "ไก่กับไข่อะไรเกิดก่อนกัน",
-    status: "UNANSWERED",
-    type: "question",
-    replies: [],
-    showReplies: false,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
-  },
-  {
-    id: 2,
-    subject: "CS232",
-    section: "100001",
-    user: "สมปอง กุ๊กกิ๊ก",
-    time: "2m ago",
-    content: "อยากทราบว่า EC2 ทำงานยังไงหรอครับ",
-    status: "UNANSWERED",
-    type: "question",
-    replies: [],
-    showReplies: false,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
-  },
- 
-];
+import { createStudentQuestionReply, getStudentQuestions } from "../../../lib/api";
+import { useAuthSession } from "../../../hooks/useAuthSession";
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function Allquestions() {
-  const [data, setData] = useState(null);
-  const [activities, setActivities] = useState(INITIAL_ACTIVITIES);
+  const { session } = useAuthSession();
+  const [activities, setActivities] = useState<any[]>([]);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
-  const toggleReplies = (id: number) => {
+  const toggleReplies = (id: string | number) => {
     setActivities((prev) =>
       prev.map((a) =>
         a.id === id ? { ...a, showReplies: !a.showReplies } : a,
@@ -68,37 +25,85 @@ export default function Allquestions() {
     );
   };
 
-  const postReply = (id: number, text: string) => {
-    if (!text.trim()) return;
-    setActivities((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              showReplies: true,
-              replies: [
-                ...a.replies,
-                {
-                  user: data.student.name,
-                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.student.id}`,
-                  time: "just now",
-                  text,
-                },
-              ],
-            }
-          : a,
-      ),
-    );
+  const postReply = async (id: string | number, text: string) => {
+    if (!text.trim() || !session?.userId) return;
+    try {
+      const reply = await createStudentQuestionReply(session.userId, String(id), {
+        content: text.trim(),
+      });
+      setActivities((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                showReplies: true,
+                replies: [
+                  ...a.replies,
+                  {
+                    user: reply.author_name,
+                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author_id}`,
+                    time: reply.created_at
+                      ? formatDistanceToNow(new Date(reply.created_at), {
+                          addSuffix: true,
+                        })
+                      : "just now",
+                    text: reply.content,
+                    isProfessor: reply.is_professor,
+                  },
+                ],
+              }
+            : a,
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to post reply:", error);
+    }
   };
 
   const subjects = useMemo(() => {
-    const allSubjectsFromData = INITIAL_ACTIVITIES.map((item) => item.subject);
+    const allSubjectsFromData = activities.map((item) => item.subject);
     return ["All Subjects", ...new Set(allSubjectsFromData)];
-  }, []);
+  }, [activities]);
 
   useEffect(() => {
-    fetchDashboardData().then(setData);
-  }, []);
+    if (!session?.userId) {
+      return;
+    }
+    getStudentQuestions(session.userId, { scope: "mine" }).then((response) => {
+      setActivities(
+        response.questions
+          .filter((item) => item.status !== "DELETED")
+          .map((item) => ({
+            id: item.id,
+            subject: item.course_code,
+            section: "",
+            user: item.author_name,
+            time: item.created_at
+              ? formatDistanceToNow(new Date(item.created_at), {
+                  addSuffix: true,
+                })
+              : "just now",
+            content: item.content,
+            status: item.status,
+            type: "question",
+            replies: (item.replies ?? []).map((reply) => ({
+              user: reply.author_name,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author_id}`,
+              time: reply.created_at
+                ? formatDistanceToNow(new Date(reply.created_at), {
+                    addSuffix: true,
+                  })
+                : "just now",
+              text: reply.content,
+              isProfessor: reply.is_professor,
+            })),
+            showReplies: false,
+            professorReply: item.reply_content || undefined,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author_id}`,
+          })),
+      );
+    });
+  }, [session?.userId]);
 
   const filteredActivities = useMemo(() => {
     return activities.filter((item) => {
@@ -124,7 +129,7 @@ export default function Allquestions() {
     });
   }, [activities, filter, activitySearch, selectedSubject]);
 
-  if (!data) {
+  if (!session) {
     return (
       <div className="h-screen flex items-center justify-center">
         Loading...
@@ -135,8 +140,8 @@ export default function Allquestions() {
   return (
     <div className="flex-1 bg-[#FCF9F8] min-h-screen font-sans text-slate-700">
       <Header
-        studentName={data?.student?.name}
-        studentId={data?.student?.id}
+        studentName={session?.nickname}
+        studentId={session?.userId}
         onJoinCourse={() => setIsJoinModalOpen(true)}
         mode="myquestions"
       />

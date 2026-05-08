@@ -50,6 +50,125 @@ interface RegisterResponse {
   message: string;
 }
 
+export interface StudentProfile {
+  user_id: string;
+  nickname: string;
+  email: string;
+  role: UserRole;
+  enrolled_courses: number;
+}
+
+export interface StudentCourse {
+  course_code: string;
+  course_name: string;
+  is_active: boolean;
+  professor_id: string;
+  professor_name: string;
+  join_date: string | null;
+}
+
+export interface StudentQuestion {
+  id: string;
+  course_code: string;
+  course_name: string;
+  title: string;
+  content: string;
+  reply_content: string | null;
+  status: "UNANSWERED" | "ANSWERED" | "DELETED";
+  is_anonymous: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+  author_id: string;
+  author_name: string;
+  replies?: StudentQuestionReply[];
+}
+
+export interface StudentQuestionReply {
+  id: string;
+  question_id: string;
+  author_id: string;
+  author_name: string;
+  is_professor: boolean;
+  content: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface StudentDashboardData {
+  student: {
+    id: string;
+    name: string;
+  };
+  session: {
+    course_code: string;
+    title: string;
+    time: string;
+    instructor: string;
+  };
+  stats: {
+    participation: number;
+    questions: number;
+    answered: number;
+    pending: number;
+  };
+  recent_question: string;
+}
+
+export interface StudentAnalyticsData {
+  student: {
+    id: string;
+    name: string;
+  };
+  stats: {
+    participation: number;
+    questions: number;
+    answered: number;
+    unanswered: number;
+    board: number;
+    active_courses: number;
+  };
+  chart: Array<{
+    day: string;
+    value: number;
+  }>;
+}
+
+interface StudentCoursesResponse {
+  courses: StudentCourse[];
+}
+
+interface StudentQuestionsResponse {
+  questions: StudentQuestion[];
+}
+
+interface JoinCourseResponse {
+  message: string;
+  course_code: string;
+  course_name: string;
+}
+
+interface UpdateNicknameResponse {
+  message: string;
+  user_id: string;
+  nickname: string;
+}
+
+export interface CreateStudentQuestionPayload {
+  course_code: string;
+  title: string;
+  detail?: string;
+  is_anonymous?: boolean;
+}
+
+export interface UpdateStudentQuestionPayload {
+  title: string;
+  detail?: string;
+}
+
+export interface CreateStudentReplyPayload {
+  content: string;
+}
+
 async function apiRequest<TResponse>(
   path: string,
   init: RequestInit,
@@ -89,6 +208,110 @@ export async function loginUser(payload: LoginPayload) {
   return apiRequest<LoginResponse>("/login", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getStudentProfile(studentId: string) {
+  return apiRequest<StudentProfile>(`/students/${studentId}/profile`, {
+    method: "GET",
+  });
+}
+
+export async function updateStudentNickname(studentId: string, nickname: string) {
+  return apiRequest<UpdateNicknameResponse>(`/students/${studentId}/nickname`, {
+    method: "PATCH",
+    body: JSON.stringify({ nickname }),
+  });
+}
+
+export async function getStudentCourses(studentId: string) {
+  return apiRequest<StudentCoursesResponse>(`/students/${studentId}/courses`, {
+    method: "GET",
+  });
+}
+
+export async function joinStudentCourse(studentId: string, courseCode: string) {
+  return apiRequest<JoinCourseResponse>(`/students/${studentId}/courses/join`, {
+    method: "POST",
+    body: JSON.stringify({ course_code: courseCode }),
+  });
+}
+
+export async function getStudentQuestions(
+  studentId: string,
+  params?: {
+    scope?: "all" | "mine";
+    courseCode?: string;
+    search?: string;
+  },
+) {
+  const query = new URLSearchParams();
+  if (params?.scope) {
+    query.set("scope", params.scope);
+  }
+  if (params?.courseCode?.trim()) {
+    query.set("course_code", params.courseCode.trim().toUpperCase());
+  }
+  if (params?.search?.trim()) {
+    query.set("search", params.search.trim());
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+
+  return apiRequest<StudentQuestionsResponse>(
+    `/students/${studentId}/questions${suffix}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function createStudentQuestion(
+  studentId: string,
+  payload: CreateStudentQuestionPayload,
+) {
+  return apiRequest<StudentQuestion>(`/students/${studentId}/questions`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateStudentQuestion(
+  studentId: string,
+  questionId: string,
+  payload: UpdateStudentQuestionPayload,
+) {
+  return apiRequest<StudentQuestion>(
+    `/students/${studentId}/questions/${questionId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function createStudentQuestionReply(
+  studentId: string,
+  questionId: string,
+  payload: CreateStudentReplyPayload,
+) {
+  return apiRequest<StudentQuestionReply>(
+    `/students/${studentId}/questions/${questionId}/replies`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getStudentDashboard(studentId: string) {
+  return apiRequest<StudentDashboardData>(`/students/${studentId}/dashboard`, {
+    method: "GET",
+  });
+}
+
+export async function getStudentAnalytics(studentId: string) {
+  return apiRequest<StudentAnalyticsData>(`/students/${studentId}/analytics`, {
+    method: "GET",
   });
 }
 

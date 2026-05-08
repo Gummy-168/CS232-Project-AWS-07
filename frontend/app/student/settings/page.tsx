@@ -1,19 +1,21 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { User, Bell, Lock, Activity, Camera } from "lucide-react";
 import Header from "../../components/Header";
 import JoinCourse from "../../components/joincourse";
+import { getStudentProfile, updateStudentNickname } from "../../lib/api";
+import { updateStoredSession } from "../../lib/auth";
+import { useAuthSession } from "../../hooks/useAuthSession";
 
 const StudentProfilePage = () => {
-  // Mock Data
-  const student = { name: "สมปอง กุ๊กกิ๊ก", id: "670000000" };
+  const { session } = useAuthSession();
   const studentInfo = {
     fullName: "สมปอง อยากรวย",
-    displayName: "สมชาย กุ๊กกิ๊ก",
-    email: "sompong.yak@dome.tu.ac.th",
-    studentId: "6700000000",
+    displayName: session?.nickname || "",
+    email: session?.email || "",
+    studentId: session?.userId || "",
     semester: "2/2026",
-    enrolledCourses: 1,
+    enrolledCourses: 0,
     profileImage: "https://api.dicebear.com/7.x/bottts/svg?seed=shiba",
   };
 
@@ -39,14 +41,35 @@ const StudentProfilePage = () => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(studentInfo.displayName);
-  const [data, setData] = useState<any>(null);
+  const [email, setEmail] = useState(studentInfo.email);
+  const [studentId, setStudentId] = useState(studentInfo.studentId);
+  const [enrolledCourses, setEnrolledCourses] = useState(studentInfo.enrolledCourses);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   const [showSuccess, setShowSuccess] = useState(false);
 
+  useEffect(() => {
+    if (!session?.userId) {
+      return;
+    }
+    getStudentProfile(session.userId).then((profile) => {
+      setDisplayName(profile.nickname);
+      setEmail(profile.email);
+      setStudentId(profile.user_id);
+      setEnrolledCourses(profile.enrolled_courses);
+    });
+  }, [session?.userId]);
+
   const handleSaveProfile = async () => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!session?.userId) {
+        return;
+      }
+      const response = await updateStudentNickname(session.userId, displayName);
+      updateStoredSession((current) => ({
+        ...current,
+        nickname: response.nickname,
+      }));
       setIsEditing(false);
       setShowSuccess(true);
     } catch (error) {
@@ -57,8 +80,8 @@ const StudentProfilePage = () => {
   return (
     <div className="h-full bg-[#F9F9F9] font-sans text-slate-700 overflow-y-auto">
       <Header
-        studentName={student.name}
-        studentId={student.id}
+        studentName={displayName || session?.nickname}
+        studentId={studentId || session?.userId}
         onJoinCourse={() => setIsJoinModalOpen(true)}
         mode="settings"
       />
@@ -180,7 +203,7 @@ const StudentProfilePage = () => {
                       </label>
                       <div className="flex items-center justify-between bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200">
                         <span className="text-slate-600">
-                          {studentInfo.email}
+                          {email}
                         </span>
                         <Lock size={14} className="text-slate-400" />
                       </div>
@@ -266,7 +289,7 @@ const StudentProfilePage = () => {
                   Student ID
                 </span>
                 <span className="text-lg font-medium text-indigo-600">
-                  {studentInfo.studentId}
+                  {studentId}
                 </span>
               </div>
               <div className="bg-slate-50 p-5 rounded-3xl flex justify-between items-center border border-slate-100">
@@ -287,7 +310,7 @@ const StudentProfilePage = () => {
                   </span>
                 </div>
                 <span className="text-lg font-medium text-rose-500">
-                  {studentInfo.enrolledCourses} COURSES
+                  {enrolledCourses} COURSES
                 </span>
               </div>
             </div>

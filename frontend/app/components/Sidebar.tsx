@@ -1,10 +1,12 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import JoinCourse from "./joincourse";
+import { getStudentCourses } from "../lib/api";
 import { clearStoredSession } from "../lib/auth";
+import { useAuthSession } from "../hooks/useAuthSession";
 import {
   LayoutDashboard,
   BookOpen,
@@ -20,9 +22,31 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { session } = useAuthSession();
   const [isFeedOpen, setIsFeedOpen] = useState(pathname.includes("/feed"));
   const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
   const [isJoinOpen, setIsJoinOpen] = useState(false);
+  const [courses, setCourses] = useState<Array<{ course_code: string; course_name: string }>>(
+    [],
+  );
+
+  useEffect(() => {
+    if (!session?.userId) {
+      return;
+    }
+    getStudentCourses(session.userId)
+      .then((response) => {
+        setCourses(
+          response.courses.map((course) => ({
+            course_code: course.course_code,
+            course_name: course.course_name,
+          })),
+        );
+      })
+      .catch(() => {
+        setCourses([]);
+      });
+  }, [session?.userId]);
 
   const handleLogout = () => {
     clearStoredSession();
@@ -83,23 +107,44 @@ export default function Sidebar() {
 
             {isCourseOpen && (
               <div className="ml-4 mt-2 space-y-1">
-                <Link
-                  href="/student/courses"
-                  className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
-                    pathname === "/student/courses" ||
-                    pathname.startsWith("/student/courses/")
-                      ? "text-[#7B61FF] bg-[#FAF8FF]"
-                      : "text-slate-400 hover:text-[#7B61FF]"
-                  }`}
-                >
-                  {(pathname === "/student/courses" ||
-                    pathname.startsWith("/student/courses/")) && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
-                  )}
-                  <div className="flex items-center gap-3 pl-4">
-                    CS232 - Cloud
-                  </div>
-                </Link>
+                {courses.length === 0 ? (
+                  <Link
+                    href="/student/courses"
+                    className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
+                      pathname === "/student/courses" ||
+                      pathname.startsWith("/student/courses/")
+                        ? "text-[#7B61FF] bg-[#FAF8FF]"
+                        : "text-slate-400 hover:text-[#7B61FF]"
+                    }`}
+                  >
+                    {(pathname === "/student/courses" ||
+                      pathname.startsWith("/student/courses/")) && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
+                    )}
+                    <div className="flex items-center gap-3 pl-4">No Courses</div>
+                  </Link>
+                ) : (
+                  courses.map((course) => (
+                    <Link
+                      key={course.course_code}
+                      href="/student/courses"
+                      className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
+                        pathname === "/student/courses" ||
+                        pathname.startsWith("/student/courses/")
+                          ? "text-[#7B61FF] bg-[#FAF8FF]"
+                          : "text-slate-400 hover:text-[#7B61FF]"
+                      }`}
+                    >
+                      {(pathname === "/student/courses" ||
+                        pathname.startsWith("/student/courses/")) && (
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
+                      )}
+                      <div className="flex items-center gap-3 pl-4">
+                        {course.course_code} - {course.course_name}
+                      </div>
+                    </Link>
+                  ))
+                )}
 
                 <button
                   onClick={() => setIsJoinOpen(true)}
@@ -112,6 +157,23 @@ export default function Sidebar() {
                 <JoinCourse
                   isOpen={isJoinOpen}
                   onClose={() => setIsJoinOpen(false)}
+                  onJoined={() => {
+                    if (!session?.userId) {
+                      return;
+                    }
+                    getStudentCourses(session.userId)
+                      .then((response) => {
+                        setCourses(
+                          response.courses.map((course) => ({
+                            course_code: course.course_code,
+                            course_name: course.course_name,
+                          })),
+                        );
+                      })
+                      .catch(() => {
+                        setCourses([]);
+                      });
+                  }}
                 />
               </div>
             )}

@@ -3,8 +3,17 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Contact, Clock, PenLine } from "lucide-react";
 import Link from "next/link";
+import { formatDistanceToNow } from "date-fns";
 import JoinCourse from "../../components/joincourse";
 import Header from "../../components/Header";
+import {
+  createStudentQuestionReply,
+  createStudentQuestion,
+  getStudentDashboard,
+  getStudentQuestions,
+  updateStudentQuestion,
+} from "../../lib/api";
+import { useAuthSession } from "../../hooks/useAuthSession";
 
 type DashboardData = {
   student: {
@@ -12,10 +21,10 @@ type DashboardData = {
     id: string;
   };
   session: {
+    course_code: string;
     title: string;
     time: string;
     instructor: string;
-    timeLeft: string;
   };
 };
 
@@ -28,7 +37,9 @@ type Reply = {
 };
 
 type Activity = {
-  id: number;
+  id: string | number;
+  authorId?: string;
+  canEdit?: boolean;
   user: string;
   time: string;
   content: string;
@@ -41,103 +52,72 @@ type Activity = {
   professorReply?: string;
 };
 
-const fetchDashboardData = async (): Promise<DashboardData> => {
-  return new Promise<DashboardData>((resolve) => {
-    setTimeout(() => {
-      resolve({
-        student: { name: "สมปอง กุ๊กกิ๊ก", id: "670000000" },
-        session: {
-          title: "CS232: Intro to Cloud Computing",
-          time: "13:30 - 16:30",
-          instructor: "Aj. Noon",
-          timeLeft: "45m left",
-        },
-      });
-    }, 600);
-  });
-};
-
-const INITIAL_ACTIVITIES: Activity[] = [
-  {
-    id: 1,
-    user: "สมปอง กุ๊กกิ๊ก",
-    time: "1 sec ago",
-    content: "ไก่กับไข่อะไรเกิดก่อนกัน",
-    status: "UNANSWERED",
-    type: "question",
-    replies: [],
-    showReplies: false,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sompong",
-  },
-  {
-    id: 2,
-    user: "ทุงทุงทุง",
-    time: "2m ago",
-    content: "อยากทราบว่า EC2 ทำงานยังไงหรอครับ",
-    status: "UNANSWERED",
-    type: "question",
-    replies: [
-      {
-        user: "มะพร้าว ส้มโอ",
-        avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot",
-        time: "1m ago",
-        text: "EC2 คือ virtual server บน AWS ครับ",
-      },
-    ],
-    showReplies: false,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Tung",
-  },
-  {
-    id: 3,
-    user: "CS232 Course Bot",
-    time: "1d ago",
-    content: "Lab 5 : RDS",
-    subContent: "สามารถดูคำถามย้อนหลังได้ที่นี่ ทั้งหมด 5 คำถาม",
-    status: "BOARD",
-    type: "board",
-    replies: [],
-    showReplies: false,
-    avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Bot",
-  },
-  {
-    id: 4,
-    user: "มะพร้าว ส้มโอ",
-    time: "2h ago",
-    content: "ผมติดปัญหา lab6 ครับ ทำขั้นตอนที่ 4 ไม่ได้",
-    status: "ANSWERED",
-    type: "question",
-    replies: [
-      {
-        user: "Aj. Noon",
-        avatar: "https://api.dicebear.com/7.x/identicon/svg?seed=Professor",
-        time: "30s ago",
-        text: "ถูกต้องค่ะ",
-        isProfessor: true,
-      },
-    ],
-    showReplies: false,
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Coconut",
-  },
-];
-
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function StudentClass() {
+  const { session } = useAuthSession();
   const [data, setData] = useState<DashboardData | null>(null);
-  const [activities, setActivities] = useState<Activity[]>(INITIAL_ACTIVITIES);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState<
     "All" | "Answered" | "Unanswered" | "Board"
   >("All");
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isPostOpen, setIsPostOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDetail, setEditDetail] = useState("");
+  const [editError, setEditError] = useState("");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
   const filterOptions = ["All", "Answered", "Unanswered", "Board"] as const;
 
   useEffect(() => {
-    fetchDashboardData().then(setData);
-  }, []);
+    if (!session?.userId) {
+      return;
+    }
+    Promise.all([
+      getStudentDashboard(session.userId),
+      getStudentQuestions(session.userId, { scope: "all" }),
+    ]).then(([dashboard, questions]) => {
+      setData(dashboard);
+      setActivities(
+        questions.questions
+          .filter((question) => question.status !== "DELETED")
+          .map((question) => ({
+            id: question.id,
+            authorId: question.author_id,
+            canEdit: question.author_id === session.userId,
+            user: question.is_anonymous ? "ไม่ระบุตัวตน" : question.author_name,
+            time: question.created_at
+              ? formatDistanceToNow(new Date(question.created_at), {
+                  addSuffix: true,
+                })
+              : "just now",
+            content: question.title || question.content,
+            subContent: question.title ? question.content : undefined,
+            status: question.status === "ANSWERED" ? "ANSWERED" : "UNANSWERED",
+            type: "question",
+            replies: (question.replies ?? []).map((reply) => ({
+              user: reply.author_name,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author_id}`,
+              time: reply.created_at
+                ? formatDistanceToNow(new Date(reply.created_at), {
+                    addSuffix: true,
+                  })
+                : "just now",
+              text: reply.content,
+              isProfessor: reply.is_professor,
+            })),
+            showReplies: false,
+            professorReply: question.reply_content || undefined,
+            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${question.author_id}`,
+          })),
+      );
+    });
+  }, [session?.userId]);
 
-  const toggleReplies = (id: number) => {
+  const toggleReplies = (id: string | number) => {
     setActivities((prev) =>
       prev.map((a) =>
         a.id === id ? { ...a, showReplies: !a.showReplies } : a,
@@ -145,27 +125,39 @@ export default function StudentClass() {
     );
   };
 
-  const postReply = (id: number, text: string) => {
-    if (!text.trim() || !data) return;
-    setActivities((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              showReplies: true,
-              replies: [
-                ...a.replies,
-                {
-                  user: data.student.name,
-                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.student.id}`,
-                  time: "just now",
-                  text,
-                },
-              ],
-            }
-          : a,
-      ),
-    );
+  const postReply = async (id: string | number, text: string) => {
+    if (!text.trim() || !session?.userId) return;
+    try {
+      const reply = await createStudentQuestionReply(session.userId, String(id), {
+        content: text.trim(),
+      });
+      setActivities((prev) =>
+        prev.map((a) =>
+          a.id === id
+            ? {
+                ...a,
+                showReplies: true,
+                replies: [
+                  ...a.replies,
+                  {
+                    user: reply.author_name,
+                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author_id}`,
+                    time: reply.created_at
+                      ? formatDistanceToNow(new Date(reply.created_at), {
+                          addSuffix: true,
+                        })
+                      : "just now",
+                    text: reply.content,
+                    isProfessor: reply.is_professor,
+                  },
+                ],
+              }
+            : a,
+        ),
+      );
+    } catch (error) {
+      console.error("Failed to post reply:", error);
+    }
   };
 
   const filteredActivities = useMemo(() => {
@@ -200,25 +192,91 @@ export default function StudentClass() {
     tags: string[];
     anonymous: boolean;
   }) => {
-    if (!data) return;
+    if (!data || !session?.userId || !data.session.course_code) return;
 
-    const newPost: Activity = {
-      id: Date.now(),
-      user: anonymous ? "ไม่ระบุตัวตน" : data.student.name,
-      avatar: anonymous
-        ? "https://api.dicebear.com/7.x/identicon/svg?seed=anon"
-        : `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.student.id}`,
-      time: "just now",
-      content: title,
-      subContent: detail || undefined,
-      status: "UNANSWERED",
-      type: "question",
-      replies: [],
-      showReplies: false,
-    };
-    setActivities((prev) => [newPost, ...prev]);
-    setFilter("All");
-    setIsPostOpen(false);
+    createStudentQuestion(session.userId, {
+      course_code: data.session.course_code,
+      title,
+      detail,
+      is_anonymous: anonymous,
+    })
+      .then((question) => {
+        const newPost: Activity = {
+          id: question.id,
+          authorId: session.userId,
+          canEdit: true,
+          user: question.is_anonymous ? "ไม่ระบุตัวตน" : question.author_name,
+          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.userId}`,
+          time: "just now",
+          content: question.title || question.content,
+          subContent: question.content,
+          status: "UNANSWERED",
+          type: "question",
+          replies: [],
+          showReplies: false,
+        };
+        setActivities((prev) => [newPost, ...prev]);
+        setFilter("All");
+        setIsPostOpen(false);
+      })
+      .catch(() => {
+        setIsPostOpen(false);
+      });
+  };
+
+  const handleEditPost = (activity: Activity) => {
+    if (!session?.userId || activity.authorId !== session.userId) {
+      return;
+    }
+    setEditingActivity(activity);
+    setEditTitle(activity.content || "");
+    setEditDetail(activity.subContent || "");
+    setEditError("");
+    setIsEditOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!session?.userId || !editingActivity) {
+      return;
+    }
+    if (!editTitle.trim()) {
+      setEditError("หัวข้อคำถามห้ามว่าง");
+      return;
+    }
+
+    setIsSavingEdit(true);
+    setEditError("");
+    updateStudentQuestion(session.userId, String(editingActivity.id), {
+      title: editTitle.trim(),
+      detail: editDetail.trim(),
+    })
+      .then((updated) => {
+        setActivities((prev) =>
+          prev.map((item) =>
+            item.id === editingActivity.id
+              ? {
+                  ...item,
+                  content: updated.title || editTitle.trim(),
+                  subContent:
+                    updated.content && updated.content !== updated.title
+                      ? updated.content
+                      : undefined,
+                  time: "just now",
+                }
+              : item,
+          ),
+        );
+        setIsEditOpen(false);
+        setEditingActivity(null);
+      })
+      .catch((error) => {
+        const message =
+          error instanceof Error ? error.message : "แก้ไขคำถามไม่สำเร็จ";
+        setEditError(message);
+      })
+      .finally(() => {
+        setIsSavingEdit(false);
+      });
   };
 
   if (!data) {
@@ -340,6 +398,7 @@ export default function StudentClass() {
                 data={item}
                 onToggleReplies={toggleReplies}
                 onPostReply={postReply}
+                onEditPost={handleEditPost}
               />
             ))}
           </div>
@@ -359,6 +418,22 @@ export default function StudentClass() {
         onClose={() => setIsPostOpen(false)}
         courseTitle={data.session.title}
         onPost={handleCreatePost}
+      />
+      <EditPostModal
+        isOpen={isEditOpen}
+        onClose={() => {
+          if (isSavingEdit) return;
+          setIsEditOpen(false);
+          setEditingActivity(null);
+          setEditError("");
+        }}
+        title={editTitle}
+        detail={editDetail}
+        onTitleChange={setEditTitle}
+        onDetailChange={setEditDetail}
+        onSave={handleSaveEdit}
+        error={editError}
+        isSaving={isSavingEdit}
       />
     </div>
   );
@@ -521,15 +596,115 @@ function CreatePostModal({
   );
 }
 
+function EditPostModal({
+  isOpen,
+  onClose,
+  title,
+  detail,
+  onTitleChange,
+  onDetailChange,
+  onSave,
+  error,
+  isSaving,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  detail: string;
+  onTitleChange: (value: string) => void;
+  onDetailChange: (value: string) => void;
+  onSave: () => void;
+  error?: string;
+  isSaving?: boolean;
+}) {
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-sm px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-xl bg-white rounded-3xl p-6 md:p-8 shadow-2xl border border-slate-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-xl font-bold text-[#1B1B1B]">Edit Question</h2>
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="text-slate-400 hover:text-slate-600 text-xl leading-none disabled:opacity-50"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">
+              หัวข้อคำถาม <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => onTitleChange(e.target.value)}
+              placeholder="เช่น ไก่กับไข่อะไรเกิดก่อนกัน"
+              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 transition"
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-slate-700 mb-1 block">
+              รายละเอียดเพิ่มเติม
+            </label>
+            <textarea
+              value={detail}
+              onChange={(e) => onDetailChange(e.target.value)}
+              placeholder="อธิบายคำถามเพิ่มเติม"
+              rows={4}
+              className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:border-[#5B41FF] focus:ring-2 focus:ring-[#5B41FF]/10 transition resize-none"
+            />
+          </div>
+        </div>
+
+        {error ? (
+          <p className="mt-4 text-sm text-red-500 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+            {error}
+          </p>
+        ) : null}
+
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-6 py-2.5 rounded-2xl border border-slate-200 text-slate-600 text-sm hover:bg-slate-50 transition disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSave}
+            disabled={isSaving || !title.trim()}
+            className="px-8 py-2.5 rounded-2xl bg-gradient-to-r from-[#6443D9] to-[#EA60AB] text-white text-sm font-medium shadow-md disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all"
+          >
+            {isSaving ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------- SUB COMPONENT ---------------- */
 function StudentActivityCard({
   data,
   onToggleReplies,
   onPostReply,
+  onEditPost,
 }: {
   data: Activity;
-  onToggleReplies: (id: number) => void;
-  onPostReply: (id: number, text: string) => void;
+  onToggleReplies: (id: string | number) => void;
+  onPostReply: (id: string | number, text: string) => void;
+  onEditPost: (activity: Activity) => void;
 }) {
   const [draft, setDraft] = useState("");
   const isBoard = data.status.toUpperCase().trim() === "BOARD";
@@ -657,6 +832,14 @@ function StudentActivityCard({
                     : ""}{" "}
                   {data.showReplies ? "ซ่อน replies" : "reply"}
                 </button>
+                {data.canEdit ? (
+                  <button
+                    onClick={() => onEditPost(data)}
+                    className="text-slate-400 hover:text-[#D1388D] transition-colors"
+                  >
+                    edit
+                  </button>
+                ) : null}
               </div>
 
               {/* Student replies*/}

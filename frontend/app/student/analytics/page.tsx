@@ -13,50 +13,34 @@ import {
 } from "recharts";
 import Header from "../../components/Header";
 import JoinCourse from "../../components/joincourse";
-
-const fetchStatsData = async (): Promise<any> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        student: { name: "สมปอง กุ๊กกิ๊ก", id: "670000000" },
-        session: {
-          title: "CS232: Intro to Cloud Computing",
-          time: "13:30 - 16:30",
-          instructor: "Aj. Noon",
-        },
-        stats: {
-          participation: 72,
-          questions: 12,
-          answered: 8,
-          unanswered: 1,
-          board: 0,
-        },
-        chart: [
-          { day: "Mon", value: 40 },
-          { day: "Tue", value: 60 },
-          { day: "Wed", value: 90 },
-          { day: "Thu", value: 50 },
-          { day: "Fri", value: 70 },
-          { day: "Sat", value: 20 },
-          { day: "Sun", value: 15 },
-        ],
-      });
-    }, 800);
-  });
-};
+import { getStudentAnalytics, getStudentDashboard } from "../../lib/api";
+import { useAuthSession } from "../../hooks/useAuthSession";
 
 const Dashboard = () => {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false); 
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const { session } = useAuthSession();
 
   useEffect(() => {
-    fetchStatsData().then((res) => {
-      setData(res);
-      setLoading(false);
-    });
-  }, []);
+    if (!session?.userId) {
+      return;
+    }
+    Promise.all([
+      getStudentAnalytics(session.userId),
+      getStudentDashboard(session.userId),
+    ])
+      .then(([analytics, dashboard]) => {
+        setData({
+          ...analytics,
+          session: dashboard.session,
+        });
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [session?.userId]);
 
   if (loading)
     return <div className="p-8 text-center">Loading Dashboard...</div>;
@@ -93,7 +77,7 @@ const Dashboard = () => {
             isActive
           />
           <StatCard label="ANSWERED QUESTIONS" value={data.stats.answered} />
-          <StatCard label="ACTIVE COURSES" value="5" />
+          <StatCard label="ACTIVE COURSES" value={data.stats.active_courses} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">

@@ -6,37 +6,53 @@ import Header from "../../components/Header";
 import { Contact, Clock } from "lucide-react";
 import Link from "next/link";
 import { useAuthSession } from "../../hooks/useAuthSession";
-
-const fetchDashboardData = async () => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        student: { name: "สมปอง กุ๊กกิ๊ก", id: "670000000" },
-        session: {
-          title: "CS232: Intro to Cloud Computing",
-          time: "13:30 - 16:30",
-          instructor: "Aj. Noon",
-        },
-        stats: { participation: 72, questions: 12, answered: 8, pending: 4 },
-        chart: [40, 60, 50, 70, 90, 30, 50],
-        recentQuestion:
-          "ทำไมต้องตั้ง Source เป็น Web Security Group แทนที่จะใส่ IP หรือ 0.0.0.0/0 แล้วมันส่งผลกับการเข้าถึง DB ยังไง?",
-        tag: "BOARD",
-      });
-    }, 800);
-  });
-};
+import { getStudentAnalytics, getStudentDashboard } from "../../lib/api";
 
 export default function Dashboard() {
-  const [data, setData] = useState(null);
+  const [data, setData] = useState<any>(null);
+  const [chart, setChart] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
   const [open, setOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const { session } = useAuthSession();
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
   useEffect(() => {
-    fetchDashboardData().then((res) => setData(res));
-  }, []);
+    if (!session?.userId) {
+      return;
+    }
+    Promise.all([
+      getStudentDashboard(session.userId),
+      getStudentAnalytics(session.userId),
+    ])
+      .then(([dashboard, analytics]) => {
+        setData({
+          ...dashboard,
+          recentQuestion: dashboard.recent_question || "No recent question",
+          tag: "BOARD",
+        });
+        const byDay = analytics.chart.reduce(
+          (acc, row) => {
+            acc[row.day] = row.value;
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+        const rawValues = [
+          byDay.Sun || 0,
+          byDay.Mon || 0,
+          byDay.Tue || 0,
+          byDay.Wed || 0,
+          byDay.Thu || 0,
+          byDay.Fri || 0,
+          byDay.Sat || 0,
+        ];
+        const maxValue = Math.max(...rawValues, 1);
+        setChart(rawValues.map((value) => Math.max(10, Math.round((value / maxValue) * 100))));
+      })
+      .catch(() => {
+        setData(null);
+      });
+  }, [session?.userId]);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -162,7 +178,7 @@ export default function Dashboard() {
               <div className="bg-[#F6F3F2] p-6 rounded-2xl shadow col-span-1">
                 <h3 className="mb-4">Participation Overview</h3>
                 <div className="flex items-end gap-2.5 h-40">
-                  {data.chart.map((h, i) => (
+                  {chart.map((h, i) => (
                     <div
                       key={i}
                       className="flex flex-col items-center gap-2 w-10 h-full justify-end"

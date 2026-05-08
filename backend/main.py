@@ -1,5 +1,10 @@
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from datetime import datetime
+from uuid import uuid4
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -24,6 +29,65 @@ app.add_middleware(
 )
 
 Base.metadata.create_all(bind=engine)
+with engine.begin() as conn:
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS question_replies (
+                reply_id VARCHAR(50) PRIMARY KEY,
+                question_id VARCHAR(50) NOT NULL,
+                user_id VARCHAR(50) NOT NULL,
+                content TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_question_replies_question_id (question_id),
+                INDEX idx_question_replies_user_id (user_id),
+                CONSTRAINT fk_question_replies_question
+                    FOREIGN KEY (question_id) REFERENCES questions(question_id)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_question_replies_user
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE
+            )
+            """
+        )
+    )
+
+
+class JoinCourseRequest(BaseModel):
+    """Request schema for student course enrollment."""
+
+    course_code: str = Field(min_length=1, max_length=50)
+
+
+class CreateQuestionRequest(BaseModel):
+    """Request schema for creating a student question."""
+
+    course_code: str = Field(min_length=1, max_length=50)
+    title: str = Field(min_length=1, max_length=255)
+    detail: str | None = None
+    is_anonymous: bool = False
+
+
+class NicknameUpdateRequest(BaseModel):
+    """Request schema for student nickname updates."""
+
+    nickname: str = Field(min_length=1, max_length=100)
+
+
+class UpdateQuestionRequest(BaseModel):
+    """Request schema for editing an existing student question."""
+
+    title: str = Field(min_length=1, max_length=255)
+    detail: str | None = None
+
+
+class CreateQuestionReplyRequest(BaseModel):
+    """Request schema for creating a question reply."""
+
+    content: str = Field(min_length=1, max_length=2000)
 
 
 def get_db() -> Session:
@@ -52,6 +116,104 @@ def get_current_professor(
 ):
     """Resolve the currently authenticated professor."""
     return UserManager.require_professor(db=db, token=token)
+
+
+def require_student(db: Session, student_id: str) -> User:
+    """Resolve and validate a student user."""
+    user: User | None = UserManager.get_user_by_id(db=db, user_id=student_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found",
+        )
+    if user.role != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint is available for student accounts only",
+        )
+    return user
+
+
+def serialize_datetime(value: datetime | None) -> str | None:
+    """Convert datetime values to ISO format."""
+    if value is None:
+        return None
+    return value.isoformat()
+
+
+def has_table_column(db: Session, table_name: str, column_name: str) -> bool:
+    """Check whether a table contains a specific column in the current schema."""
+    row = db.execute(
+        text(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = DATABASE()
+              AND table_name = :table_name
+              AND column_name = :column_name
+            LIMIT 1
+            """
+        ),
+        {
+            "table_name": table_name,
+            "column_name": column_name,
+        },
+    ).first()
+    return row is not None
+
+
+def get_question_replies_map(
+    db: Session,
+    question_ids: list[str],
+) -> dict[str, list[dict[str, str | bool | None]]]:
+    """Return question replies grouped by question id."""
+    if not question_ids:
+        return {}
+
+    params = {
+        f"question_id_{index}": question_id
+        for index, question_id in enumerate(question_ids)
+    }
+    placeholders = ", ".join(
+        f":question_id_{index}" for index in range(len(question_ids))
+    )
+    rows = db.execute(
+        text(
+            f"""
+            SELECT
+                r.reply_id,
+                r.question_id,
+                r.user_id,
+                u.nickname AS user_name,
+                u.role AS user_role,
+                r.content,
+                r.created_at,
+                r.updated_at
+            FROM question_replies r
+            JOIN users u ON u.user_id = r.user_id
+            WHERE r.question_id IN ({placeholders})
+            ORDER BY r.created_at ASC
+            """
+        ),
+        params,
+    ).mappings().all()
+
+    replies_map: dict[str, list[dict[str, str | bool | None]]] = {}
+    for row in rows:
+        question_id = str(row["question_id"])
+        replies_map.setdefault(question_id, []).append(
+            {
+                "id": str(row["reply_id"]),
+                "question_id": question_id,
+                "author_id": str(row["user_id"]),
+                "author_name": str(row["user_name"] or row["user_id"]),
+                "is_professor": str(row["user_role"]).lower() == "professor",
+                "content": str(row["content"]),
+                "created_at": serialize_datetime(row["created_at"]),
+                "updated_at": serialize_datetime(row["updated_at"]),
+            }
+        )
+    return replies_map
 
 
 @app.get("/")
@@ -111,3 +273,791 @@ def create_course(
         course_data=course_data,
         professor=professor,
     )
+
+
+@app.get("/students/{student_id}/profile")
+def get_student_profile(
+    student_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, str | int]:
+    """Return student profile info from the database."""
+    student = require_student(db=db, student_id=student_id)
+    enrollment_count = db.execute(
+        text(
+            """
+            SELECT COUNT(*) AS total
+            FROM enrollments
+            WHERE student_id = :student_id
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().one()
+    return {
+        "user_id": student.user_id,
+        "nickname": student.nickname,
+        "email": student.email,
+        "role": student.role,
+        "enrolled_courses": int(enrollment_count["total"] or 0),
+    }
+
+
+@app.patch("/students/{student_id}/nickname")
+def update_student_nickname(
+    student_id: str,
+    payload: NicknameUpdateRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Update student nickname in the database."""
+    require_student(db=db, student_id=student_id)
+    updated_user = UserManager.update_nickname(
+        db=db,
+        user_id=student_id,
+        nickname=payload.nickname,
+    )
+    if updated_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found",
+        )
+    return {
+        "message": "Nickname updated successfully",
+        "user_id": updated_user.user_id,
+        "nickname": updated_user.nickname,
+    }
+
+
+@app.get("/students/{student_id}/courses")
+def get_student_courses(
+    student_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, list[dict[str, str | bool | None]]]:
+    """List courses that a student has joined."""
+    require_student(db=db, student_id=student_id)
+    rows = db.execute(
+        text(
+            """
+            SELECT
+                c.course_code,
+                c.course_name,
+                c.is_active,
+                c.professor_id,
+                p.nickname AS professor_name,
+                e.join_date
+            FROM enrollments e
+            JOIN courses c ON c.course_code = e.course_code
+            LEFT JOIN users p ON p.user_id = c.professor_id
+            WHERE e.student_id = :student_id
+            ORDER BY e.join_date DESC
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().all()
+
+    courses = [
+        {
+            "course_code": str(row["course_code"]),
+            "course_name": str(row["course_name"]),
+            "is_active": bool(row["is_active"]),
+            "professor_id": str(row["professor_id"]),
+            "professor_name": str(row["professor_name"] or row["professor_id"]),
+            "join_date": serialize_datetime(row["join_date"]),
+        }
+        for row in rows
+    ]
+    return {"courses": courses}
+
+
+@app.post("/students/{student_id}/courses/join", status_code=status.HTTP_201_CREATED)
+def join_student_course(
+    student_id: str,
+    payload: JoinCourseRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Enroll a student into a course by course code."""
+    require_student(db=db, student_id=student_id)
+    normalized_course_code = payload.course_code.strip().upper()
+
+    course = db.execute(
+        text(
+            """
+            SELECT course_code, course_name, is_active
+            FROM courses
+            WHERE course_code = :course_code
+            """
+        ),
+        {"course_code": normalized_course_code},
+    ).mappings().first()
+
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course code not found",
+        )
+
+    if not bool(course["is_active"]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This course is not active",
+        )
+
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO enrollments (student_id, course_code)
+                VALUES (:student_id, :course_code)
+                """
+            ),
+            {
+                "student_id": student_id,
+                "course_code": normalized_course_code,
+            },
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Student already joined this course",
+        ) from exc
+
+    return {
+        "message": "Joined course successfully",
+        "course_code": normalized_course_code,
+        "course_name": str(course["course_name"]),
+    }
+
+
+@app.get("/students/{student_id}/questions")
+def get_student_questions(
+    student_id: str,
+    scope: str = Query(default="all", pattern="^(all|mine)$"),
+    course_code: str | None = Query(default=None),
+    search: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, list[dict[str, object | str | bool | None]]]:
+    """Return questions for student feed pages."""
+    require_student(db=db, student_id=student_id)
+    supports_title = has_table_column(db=db, table_name="questions", column_name="title")
+
+    normalized_course_code = course_code.strip().upper() if course_code else None
+    normalized_search = search.strip().lower() if search else None
+    title_select = "q.title AS title" if supports_title else "q.content AS title"
+    title_search_term = "q.title," if supports_title else ""
+
+    base_query = """
+        SELECT
+            q.question_id,
+            b.course_code,
+            c.course_name,
+            {title_select},
+            q.content,
+            q.reply_content,
+            q.status,
+            q.is_anonymous,
+            q.created_at,
+            q.updated_at,
+            u.user_id AS author_id,
+            u.nickname AS author_name
+        FROM questions q
+        JOIN interaction_boards b ON b.board_id = q.board_id
+        JOIN courses c ON c.course_code = b.course_code
+        JOIN users u ON u.user_id = q.student_id
+    """.format(title_select=title_select)
+
+    params: dict[str, str] = {"student_id": student_id}
+    where_clauses = ["q.status <> 'deleted'"]
+
+    if scope == "mine":
+        where_clauses.append("q.student_id = :student_id")
+    else:
+        base_query += """
+            JOIN enrollments e
+                ON e.course_code = b.course_code
+                AND e.student_id = :student_id
+        """
+
+    if normalized_course_code:
+        where_clauses.append("b.course_code = :course_code")
+        params["course_code"] = normalized_course_code
+
+    if normalized_search:
+        where_clauses.append(
+            """
+            LOWER(
+                CONCAT_WS(
+                    ' ',
+                    {title_search_term}
+                    q.content,
+                    COALESCE(u.nickname, ''),
+                    COALESCE(c.course_name, ''),
+                    b.course_code
+                )
+            ) LIKE :search
+            """
+            .format(title_search_term=title_search_term)
+        )
+        params["search"] = f"%{normalized_search}%"
+
+    query = f"""
+        {base_query}
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY q.created_at DESC
+    """
+    rows = db.execute(text(query), params).mappings().all()
+    question_ids = [str(row["question_id"]) for row in rows]
+    replies_map = get_question_replies_map(db=db, question_ids=question_ids)
+
+    status_map = {
+        "pending": "UNANSWERED",
+        "answered": "ANSWERED",
+        "deleted": "DELETED",
+    }
+    questions = [
+        {
+            "id": str(row["question_id"]),
+            "course_code": str(row["course_code"]),
+            "course_name": str(row["course_name"]),
+            "title": str(row["title"]),
+            "content": str(row["content"]),
+            "reply_content": None
+            if row["reply_content"] is None
+            else str(row["reply_content"]),
+            "status": status_map.get(str(row["status"]).lower(), "UNANSWERED"),
+            "is_anonymous": bool(row["is_anonymous"]),
+            "created_at": serialize_datetime(row["created_at"]),
+            "updated_at": serialize_datetime(row["updated_at"]),
+            "author_id": str(row["author_id"]),
+            "author_name": str(row["author_name"]),
+            "replies": replies_map.get(str(row["question_id"]), []),
+        }
+        for row in rows
+    ]
+    return {"questions": questions}
+
+
+@app.post("/students/{student_id}/questions", status_code=status.HTTP_201_CREATED)
+def create_student_question(
+    student_id: str,
+    payload: CreateQuestionRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str | bool | None]:
+    """Create a new question inside an active course board."""
+    student = require_student(db=db, student_id=student_id)
+    supports_title = has_table_column(db=db, table_name="questions", column_name="title")
+    normalized_course_code = payload.course_code.strip().upper()
+    normalized_title = payload.title.strip()
+    normalized_detail = (payload.detail or "").strip()
+    content = normalized_detail or normalized_title
+
+    if not normalized_title or not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question title/content cannot be empty",
+        )
+
+    enrollment = db.execute(
+        text(
+            """
+            SELECT 1
+            FROM enrollments
+            WHERE student_id = :student_id
+              AND course_code = :course_code
+            """
+        ),
+        {
+            "student_id": student_id,
+            "course_code": normalized_course_code,
+        },
+    ).first()
+    if enrollment is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student is not enrolled in this course",
+        )
+
+    board = db.execute(
+        text(
+            """
+            SELECT board_id
+            FROM interaction_boards
+            WHERE course_code = :course_code
+              AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        ),
+        {"course_code": normalized_course_code},
+    ).mappings().first()
+
+    board_id = str(board["board_id"]) if board else f"board_{uuid4().hex[:10]}"
+    if board is None:
+        db.execute(
+            text(
+                """
+                INSERT INTO interaction_boards (board_id, course_code, status)
+                VALUES (:board_id, :course_code, 'active')
+                """
+            ),
+            {
+                "board_id": board_id,
+                "course_code": normalized_course_code,
+            },
+        )
+
+    question_id = f"q_{uuid4().hex[:12]}"
+    created_at = datetime.utcnow().isoformat()
+    if supports_title:
+        db.execute(
+            text(
+                """
+                INSERT INTO questions (
+                    question_id,
+                    board_id,
+                    student_id,
+                    title,
+                    content,
+                    reply_content,
+                    status,
+                    is_anonymous,
+                    participation_score
+                ) VALUES (
+                    :question_id,
+                    :board_id,
+                    :student_id,
+                    :title,
+                    :content,
+                    NULL,
+                    'pending',
+                    :is_anonymous,
+                    0
+                )
+                """
+            ),
+            {
+                "question_id": question_id,
+                "board_id": board_id,
+                "student_id": student.user_id,
+                "title": normalized_title,
+                "content": content,
+                "is_anonymous": payload.is_anonymous,
+            },
+        )
+    else:
+        db.execute(
+            text(
+                """
+                INSERT INTO questions (
+                    question_id,
+                    board_id,
+                    student_id,
+                    content,
+                    reply_content,
+                    status,
+                    is_anonymous,
+                    participation_score
+                ) VALUES (
+                    :question_id,
+                    :board_id,
+                    :student_id,
+                    :content,
+                    NULL,
+                    'pending',
+                    :is_anonymous,
+                    0
+                )
+                """
+            ),
+            {
+                "question_id": question_id,
+                "board_id": board_id,
+                "student_id": student.user_id,
+                "content": content,
+                "is_anonymous": payload.is_anonymous,
+            },
+        )
+    db.commit()
+
+    return {
+        "id": question_id,
+        "course_code": normalized_course_code,
+        "course_name": normalized_course_code,
+        "title": normalized_title,
+        "content": content,
+        "reply_content": None,
+        "status": "UNANSWERED",
+        "is_anonymous": payload.is_anonymous,
+        "created_at": created_at,
+        "updated_at": created_at,
+        "author_id": student.user_id,
+        "author_name": student.nickname,
+    }
+
+
+@app.patch("/students/{student_id}/questions/{question_id}")
+def update_student_question(
+    student_id: str,
+    question_id: str,
+    payload: UpdateQuestionRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str | bool | None]:
+    """Allow a student to edit their own question."""
+    student = require_student(db=db, student_id=student_id)
+    supports_title = has_table_column(db=db, table_name="questions", column_name="title")
+
+    question = db.execute(
+        text(
+            """
+            SELECT
+                q.question_id,
+                q.student_id,
+                q.status,
+                b.course_code
+            FROM questions q
+            JOIN interaction_boards b ON b.board_id = q.board_id
+            WHERE q.question_id = :question_id
+            LIMIT 1
+            """
+        ),
+        {"question_id": question_id},
+    ).mappings().first()
+
+    if question is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found",
+        )
+
+    if str(question["student_id"]) != student.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can edit only your own question",
+        )
+
+    normalized_status = str(question["status"]).strip().lower()
+    if normalized_status == "deleted":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Deleted question cannot be edited",
+        )
+
+    normalized_title = payload.title.strip()
+    normalized_detail = (payload.detail or "").strip()
+    content = normalized_detail or normalized_title
+
+    if supports_title:
+        db.execute(
+            text(
+                """
+                UPDATE questions
+                SET title = :title,
+                    content = :content,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE question_id = :question_id
+                """
+            ),
+            {
+                "title": normalized_title,
+                "content": content,
+                "question_id": question_id,
+            },
+        )
+    else:
+        db.execute(
+            text(
+                """
+                UPDATE questions
+                SET content = :content,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE question_id = :question_id
+                """
+            ),
+            {
+                "content": content,
+                "question_id": question_id,
+            },
+        )
+    db.commit()
+
+    return {
+        "id": question_id,
+        "course_code": str(question["course_code"]),
+        "course_name": str(question["course_code"]),
+        "title": normalized_title,
+        "content": content,
+        "reply_content": None,
+        "status": "ANSWERED" if normalized_status == "answered" else "UNANSWERED",
+        "is_anonymous": False,
+        "created_at": None,
+        "updated_at": datetime.utcnow().isoformat(),
+        "author_id": student.user_id,
+        "author_name": student.nickname,
+    }
+
+
+@app.post(
+    "/students/{student_id}/questions/{question_id}/replies",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_student_question_reply(
+    student_id: str,
+    question_id: str,
+    payload: CreateQuestionReplyRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, str | bool | None]:
+    """Create a reply for a question in a course that the student joined."""
+    student = require_student(db=db, student_id=student_id)
+    content = payload.content.strip()
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reply content cannot be empty",
+        )
+
+    question = db.execute(
+        text(
+            """
+            SELECT
+                q.question_id,
+                q.status,
+                b.course_code
+            FROM questions q
+            JOIN interaction_boards b ON b.board_id = q.board_id
+            JOIN enrollments e
+                ON e.course_code = b.course_code
+                AND e.student_id = :student_id
+            WHERE q.question_id = :question_id
+            LIMIT 1
+            """
+        ),
+        {
+            "student_id": student_id,
+            "question_id": question_id,
+        },
+    ).mappings().first()
+
+    if question is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found or not accessible",
+        )
+
+    if str(question["status"]).lower() == "deleted":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot reply to a deleted question",
+        )
+
+    reply_id = f"r_{uuid4().hex[:12]}"
+    db.execute(
+        text(
+            """
+            INSERT INTO question_replies (
+                reply_id,
+                question_id,
+                user_id,
+                content
+            ) VALUES (
+                :reply_id,
+                :question_id,
+                :user_id,
+                :content
+            )
+            """
+        ),
+        {
+            "reply_id": reply_id,
+            "question_id": question_id,
+            "user_id": student.user_id,
+            "content": content,
+        },
+    )
+    db.commit()
+
+    created_at = datetime.utcnow().isoformat()
+    return {
+        "id": reply_id,
+        "question_id": question_id,
+        "author_id": student.user_id,
+        "author_name": student.nickname,
+        "is_professor": False,
+        "content": content,
+        "created_at": created_at,
+        "updated_at": created_at,
+    }
+
+
+@app.get("/students/{student_id}/dashboard")
+def get_student_dashboard(
+    student_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Return student dashboard summary from the database."""
+    student = require_student(db=db, student_id=student_id)
+
+    current_course = db.execute(
+        text(
+            """
+            SELECT
+                c.course_code,
+                c.course_name,
+                COALESCE(p.nickname, c.professor_id) AS professor_name
+            FROM enrollments e
+            JOIN courses c ON c.course_code = e.course_code
+            LEFT JOIN users p ON p.user_id = c.professor_id
+            WHERE e.student_id = :student_id
+            ORDER BY e.join_date DESC
+            LIMIT 1
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().first()
+
+    stats = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END) AS answered,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending
+            FROM questions
+            WHERE student_id = :student_id
+              AND status <> 'deleted'
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().one()
+
+    recent = db.execute(
+        text(
+            """
+            SELECT content
+            FROM questions
+            WHERE student_id = :student_id
+              AND status <> 'deleted'
+            ORDER BY created_at DESC
+            LIMIT 1
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().first()
+
+    total_questions = int(stats["total"] or 0)
+    answered_questions = int(stats["answered"] or 0)
+    pending_questions = int(stats["pending"] or 0)
+    participation = (
+        int(round((answered_questions / total_questions) * 100))
+        if total_questions > 0
+        else 0
+    )
+
+    return {
+        "student": {
+            "id": student.user_id,
+            "name": student.nickname,
+        },
+        "session": {
+            "course_code": str(current_course["course_code"]) if current_course else "",
+            "title": (
+                f"{current_course['course_code']}: {current_course['course_name']}"
+                if current_course
+                else "No active course"
+            ),
+            "time": "-",
+            "instructor": str(current_course["professor_name"]) if current_course else "-",
+        },
+        "stats": {
+            "participation": participation,
+            "questions": total_questions,
+            "answered": answered_questions,
+            "pending": pending_questions,
+        },
+        "recent_question": str(recent["content"]) if recent else "",
+    }
+
+
+@app.get("/students/{student_id}/analytics")
+def get_student_analytics(
+    student_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Return analytics summary for student screens."""
+    student = require_student(db=db, student_id=student_id)
+
+    stats = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END) AS answered,
+                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending
+            FROM questions
+            WHERE student_id = :student_id
+              AND status <> 'deleted'
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().one()
+
+    active_courses = db.execute(
+        text(
+            """
+            SELECT COUNT(*) AS total
+            FROM enrollments
+            WHERE student_id = :student_id
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().one()
+
+    activity_rows = db.execute(
+        text(
+            """
+            SELECT WEEKDAY(created_at) AS weekday_idx, COUNT(*) AS total
+            FROM questions
+            WHERE student_id = :student_id
+              AND status <> 'deleted'
+            GROUP BY WEEKDAY(created_at)
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().all()
+
+    chart_by_day = [0, 0, 0, 0, 0, 0, 0]
+    for row in activity_rows:
+        day_index = int(row["weekday_idx"])
+        if 0 <= day_index <= 6:
+            chart_by_day[day_index] = int(row["total"] or 0)
+
+    total_questions = int(stats["total"] or 0)
+    answered_questions = int(stats["answered"] or 0)
+    pending_questions = int(stats["pending"] or 0)
+    participation = (
+        int(round((answered_questions / total_questions) * 100))
+        if total_questions > 0
+        else 0
+    )
+
+    return {
+        "student": {
+            "id": student.user_id,
+            "name": student.nickname,
+        },
+        "stats": {
+            "participation": participation,
+            "questions": total_questions,
+            "answered": answered_questions,
+            "unanswered": pending_questions,
+            "board": 0,
+            "active_courses": int(active_courses["total"] or 0),
+        },
+        "chart": [
+            {"day": "Mon", "value": chart_by_day[0]},
+            {"day": "Tue", "value": chart_by_day[1]},
+            {"day": "Wed", "value": chart_by_day[2]},
+            {"day": "Thu", "value": chart_by_day[3]},
+            {"day": "Fri", "value": chart_by_day[4]},
+            {"day": "Sat", "value": chart_by_day[5]},
+            {"day": "Sun", "value": chart_by_day[6]},
+        ],
+    }

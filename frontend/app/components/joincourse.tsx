@@ -1,46 +1,52 @@
 "use client";
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { X } from 'lucide-react';
+import { joinStudentCourse } from "../lib/api";
+import { useAuthSession } from "../hooks/useAuthSession";
 
 interface JoinCourseProps {
   isOpen: boolean;
   onClose: () => void;
+  onJoined?: (courseCode: string) => void;
 }
 
-const JoinCourse = ({ isOpen, onClose }: JoinCourseProps) => {
-  const [code, setCode] = useState(['', '', '', '', '', '']);
+const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
+  const [code, setCode] = useState("");
   const [joinedCourses, setJoinedCourses] = useState<string[]>([]);
   const [successMsg, setSuccessMsg] = useState('');
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { session } = useAuthSession();
 
   if (!isOpen) return null;
 
-  const handleChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newCode = [...code];
-    newCode[index] = value.toUpperCase();
-    setCode(newCode);
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
   const handleJoin = () => {
-    const fullCode = code.join('');
-    if (fullCode.length < 6) return;
-    setJoinedCourses((prev) => [...prev, fullCode]);
-    setSuccessMsg(`เข้าร่วมคอร์ส ${fullCode} สำเร็จ!`);
-    setCode(['', '', '', '', '', '']);
-    setTimeout(() => {
-      setSuccessMsg('');
-      onClose();
-    }, 1500);
+    const fullCode = code.trim().toUpperCase();
+    if (fullCode.length < 2 || !session?.userId || loading) return;
+
+    setLoading(true);
+    setErrorMsg("");
+    joinStudentCourse(session.userId, fullCode)
+      .then((response) => {
+        setJoinedCourses((prev) => [...prev, response.course_code]);
+        setSuccessMsg(`เข้าร่วมคอร์ส ${response.course_code} สำเร็จ!`);
+        setCode("");
+        onJoined?.(response.course_code);
+        setTimeout(() => {
+          setSuccessMsg('');
+          onClose();
+        }, 1200);
+      })
+      .catch((error) => {
+        if (error instanceof Error) {
+          setErrorMsg(error.message);
+        } else {
+          setErrorMsg("ไม่สามารถเข้าร่วมคอร์สได้");
+        }
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   return (
@@ -62,25 +68,22 @@ const JoinCourse = ({ isOpen, onClose }: JoinCourseProps) => {
             <p className="text-slate-500 text-sm">กรอกโค้ดคลาสเรียนจากอาจารย์</p>
           </div>
 
-          {/* OTP Input */}
-          <div className="flex gap-2 sm:gap-3 mb-8">
-            {code.map((char, index) => (
-              <input
-                key={index}
-                ref={(el) => (inputRefs.current[index] = el)}
-                type="text"
-                maxLength={1}
-                value={char}
-                onChange={(e) => handleChange(index, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(index, e)}
-                className="w-10 h-12 sm:w-13 sm:h-14 text-center text-xl font-bold text-[#4A4A68] bg-slate-50 rounded-2xl border border-slate-200 focus:ring-2 focus:ring-[#5B41FF]/30 focus:border-[#5B41FF] focus:bg-white transition-all outline-none"
-              />
-            ))}
+          <div className="w-full mb-8">
+            <input
+              type="text"
+              value={code}
+              onChange={(event) => setCode(event.target.value.toUpperCase())}
+              placeholder="เช่น CS232"
+              className="w-full text-center text-lg font-bold tracking-wider text-[#4A4A68] bg-slate-50 rounded-2xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-[#5B41FF]/30 focus:border-[#5B41FF] focus:bg-white transition-all outline-none"
+            />
           </div>
 
           {/* Success msg */}
           {successMsg && (
             <p className="text-emerald-500 text-sm font-medium mb-4">{successMsg}</p>
+          )}
+          {errorMsg && (
+            <p className="text-rose-500 text-sm font-medium mb-4">{errorMsg}</p>
           )}
 
           {/* Joined mock list */}
@@ -107,10 +110,10 @@ const JoinCourse = ({ isOpen, onClose }: JoinCourseProps) => {
             </button>
             <button
               onClick={handleJoin}
-              disabled={code.join('').length < 6}
+              disabled={code.trim().length < 2 || loading}
               className="flex-1 py-3 rounded-2xl bg-[#5B41FF] text-white text-sm font-medium hover:bg-[#4a34e0] transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              Join Course
+              {loading ? "Joining..." : "Join Course"}
             </button>
           </div>
         </div>
