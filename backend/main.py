@@ -216,6 +216,46 @@ def get_question_replies_map(
     return replies_map
 
 
+def get_on_class_participation_stats(
+    db: Session,
+    student_id: str,
+) -> tuple[int, int, int]:
+    """
+    Calculate on-class participation based on board sessions.
+
+    Participation means the student asked at least one non-deleted question
+    in a board session of an enrolled course, after the student joined.
+    """
+    board_stats = db.execute(
+        text(
+            """
+            SELECT
+                COUNT(DISTINCT b.board_id) AS opened_boards,
+                COUNT(DISTINCT q.board_id) AS participated_boards
+            FROM enrollments e
+            JOIN interaction_boards b
+                ON b.course_code = e.course_code
+            LEFT JOIN questions q
+                ON q.board_id = b.board_id
+               AND q.student_id = :student_id
+               AND q.status <> 'deleted'
+            WHERE e.student_id = :student_id
+              AND b.created_at >= e.join_date
+            """
+        ),
+        {"student_id": student_id},
+    ).mappings().one()
+
+    opened_boards = int(board_stats["opened_boards"] or 0)
+    participated_boards = int(board_stats["participated_boards"] or 0)
+    on_class_participation = (
+        int(round((participated_boards / opened_boards) * 100))
+        if opened_boards > 0
+        else 0
+    )
+    return on_class_participation, opened_boards, participated_boards
+
+
 @app.get("/")
 def read_root():
     return {"message": "Backend is running"}
@@ -945,11 +985,11 @@ def get_student_dashboard(
     total_questions = int(stats["total"] or 0)
     answered_questions = int(stats["answered"] or 0)
     pending_questions = int(stats["pending"] or 0)
-    participation = (
-        int(round((answered_questions / total_questions) * 100))
-        if total_questions > 0
-        else 0
-    )
+    (
+        on_class_participation,
+        opened_boards,
+        participated_boards,
+    ) = get_on_class_participation_stats(db=db, student_id=student_id)
 
     return {
         "student": {
@@ -967,7 +1007,10 @@ def get_student_dashboard(
             "instructor": str(current_course["professor_name"]) if current_course else "-",
         },
         "stats": {
-            "participation": participation,
+            "participation": on_class_participation,
+            "on_class_participation": on_class_participation,
+            "opened_boards": opened_boards,
+            "participated_boards": participated_boards,
             "questions": total_questions,
             "answered": answered_questions,
             "pending": pending_questions,
@@ -1032,11 +1075,11 @@ def get_student_analytics(
     total_questions = int(stats["total"] or 0)
     answered_questions = int(stats["answered"] or 0)
     pending_questions = int(stats["pending"] or 0)
-    participation = (
-        int(round((answered_questions / total_questions) * 100))
-        if total_questions > 0
-        else 0
-    )
+    (
+        on_class_participation,
+        opened_boards,
+        participated_boards,
+    ) = get_on_class_participation_stats(db=db, student_id=student_id)
 
     return {
         "student": {
@@ -1044,11 +1087,14 @@ def get_student_analytics(
             "name": student.nickname,
         },
         "stats": {
-            "participation": participation,
+            "participation": on_class_participation,
+            "on_class_participation": on_class_participation,
+            "opened_boards": opened_boards,
+            "participated_boards": participated_boards,
             "questions": total_questions,
             "answered": answered_questions,
             "unanswered": pending_questions,
-            "board": 0,
+            "board": opened_boards,
             "active_courses": int(active_courses["total"] or 0),
         },
         "chart": [

@@ -107,6 +107,9 @@ export interface StudentDashboardData {
   };
   stats: {
     participation: number;
+    on_class_participation: number;
+    opened_boards: number;
+    participated_boards: number;
     questions: number;
     answered: number;
     pending: number;
@@ -121,6 +124,9 @@ export interface StudentAnalyticsData {
   };
   stats: {
     participation: number;
+    on_class_participation: number;
+    opened_boards: number;
+    participated_boards: number;
     questions: number;
     answered: number;
     unanswered: number;

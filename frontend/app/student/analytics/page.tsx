@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -45,6 +45,9 @@ const Dashboard = () => {
   if (loading)
     return <div className="p-8 text-center">Loading Dashboard...</div>;
 
+  const openedBoards = Number(data?.stats?.opened_boards ?? data?.stats?.board ?? 0);
+  const participatedBoards = Number(data?.stats?.participated_boards ?? 0);
+
   const pieData = [
     { name: "Answered", value: data.stats.answered, color: "#4F46E5" },
     { name: "Unanswered", value: data.stats.unanswered, color: "#C7D2FE" },
@@ -67,9 +70,9 @@ const Dashboard = () => {
         {/*  Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <StatCard
-            label="PARTICIPATION RATE"
+            label="ON-CLASS PARTICIPATION RATE"
             value={`${data.stats.participation}%`}
-            subValue="+4%"
+            subValue={`${participatedBoards}/${openedBoards} classes`}
           />
           <StatCard
             label="TOTAL QUESTIONS"
