@@ -6,6 +6,7 @@ export interface AuthSession {
   role: UserRole;
   userId: string;
   email: string;
+  fullName: string;
   nickname: string;
 }
 

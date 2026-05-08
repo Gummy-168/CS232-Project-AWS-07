@@ -5,11 +5,13 @@ from __future__ import annotations
 from .board import InteractionBoard
 from .course import Course
 from .enrollment import Enrollment
+from .professor import Professor
 from .question import Question
 from .user import User
 
 __all__ = [
     "User",
+    "Professor",
     "Course",
     "Enrollment",
     "InteractionBoard",

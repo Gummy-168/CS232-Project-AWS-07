@@ -27,6 +27,7 @@ export interface LoginPayload {
 
 export interface RegisterPayload {
   id: string;
+  full_name: string;
   email: string;
   password: string;
   role: UserRole;
@@ -39,11 +40,13 @@ interface LoginResponse {
   user_id: string;
   role: UserRole;
   redirect_to: string;
+  full_name: string;
   nickname: string;
 }
 
 interface RegisterResponse {
   id: string;
+  full_name: string;
   email: string;
   role: UserRole;
   nickname: string;
@@ -52,6 +55,7 @@ interface RegisterResponse {
 
 export interface StudentProfile {
   user_id: string;
+  full_name: string;
   nickname: string;
   email: string;
   role: UserRole;
@@ -173,6 +177,64 @@ export interface UpdateStudentQuestionPayload {
 
 export interface CreateStudentReplyPayload {
   content: string;
+}
+
+export interface ProfessorCourseOption {
+  course_code: string;
+  course_name: string;
+}
+
+export interface ProfessorQuestionReply {
+  id: string;
+  question_id: string;
+  author_id: string;
+  author_name: string;
+  is_professor: boolean;
+  content: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface ProfessorStudentQuestion {
+  id: string;
+  title: string;
+  content: string;
+  status: "UNANSWERED" | "ANSWERED" | "DELETED";
+  student_id: string;
+  student_name: string;
+  course_code: string;
+  course_name: string;
+  board_id: string;
+  created_at: string | null;
+  updated_at: string | null;
+  replies: ProfessorQuestionReply[];
+}
+
+export interface ProfessorBoardSession {
+  board_id: string;
+  course_code: string;
+  course_name: string;
+  status: string;
+  created_at: string | null;
+  total_questions: number;
+  answered_questions: number;
+  unanswered_questions: number;
+}
+
+export interface ProfessorQuestionsData {
+  professor: {
+    id: string;
+    name: string;
+    full_name: string;
+  };
+  courses: ProfessorCourseOption[];
+  selected_course_code: string;
+  course: {
+    code: string;
+    title: string;
+  };
+  student_questions: ProfessorStudentQuestion[];
+  board_sessions: ProfessorBoardSession[];
 }
 
 async function apiRequest<TResponse>(
@@ -321,6 +383,87 @@ export async function getStudentAnalytics(studentId: string) {
   });
 }
 
+export async function getProfessorQuestions(
+  professorId: string,
+  params?: {
+    courseCode?: string;
+    status?: "all" | "answered" | "unanswered";
+    search?: string;
+  },
+) {
+  const query = new URLSearchParams();
+  if (params?.courseCode?.trim()) {
+    query.set("course_code", params.courseCode.trim().toUpperCase());
+  }
+  if (params?.status?.trim()) {
+    query.set("status", params.status.trim().toLowerCase());
+  }
+  if (params?.search?.trim()) {
+    query.set("search", params.search.trim());
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return apiRequest<ProfessorQuestionsData>(
+    `/professors/${professorId}/questions${suffix}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function createProfessorBoard(
+  professorId: string,
+  courseCode: string,
+) {
+  return apiRequest<{
+    board_id: string;
+    course_code: string;
+    course_name: string;
+    status: string;
+  }>(`/professors/${professorId}/courses/${courseCode}/boards`, {
+    method: "POST",
+  });
+}
+
+export async function updateProfessorQuestionStatus(
+  professorId: string,
+  questionId: string,
+  statusValue: "answered" | "pending" | "unanswered",
+) {
+  return apiRequest<{ question_id: string; status: "ANSWERED" | "UNANSWERED" }>(
+    `/professors/${professorId}/questions/${questionId}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status: statusValue }),
+    },
+  );
+}
+
+export async function deleteProfessorQuestion(
+  professorId: string,
+  questionId: string,
+) {
+  return apiRequest<{ message: string; question_id: string }>(
+    `/professors/${professorId}/questions/${questionId}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function createProfessorQuestionReply(
+  professorId: string,
+  questionId: string,
+  payload: { content: string },
+) {
+  return apiRequest<ProfessorQuestionReply>(
+    `/professors/${professorId}/questions/${questionId}/replies`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
+}
+
 export function buildSessionFromLogin(
   login: LoginResponse,
   payload: LoginPayload,
@@ -334,6 +477,7 @@ export function buildSessionFromLogin(
     role: login.role,
     userId: login.user_id,
     email: payload.email,
+    fullName: login.full_name?.trim() || derivedNickname,
     nickname: derivedNickname,
   };
 }

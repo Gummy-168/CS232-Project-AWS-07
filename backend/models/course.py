@@ -19,7 +19,7 @@ class Course(Base):
     course_name: Mapped[str] = mapped_column(String(255), nullable=False)
     professor_id: Mapped[str] = mapped_column(
         String(50),
-        ForeignKey("users.user_id", onupdate="CASCADE", ondelete="RESTRICT"),
+        ForeignKey("professors.professor_id", onupdate="CASCADE", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )

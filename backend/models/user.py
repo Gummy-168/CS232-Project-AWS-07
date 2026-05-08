@@ -19,6 +19,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     password_hash: Mapped[str] = mapped_column("password_hash", String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(50), nullable=False)
+    full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     nickname: Mapped[str] = mapped_column(String(100), nullable=False)
 
     VALID_ROLES = {"student", "professor"}
@@ -53,6 +54,7 @@ class User(Base):
                 len(self.user_id.strip()) > 0,
                 "@" in self.email,
                 self.role.lower() in self.VALID_ROLES,
+                len(self.full_name.strip()) > 0,
                 len(self.nickname.strip()) > 0,
             ]
         )

@@ -124,6 +124,19 @@ docker compose down -v
 docker compose up -d --build
 ```
 
+### Default Login (Seed/Init)
+
+หลัง init database ครั้งแรก จะมี user สำหรับทดสอบดังนี้
+
+- Professor
+  - email: `prof001@example.com`
+  - password: `prof1234`
+  - frontend path: `http://localhost:3000/professor/questions`
+- Student
+  - email: `stu001@example.com`
+  - password: `stu1234`
+  - frontend path: `http://localhost:3000/student/dashboard`
+
 ### Run
 ```bash
 docker compose up --build

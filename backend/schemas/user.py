@@ -17,6 +17,7 @@ class UserCreate(BaseModel):
     """Request schema for user registration."""
 
     id: str
+    full_name: str
     email: EmailStr
     password: str
     role: str
@@ -31,4 +32,5 @@ class TokenResponse(BaseModel):
     user_id: str
     role: str
     redirect_to: str
+    full_name: str
     nickname: str

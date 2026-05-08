@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from models.course import Course
-from models.user import User
+from models.professor import Professor
 from schemas.course import CourseCreate
 
 
@@ -19,7 +19,7 @@ class CourseManager:
         cls,
         db: Session,
         course_data: CourseCreate,
-        professor: User,
+        professor: Professor,
     ) -> Course:
         """Create a new course owned by the authenticated professor."""
         if professor.role != "professor":

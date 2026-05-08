@@ -1,24 +1,27 @@
 "use client";
+
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  BarChart3,
+  ChevronRight,
   FileText,
   GraduationCap,
-  ChevronRight,
+  LayoutDashboard,
+  LogOut,
   PlusCircle,
   Settings,
-  LogOut,
 } from "lucide-react";
-import CreateCourse from "../components/createcourse"; // ✅ import modal
+import CreateCourse from "../components/createcourse";
 import { clearStoredSession } from "../lib/auth";
 
 export default function ProfessorSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isCourseOpen, setIsCourseOpen] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false); // ✅ เพิ่ม
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleLogout = () => {
     clearStoredSession();
@@ -33,13 +36,9 @@ export default function ProfessorSidebar() {
 
   return (
     <>
-      <CreateCourse
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      <CreateCourse isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
 
       <aside className="fixed left-0 top-0 h-screen w-64 bg-white p-6 rounded-r-[40px] flex flex-col justify-between shadow-sm border-r border-slate-50 z-40">
-        {/* Top Section */}
         <div>
           <div className="flex flex-col items-center mb-10 mt-0">
             <Image
@@ -57,26 +56,31 @@ export default function ProfessorSidebar() {
           <nav className="space-y-2.5">
             <Link
               href="/professor/questions"
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${pathname === "/professor/questions" ? activeStyle : inactiveStyle}`}
+              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${
+                pathname === "/professor/questions" ? activeStyle : inactiveStyle
+              }`}
             >
-              <FileText size={20} />
-              <span className="text-base">Questions</span>
+              <LayoutDashboard size={20} />
+              <span className="text-base">Dashboard</span>
             </Link>
 
             <div className="space-y-2">
-              <div
+              <button
+                type="button"
                 onClick={() => setIsCourseOpen(!isCourseOpen)}
-                className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all ${pathname.includes("/professor/courses") ? activeStyle : inactiveStyle}`}
+                className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all w-full ${
+                  pathname.includes("/professor/courses") ? activeStyle : inactiveStyle
+                }`}
               >
-                <div className="flex items-center gap-3.5 ">
+                <div className="flex items-center gap-3.5">
                   <GraduationCap size={20} />
-                  <span className="text-base">Courses</span>
+                  <span className="text-base">My Courses</span>
                 </div>
                 <ChevronRight
                   size={18}
                   className={`transition-transform ${isCourseOpen ? "rotate-90" : ""}`}
                 />
-              </div>
+              </button>
 
               {isCourseOpen && (
                 <div className="ml-4 mt-2 space-y-2">
@@ -95,6 +99,7 @@ export default function ProfessorSidebar() {
                   </Link>
 
                   <button
+                    type="button"
                     onClick={() => setIsModalOpen(true)}
                     className="flex items-center gap-2 px-4 py-2 rounded-full w-full text-[#A1A1AA] bg-slate-100 hover:bg-slate-200 transition text-sm font-regular"
                   >
@@ -106,8 +111,26 @@ export default function ProfessorSidebar() {
             </div>
 
             <Link
+              href="/professor/questions"
+              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${inactiveStyle}`}
+            >
+              <FileText size={20} />
+              <span className="text-base">Feed</span>
+            </Link>
+
+            <Link
+              href="/professor/questions"
+              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${inactiveStyle}`}
+            >
+              <BarChart3 size={20} />
+              <span className="text-base">Analytics</span>
+            </Link>
+
+            <Link
               href="/professor/settings"
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${pathname === "/professor/settings" ? activeStyle : inactiveStyle}`}
+              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${
+                pathname === "/professor/settings" ? activeStyle : inactiveStyle
+              }`}
             >
               <Settings size={20} />
               <span className="text-base">Settings</span>
@@ -115,9 +138,9 @@ export default function ProfessorSidebar() {
           </nav>
         </div>
 
-        {/* Bottom Section */}
         <div className="pt-6 border-t border-slate-100 mb-2">
           <button
+            type="button"
             onClick={handleLogout}
             className="flex items-center gap-3.5 px-4 py-3 text-[#FF7EB3] hover:text-rose-600 font-extrabold transition-colors w-full group rounded-2xl"
           >

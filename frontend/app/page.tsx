@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import { buildSessionFromLogin, loginUser } from "./lib/api";
 import {
   clearStoredSession,
@@ -15,6 +16,7 @@ type LoginRole = UserRole;
 
 export default function Home() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<LoginRole>("student");
   const [email, setEmail] = useState("");
@@ -24,6 +26,13 @@ export default function Home() {
   const isDisabled = useMemo(() => {
     return loading || !email.trim() || !password.trim();
   }, [email, loading, password]);
+
+  useEffect(() => {
+    const role = searchParams.get("role");
+    if (role === "student" || role === "professor") {
+      setSelectedRole(role);
+    }
+  }, [searchParams]);
 
   async function handleLogin() {
     if (isDisabled) {
@@ -159,7 +168,9 @@ export default function Home() {
 
         <div className="text-sm text-black flex flex-col items-center">
           <span>If you do not have an account?</span>
-          <span className="text-[#AE2466] font-bold">Create account</span>
+          <Link href="/register" className="text-[#AE2466] font-bold hover:underline">
+            Create account
+          </Link>
         </div>
       </div>
     </div>

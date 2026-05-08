@@ -10,7 +10,7 @@ import { useAuthSession } from "../../hooks/useAuthSession";
 const StudentProfilePage = () => {
   const { session } = useAuthSession();
   const studentInfo = {
-    fullName: "สมปอง อยากรวย",
+    fullName: session?.fullName || "",
     displayName: session?.nickname || "",
     email: session?.email || "",
     studentId: session?.userId || "",
@@ -41,6 +41,7 @@ const StudentProfilePage = () => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState(studentInfo.displayName);
+  const [fullName, setFullName] = useState(studentInfo.fullName);
   const [email, setEmail] = useState(studentInfo.email);
   const [studentId, setStudentId] = useState(studentInfo.studentId);
   const [enrolledCourses, setEnrolledCourses] = useState(studentInfo.enrolledCourses);
@@ -53,6 +54,7 @@ const StudentProfilePage = () => {
       return;
     }
     getStudentProfile(session.userId).then((profile) => {
+      setFullName(profile.full_name);
       setDisplayName(profile.nickname);
       setEmail(profile.email);
       setStudentId(profile.user_id);
@@ -168,7 +170,7 @@ const StudentProfilePage = () => {
                         </label>
                         <div className="flex items-center justify-between bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200">
                           <span className="text-slate-600">
-                            {studentInfo.fullName}
+                            {fullName}
                           </span>
                           <Lock size={14} className="text-slate-400" />
                         </div>
