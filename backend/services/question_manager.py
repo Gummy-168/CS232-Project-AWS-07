@@ -289,7 +289,7 @@ class QuestionManager:
             replies_map=replies_map,
         )
 
-        board_where = ["c.professor_id = :professor_id"]
+        board_where = ["c.professor_id = :professor_id", "b.section_id IS NOT NULL"]
         board_params: dict[str, object] = {"professor_id": professor_id}
         if selected_course_code:
             board_where.append("c.course_code = :course_code")

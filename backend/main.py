@@ -718,6 +718,109 @@ def has_table_column(db: Session, table_name: str, column_name: str) -> bool:
     return row is not None
 
 
+def ensure_general_course_board(
+    db: Session,
+    course_code: str,
+) -> dict[str, object]:
+    """Return the persistent course-wide board, creating it when missing."""
+    normalized_course_code = course_code.strip().upper()
+    board = db.execute(
+        text(
+            """
+            SELECT
+                board_id,
+                board_title,
+                status,
+                created_at,
+                closed_at
+            FROM interaction_boards
+            WHERE course_code = :course_code
+              AND section_id IS NULL
+            ORDER BY created_at ASC
+            LIMIT 1
+            """
+        ),
+        {"course_code": normalized_course_code},
+    ).mappings().first()
+
+    if board is None:
+        board_id = f"course_board_{uuid4().hex[:10]}"
+        board_title = f"{normalized_course_code} General Board"
+        db.execute(
+            text(
+                """
+                INSERT INTO interaction_boards (
+                    board_id,
+                    course_code,
+                    section_id,
+                    board_title,
+                    status
+                ) VALUES (
+                    :board_id,
+                    :course_code,
+                    NULL,
+                    :board_title,
+                    'active'
+                )
+                """
+            ),
+            {
+                "board_id": board_id,
+                "course_code": normalized_course_code,
+                "board_title": board_title,
+            },
+        )
+        db.commit()
+        board = {
+            "board_id": board_id,
+            "board_title": board_title,
+            "status": "active",
+            "created_at": datetime.utcnow(),
+            "closed_at": None,
+        }
+    elif str(board["status"]).strip().lower() != "active":
+        db.execute(
+            text(
+                """
+                UPDATE interaction_boards
+                SET status = 'active',
+                    closed_at = NULL,
+                    board_title = COALESCE(NULLIF(board_title, ''), :board_title)
+                WHERE board_id = :board_id
+                """
+            ),
+            {
+                "board_id": str(board["board_id"]),
+                "board_title": str(board["board_title"] or f"{normalized_course_code} General Board"),
+            },
+        )
+        db.commit()
+        board = db.execute(
+            text(
+                """
+                SELECT
+                    board_id,
+                    board_title,
+                    status,
+                    created_at,
+                    closed_at
+                FROM interaction_boards
+                WHERE board_id = :board_id
+                LIMIT 1
+                """
+            ),
+            {"board_id": str(board["board_id"])},
+        ).mappings().first()
+
+    if board is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initialize course board",
+        )
+
+    return dict(board)
+
+
 def get_question_replies_map(
     db: Session,
     question_ids: list[str],
@@ -1206,6 +1309,34 @@ def get_student_course_board(
             detail="Course not found for this student",
         )
 
+    general_board_row = ensure_general_course_board(
+        db=db,
+        course_code=normalized_course_code,
+    )
+    general_board = db.execute(
+        text(
+            """
+            SELECT
+                b.board_id,
+                b.board_title,
+                b.section_id,
+                b.status,
+                b.created_at,
+                COUNT(q.question_id) AS total_questions,
+                SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
+                SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions
+            FROM interaction_boards b
+            LEFT JOIN questions q
+                ON q.board_id = b.board_id
+               AND q.status <> 'deleted'
+            WHERE b.board_id = :board_id
+            GROUP BY b.board_id, b.board_title, b.section_id, b.status, b.created_at
+            LIMIT 1
+            """
+        ),
+        {"board_id": str(general_board_row["board_id"])},
+    ).mappings().first()
+
     active_board = db.execute(
         text(
             """
@@ -1241,6 +1372,24 @@ def get_student_course_board(
         },
     ).mappings().first()
 
+    def serialize_board(
+        board_row: dict[str, object] | None,
+        section_code: str | None = None,
+    ) -> dict[str, object] | None:
+        if board_row is None:
+            return None
+        return {
+            "board_id": str(board_row["board_id"]),
+            "board_title": str(board_row["board_title"] or board_row["board_id"]),
+            "section_id": str(board_row["section_id"]) if board_row["section_id"] else None,
+            "section_code": section_code,
+            "status": str(board_row["status"]).upper(),
+            "created_at": serialize_datetime(board_row["created_at"]),
+            "total_questions": int(board_row["total_questions"] or 0),
+            "answered_questions": int(board_row["answered_questions"] or 0),
+            "unanswered_questions": int(board_row["unanswered_questions"] or 0),
+        }
+
     return {
         "student": {
             "id": student.user_id,
@@ -1254,20 +1403,11 @@ def get_student_course_board(
             "section_id": str(course["section_id"]) if course["section_id"] else None,
             "section_code": str(course["section_code"]) if course["section_code"] else None,
         },
-        "active_board": (
-            {
-                "board_id": str(active_board["board_id"]),
-                "board_title": str(active_board["board_title"] or active_board["board_id"]),
-                "section_id": str(active_board["section_id"]) if active_board["section_id"] else None,
-                "section_code": str(active_board["section_code"]) if active_board["section_code"] else None,
-                "status": str(active_board["status"]).upper(),
-                "created_at": serialize_datetime(active_board["created_at"]),
-                "total_questions": int(active_board["total_questions"] or 0),
-                "answered_questions": int(active_board["answered_questions"] or 0),
-                "unanswered_questions": int(active_board["unanswered_questions"] or 0),
-            }
-            if active_board
-            else None
+        "active_board": serialize_board(general_board),
+        "general_board": serialize_board(general_board),
+        "live_board": serialize_board(
+            active_board,
+            str(active_board["section_code"]) if active_board and active_board["section_code"] else None,
         ),
     }
 
@@ -1663,7 +1803,6 @@ def create_student_question(
             detail="Student is not enrolled in this course",
         )
 
-    enrollment_section_id = str(enrollment["section_id"]) if enrollment["section_id"] else None
     enrollment_section_code = (
         str(enrollment["section_code"]).strip().upper()
         if enrollment["section_code"]
@@ -1676,42 +1815,11 @@ def create_student_question(
             detail="Student cannot post to a different section",
         )
 
-    board = db.execute(
-        text(
-            """
-            SELECT board_id
-            FROM interaction_boards
-            WHERE course_code = :course_code
-              AND (
-                    (:section_id IS NULL AND section_id IS NULL)
-                 OR section_id = :section_id
-              )
-              AND status = 'active'
-            ORDER BY created_at DESC
-            LIMIT 1
-            """
-        ),
-        {
-            "course_code": normalized_course_code,
-            "section_id": enrollment_section_id,
-        },
-    ).mappings().first()
-
-    board_id = str(board["board_id"]) if board else f"board_{uuid4().hex[:10]}"
-    if board is None:
-        db.execute(
-            text(
-                """
-                INSERT INTO interaction_boards (board_id, course_code, section_id, status)
-                VALUES (:board_id, :course_code, :section_id, 'active')
-                """
-            ),
-            {
-                "board_id": board_id,
-                "course_code": normalized_course_code,
-                "section_id": enrollment_section_id,
-            },
-        )
+    general_board = ensure_general_course_board(
+        db=db,
+        course_code=normalized_course_code,
+    )
+    board_id = str(general_board["board_id"])
 
     question_id = f"q_{uuid4().hex[:12]}"
     created_at = datetime.utcnow().isoformat()

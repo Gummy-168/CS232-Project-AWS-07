@@ -1,3 +1,3 @@
 "use client";
 
-export { default } from "./board-view";
+export { default } from "../boardreview/page";

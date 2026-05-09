@@ -1,32 +1,21 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { ChevronLeft, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, CornerDownLeft, MessageSquarePlus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import Header from "../../../components/Header";
 import CreateCourse from "../../../components/createcourse";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
-  getBoardQuestions,
+  createProfessorQuestionReply,
+  deleteProfessorQuestion,
   getProfessorQuestions,
+  type ProfessorBoardSession,
   type ProfessorQuestionsData,
-  type StudentQuestion,
-  type StudentQuestionReply,
+  type ProfessorStudentQuestion,
+  updateProfessorQuestionStatus,
 } from "../../../lib/api";
-
-type ReviewQuestion = {
-  id: string;
-  title: string;
-  content: string;
-  status: "ANSWERED" | "UNANSWERED" | "DELETED";
-  created_at: string | null;
-  reply_content: string | null;
-  replies: StudentQuestionReply[];
-  author_id: string;
-  author_name: string;
-  is_anonymous: boolean;
-};
 
 function formatTimeAgo(dateString: string | null) {
   if (!dateString) {
@@ -40,206 +29,304 @@ function formatTimeAgo(dateString: string | null) {
   }
 }
 
-function QuestionCard({ data }: { data: ReviewQuestion }) {
-  const isAnswered = data.status === "ANSWERED";
-  const replies = data.replies ?? [];
-  const professorReply =
-    data.reply_content || replies.find((reply) => reply.is_professor)?.content || "";
+function buildQuestionSummary(questions: ProfessorStudentQuestion[]) {
+  const answered = questions.filter((question) => question.status === "ANSWERED").length;
+  return {
+    total: questions.length,
+    answered,
+    pending: Math.max(questions.length - answered, 0),
+  };
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return "NA";
+  }
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
+}
+
+function studentBadgeClasses(studentId: string) {
+  const palette = [
+    "bg-rose-100 text-rose-600",
+    "bg-violet-100 text-violet-600",
+    "bg-sky-100 text-sky-600",
+    "bg-amber-100 text-amber-700",
+    "bg-emerald-100 text-emerald-600",
+  ];
+  const hash = Array.from(studentId).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return palette[hash % palette.length];
+}
+
+function BoardQuestionCard({
+  question,
+  replyDraft,
+  repliesOpen,
+  onReplyDraftChange,
+  onToggleReplies,
+  onReply,
+  onToggleAnswered,
+  onDelete,
+}: {
+  question: ProfessorStudentQuestion;
+  replyDraft: string;
+  repliesOpen: boolean;
+  onReplyDraftChange: (value: string) => void;
+  onToggleReplies: () => void;
+  onReply: () => void;
+  onToggleAnswered: () => void;
+  onDelete: () => void;
+}) {
+  const isAnswered = question.status === "ANSWERED";
 
   return (
-    <div
-      className={`relative flex h-[280px] flex-col justify-between rounded-[40px] border p-7 shadow-sm transition-all hover:shadow-md ${
-        isAnswered
-          ? "border-[#E6F9EE] bg-[#F2FFF7]"
-          : "border-[#FFEBF2] bg-[#FFF5F8]"
+    <article
+      className={`rounded-[28px] border p-6 shadow-sm transition ${
+        isAnswered ? "border-emerald-100 bg-[#F3FFF9]" : "border-rose-100 bg-[#FFF7FA]"
       }`}
     >
-      <div>
-        <div className="mb-5 flex items-center justify-between">
-          <span
-            className={`rounded-full px-4 py-1 text-[10px] font-bold tracking-wider ${
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${
+                isAnswered ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-600"
+              }`}
+            >
+              {isAnswered ? "Answered" : "Pending"}
+            </span>
+            <span className="text-xs text-slate-400">{formatTimeAgo(question.created_at)}</span>
+            {question.section_code ? (
+              <span className="rounded-full bg-[#FFF3E8] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#D97706]">
+                {question.section_code}
+              </span>
+            ) : null}
+          </div>
+
+          <h2 className="mt-4 text-xl font-semibold text-[#1B1B1B]">
+            {question.title || question.content}
+          </h2>
+          {question.title && question.content && question.title !== question.content ? (
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-600">
+              {question.content}
+            </p>
+          ) : null}
+
+          {question.replies.length > 0 ? (
+            <button
+              type="button"
+              onClick={onToggleReplies}
+              className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#7D70B0] transition hover:text-[#5B41FF]"
+            >
+              <CornerDownLeft size={16} />
+              {repliesOpen ? "Hide replies" : `Show replies (${question.replies.length})`}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={onToggleAnswered}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
               isAnswered
-                ? "bg-[#D6FFE6] text-[#2ECC71]"
-                : "bg-[#FFD6E8] text-[#FF4D94]"
+                ? "bg-orange-50 text-orange-600 hover:bg-orange-100"
+                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
             }`}
           >
-            {isAnswered ? "ANSWERED" : "PENDING"}
-          </span>
-          <span className="text-[11px] font-medium text-slate-400">
-            {formatTimeAgo(data.created_at)}
-          </span>
+            {isAnswered ? "Mark Unanswered" : "Mark Answered"}
+          </button>
+          <button
+            type="button"
+            onClick={onDelete}
+            className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
+          >
+            <Trash2 size={16} />
+            Delete
+          </button>
         </div>
-
-        <p
-          className={`line-clamp-5 text-sm font-medium leading-relaxed ${
-            isAnswered ? "text-[#5A8A6A]" : "text-[#5A5A5A]"
-          }`}
-        >
-          {data.title || data.content}
-        </p>
-
-        {data.title && data.content && data.title !== data.content && (
-          <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-500">
-            {data.content}
-          </p>
-        )}
-
-        {(professorReply || replies.length > 0) && (
-          <div className="mt-4 rounded-[20px] border border-white/50 bg-white/70 p-4">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600">
-              Professor Reply
-            </p>
-            {professorReply ? (
-              <p className="text-sm leading-6 text-slate-700">{professorReply}</p>
-            ) : (
-              replies.slice(0, 1).map((reply) => (
-                <p key={reply.id} className="text-sm leading-6 text-slate-700">
-                  {reply.content}
-                </p>
-              ))
-            )}
-          </div>
-        )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between border-t border-white/50 pt-4">
-        <div className="flex items-center gap-2">
-          <img
-            src={`https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(
-              data.author_id,
-            )}`}
-            className="h-7 w-7 rounded-full bg-white shadow-sm"
-            alt="student"
-          />
-          <span className="text-xs font-bold text-slate-500">
-            {data.is_anonymous ? "Anonymous" : data.author_name}
-          </span>
+      {repliesOpen && question.replies.length > 0 ? (
+        <div className="mt-5 space-y-3 border-t border-white/80 pt-5">
+          {question.replies.map((reply) => (
+            <div
+              key={reply.id}
+              className={`rounded-[22px] px-4 py-4 ${
+                reply.is_professor ? "bg-[#EFFFF6] text-[#275E47]" : "bg-white text-slate-700"
+              }`}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-[0.14em]">
+                  {reply.is_professor ? "Professor Reply" : reply.author_name}
+                </span>
+                <span className="text-xs opacity-70">{formatTimeAgo(reply.created_at)}</span>
+              </div>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{reply.content}</p>
+            </div>
+          ))}
         </div>
+      ) : null}
 
-        {isAnswered && (
-          <div className="flex items-center gap-1.5 text-[#2ECC71]">
-            <CheckCircle2 size={16} />
-            <span className="text-[11px] font-bold uppercase">Solved</span>
+      <div className="mt-5 rounded-[24px] bg-white/80 p-4">
+        <textarea
+          rows={3}
+          value={replyDraft}
+          onChange={(event) => onReplyDraftChange(event.target.value)}
+          placeholder="Reply as instructor..."
+          className="w-full resize-none bg-transparent text-sm leading-6 text-slate-700 outline-none placeholder:text-slate-400"
+        />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-full text-xs font-bold ${studentBadgeClasses(
+                question.student_id,
+              )}`}
+            >
+              {initials(question.student_name)}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-700">{question.student_name}</p>
+              <p className="text-xs text-slate-500">{question.student_id}</p>
+            </div>
           </div>
-        )}
+          <button
+            type="button"
+            onClick={onReply}
+            disabled={!replyDraft.trim()}
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <MessageSquarePlus size={16} />
+            Post Reply
+          </button>
+        </div>
       </div>
-    </div>
+    </article>
   );
 }
 
-export default function LabDiscussionPage() {
+export default function ProfessorBoardReviewPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuthSession();
-  const selectedCourseCode =
-    searchParams.get("course_code")?.trim().toUpperCase() ?? "";
+  const selectedCourseCode = searchParams.get("course_code")?.trim().toUpperCase() ?? "";
   const selectedBoardId = searchParams.get("board_id")?.trim() ?? "";
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [data, setData] = useState<ProfessorQuestionsData | null>(null);
-  const [questions, setQuestions] = useState<ReviewQuestion[]>([]);
+  const [questions, setQuestions] = useState<ProfessorStudentQuestion[]>([]);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
     if (!session?.userId || !selectedCourseCode || !selectedBoardId) {
-      setIsLoading(false);
+      Promise.resolve().then(() => setIsLoading(false));
       return;
     }
 
-    setIsLoading(true);
-
-    Promise.allSettled([
-      getProfessorQuestions(session.userId, { courseCode: selectedCourseCode }),
-      getBoardQuestions(selectedBoardId, session.accessToken, session.role),
-    ]).then(([professorResult, boardResult]) => {
-      if (professorResult.status === "fulfilled") {
-        setData(professorResult.value);
-      } else {
-        setData(null);
-      }
-
-      const professorData =
-        professorResult.status === "fulfilled" ? professorResult.value : null;
-
-      const normalizeBoardQuestion = (question: StudentQuestion): ReviewQuestion => ({
-        id: question.id,
-        title: question.title,
-        content: question.content,
-        status: question.status,
-        created_at: question.created_at,
-        reply_content: question.reply_content,
-        replies: question.replies ?? [],
-        author_id: question.author_id,
-        author_name: question.author_name,
-        is_anonymous: question.is_anonymous,
-      });
-
-      const normalizeProfessorQuestion = (
-        question: ProfessorQuestionsData["student_questions"][number],
-      ): ReviewQuestion => ({
-        id: question.id,
-        title: question.title,
-        content: question.content,
-        status: question.status,
-        created_at: question.created_at,
-        reply_content: question.replies.find((reply) => reply.is_professor)?.content ?? null,
-        replies: question.replies,
-        author_id: question.student_id,
-        author_name: question.student_name,
-        is_anonymous: false,
-      });
-
-      const fallbackQuestions =
-        professorData?.student_questions
-          .filter((question) => question.board_id === selectedBoardId)
-          .map(normalizeProfessorQuestion) ?? [];
-      const resolvedQuestions =
-        boardResult.status === "fulfilled"
-          ? boardResult.value.questions.map(normalizeBoardQuestion)
-          : fallbackQuestions;
-
-      setQuestions(resolvedQuestions.filter((question) => question.status !== "DELETED"));
-      if (professorResult.status === "rejected" && boardResult.status === "rejected") {
-        const message =
-          professorResult.reason instanceof Error
-            ? professorResult.reason.message
-            : boardResult.reason instanceof Error
-              ? boardResult.reason.message
-              : "Failed to load review session";
-        setError(message);
-      } else {
+    Promise.resolve().then(() => setIsLoading(true));
+    getProfessorQuestions(session.userId, { courseCode: selectedCourseCode })
+      .then((response) => {
+        setData(response);
+        setQuestions(
+          response.student_questions.filter(
+            (question) =>
+              question.board_id === selectedBoardId && question.status !== "DELETED",
+          ),
+        );
         setError("");
-      }
-      setIsLoading(false);
-    });
-  }, [selectedBoardId, selectedCourseCode, session?.accessToken, session?.role, session?.userId]);
+      })
+      .catch((err: unknown) => {
+        setData(null);
+        setQuestions([]);
+        setError(err instanceof Error ? err.message : "Failed to load board review");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [refreshToken, selectedBoardId, selectedCourseCode, session?.userId]);
 
-  const selectedBoard = useMemo(() => {
+  const selectedBoard = useMemo<ProfessorBoardSession | null>(() => {
     return data?.board_sessions.find((board) => board.board_id === selectedBoardId) ?? null;
   }, [data, selectedBoardId]);
 
+  const stats = useMemo(() => buildQuestionSummary(questions), [questions]);
   const uniqueStudentIds = useMemo(() => {
-    return Array.from(
-      new Set(questions.map((question) => question.author_id).filter(Boolean)),
-    );
+    return Array.from(new Set(questions.map((question) => question.student_id)));
   }, [questions]);
 
   const boardTitle =
-    selectedBoard?.board_title?.trim() || selectedBoard?.board_id || selectedBoardId || "Review Session";
+    selectedBoard?.board_title?.trim() || selectedBoard?.board_id || selectedBoardId || "Board Review";
   const courseTitle =
-    data?.course.title || (selectedCourseCode ? `${selectedCourseCode} Review` : "Review Session");
+    data?.course.title || (selectedCourseCode ? `${selectedCourseCode} Board Review` : "Board Review");
+  const extraStudentCount = Math.max(uniqueStudentIds.length - 4, 0);
+
+  const handleReply = async (questionId: string) => {
+    if (!session?.userId) {
+      return;
+    }
+
+    const content = replyDrafts[questionId]?.trim();
+    if (!content) {
+      return;
+    }
+
+    try {
+      await createProfessorQuestionReply(session.userId, questionId, { content });
+      setReplyDrafts((prev) => ({ ...prev, [questionId]: "" }));
+      setOpenReplies((prev) => ({ ...prev, [questionId]: true }));
+      setRefreshToken((prev) => prev + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reply failed");
+    }
+  };
+
+  const handleToggleAnswered = async (questionId: string, isAnswered: boolean) => {
+    if (!session?.userId) {
+      return;
+    }
+
+    try {
+      await updateProfessorQuestionStatus(
+        session.userId,
+        questionId,
+        isAnswered ? "unanswered" : "answered",
+      );
+      setRefreshToken((prev) => prev + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Status update failed");
+    }
+  };
+
+  const handleDelete = async (questionId: string) => {
+    if (!session?.userId || !window.confirm("Delete this question?")) {
+      return;
+    }
+
+    try {
+      await deleteProfessorQuestion(session.userId, questionId);
+      setRefreshToken((prev) => prev + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
+  };
 
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#FCF9F8] text-lg text-slate-500">
-        Loading review session...
+        Loading board...
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#FCF9F8] font-sans">
+    <div className="min-h-screen bg-[#FCF9F8] text-slate-700">
       <Header
         professorName={session?.fullName || data?.professor.full_name || data?.professor.name || "Professor"}
         onJoinCourse={() => setIsCreateModalOpen(true)}
@@ -247,77 +334,119 @@ export default function LabDiscussionPage() {
         mode="course"
       />
 
-      <CreateCourse
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-      />
+      <CreateCourse isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} />
 
-      <div className="shrink-0 px-8 pb-4 pt-[140px]">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="rounded-full p-2 transition-colors hover:bg-slate-100"
-            >
-              <ChevronLeft size={32} className="text-slate-700" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-regular text-[#1B1B1B]">{boardTitle}</h1>
-              <p className="text-sm font-medium text-gray-500">
+      <main className="pb-12 pt-40 xl:pt-32">
+        <div className="mx-auto w-full max-w-[1360px] space-y-8 px-6 xl:px-8">
+          <section className="flex flex-col gap-6 rounded-[32px] bg-white p-6 shadow-sm lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="mb-5 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                <ChevronLeft size={18} />
+                Back
+              </button>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#D1388D]">
+                Live Board Review
+              </p>
+              <h1 className="mt-3 break-words text-3xl font-semibold text-[#1B1B1B]">
+                {boardTitle}
+              </h1>
+              <p className="mt-2 text-sm text-slate-500">
                 {selectedBoard?.created_at
-                  ? `Date : ${selectedBoard.created_at.slice(0, 10)}`
-                  : selectedCourseCode || "Review Session"}
+                  ? `Opened ${formatTimeAgo(selectedBoard.created_at)}`
+                  : selectedCourseCode || "Board Review"}
               </p>
             </div>
-          </div>
 
-          <div className="flex items-center -space-x-3">
-            {uniqueStudentIds.slice(0, 4).map((studentId) => (
-              <img
-                key={studentId}
-                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
-                  studentId,
-                )}`}
-                className="h-10 w-10 rounded-full border-2 border-white shadow-sm"
-                alt="member"
-              />
-            ))}
-            <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#FFD6E8] text-[10px] font-bold text-[#FF4D94] shadow-sm">
-              +{uniqueStudentIds.length}
+            <div className="flex w-full flex-col gap-4 lg:max-w-[420px]">
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                <div className="flex min-w-0 items-center">
+                  {uniqueStudentIds.slice(0, 4).map((studentId, index) => (
+                    <div
+                      key={studentId}
+                      className={`-ml-2 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white text-xs font-bold first:ml-0 ${studentBadgeClasses(
+                        `${studentId}-${index}`,
+                      )}`}
+                    >
+                      {initials(studentId)}
+                    </div>
+                  ))}
+                  {extraStudentCount > 0 ? (
+                    <div className="-ml-2 flex h-10 min-w-10 items-center justify-center rounded-full border-2 border-white bg-[#FFD6E8] px-2 text-xs font-bold text-[#FF4D94]">
+                      +{extraStudentCount}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-[22px] bg-[#FFF6EC] p-4">
+                  <p className="text-sm text-slate-500">Pending</p>
+                  <p className="mt-2 text-3xl font-semibold text-[#EA580C]">{stats.pending}</p>
+                </div>
+                <div className="rounded-[22px] bg-[#ECFDF5] p-4">
+                  <p className="text-sm text-slate-500">Answered</p>
+                  <p className="mt-2 text-3xl font-semibold text-[#059669]">{stats.answered}</p>
+                </div>
+                <div className="rounded-[22px] bg-[#F4F0FF] p-4">
+                  <p className="text-sm text-slate-500">Total</p>
+                  <p className="mt-2 text-3xl font-semibold text-[#513FDF]">{stats.total}</p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
+          </section>
 
-      {error && (
-        <div className="mx-8 mb-4 rounded-[28px] border border-rose-100 bg-rose-50 px-6 py-4 text-sm font-medium text-rose-600">
-          {error}
-        </div>
-      )}
+          {error ? (
+            <div className="rounded-[28px] border border-rose-100 bg-rose-50 px-6 py-4 text-sm font-medium text-rose-600">
+              {error}
+            </div>
+          ) : null}
 
-      <div className="flex-1 overflow-y-auto px-8 pb-28">
-        {!selectedBoardId ? (
-          <div className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
-            <h2 className="text-3xl font-semibold text-[#1B1B1B]">Missing board_id</h2>
-            <p className="mt-3 text-lg text-slate-500">
-              Please open this page from a board link that includes `board_id`.
-            </p>
-          </div>
-        ) : questions.length === 0 ? (
-          <div className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
-            <h2 className="text-3xl font-semibold text-[#1B1B1B]">No questions yet</h2>
-            <p className="mt-3 text-lg text-slate-500">
-              Questions for this board will appear here once students start asking.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {questions.map((item) => (
-              <QuestionCard key={item.id} data={item} />
-            ))}
-          </div>
-        )}
-      </div>
+          {!selectedBoardId ? (
+            <div className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
+              <h2 className="text-3xl font-semibold text-[#1B1B1B]">Missing board_id</h2>
+              <p className="mt-3 text-lg text-slate-500">
+                Open this page from a board link that includes `board_id`.
+              </p>
+            </div>
+          ) : questions.length === 0 ? (
+            <div className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
+              <h2 className="text-3xl font-semibold text-[#1B1B1B]">No questions yet</h2>
+              <p className="mt-3 text-lg text-slate-500">
+                Questions for this board will appear here once students start asking.
+              </p>
+            </div>
+          ) : (
+            <section className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              {questions.map((question) => (
+                <BoardQuestionCard
+                  key={question.id}
+                  question={question}
+                  replyDraft={replyDrafts[question.id] ?? ""}
+                  repliesOpen={openReplies[question.id] ?? question.replies.length > 0}
+                  onReplyDraftChange={(value) =>
+                    setReplyDrafts((prev) => ({ ...prev, [question.id]: value }))
+                  }
+                  onToggleReplies={() =>
+                    setOpenReplies((prev) => ({
+                      ...prev,
+                      [question.id]: !(prev[question.id] ?? question.replies.length > 0),
+                    }))
+                  }
+                  onReply={() => handleReply(question.id)}
+                  onToggleAnswered={() =>
+                    handleToggleAnswered(question.id, question.status === "ANSWERED")
+                  }
+                  onDelete={() => handleDelete(question.id)}
+                />
+              ))}
+            </section>
+          )}
+        </div>
+      </main>
     </div>
   );
 }

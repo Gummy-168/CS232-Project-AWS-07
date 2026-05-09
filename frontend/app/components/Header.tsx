@@ -42,7 +42,6 @@ export default function Header({
   studentId,
   onJoinCourse,
   courseTitle,
-  codeId,
   mode = "dashboard",
   buttonLabel,
 }: HeaderProps) {
@@ -101,10 +100,10 @@ export default function Header({
     const title = MODE_TITLE[mode] ?? courseTitle ?? "My Course";
 
     return (
-      <div className="flex items-center gap-3">
-        {showPinkBar && <div className="w-4 h-8 bg-[#FD64A4]" />}
-        <div>
-          <h1 className="text-3xl font-regular text-[#1B1B1B]">{title}</h1>
+      <div className="flex min-w-0 items-center gap-3">
+        {showPinkBar && <div className="h-8 w-4 shrink-0 bg-[#FD64A4]" />}
+        <div className="min-w-0">
+          <h1 className="break-words text-3xl font-regular text-[#1B1B1B]">{title}</h1>
           <p className="text-gray-500 text-sm font-medium">{subtitle}</p>
         </div>
       </div>
@@ -112,42 +111,46 @@ export default function Header({
   };
 
   return (
-    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
-      <div className="space-y-1">{renderLeft()}</div>
+    <header className="fixed left-64 right-0 top-0 z-10 bg-[#F9F9F9] px-6 py-6 xl:px-8">
+      <div className="flex flex-wrap items-start justify-between gap-4 xl:items-center">
+        <div className="min-w-0 flex-1 space-y-1">{renderLeft()}</div>
 
-      <div className="flex items-center gap-4">
-        <button
-          onClick={onJoinCourse}
-          className="border border-dashed border-[#C4B5FD] px-6 py-2.5 rounded-2xl text-[#513FDF] bg-[#FAF5FF] hover:bg-[#513FDF] hover:text-white transition text-base font-regular"
-        >
-          {resolvedLabel}
-        </button>
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+          {onJoinCourse ? (
+            <button
+              onClick={onJoinCourse}
+              className="max-w-full rounded-2xl border border-dashed border-[#C4B5FD] bg-[#FAF5FF] px-5 py-2.5 text-sm font-medium text-[#513FDF] transition hover:bg-[#513FDF] hover:text-white"
+            >
+              {resolvedLabel}
+            </button>
+          ) : null}
 
-        <button
-          ref={notiRef}
-          onClick={() => setShowNoti((v) => !v)}
-          className="relative p-2 rounded-full hover:bg-gray-100 transition"
-        >
-          <Bell size={20} className="text-gray-500" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#D1388D] rounded-full" />
-        </button>
+          <button
+            ref={notiRef}
+            onClick={() => setShowNoti((v) => !v)}
+            className="relative rounded-full p-2 transition hover:bg-gray-100"
+          >
+            <Bell size={20} className="text-gray-500" />
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#D1388D]" />
+          </button>
 
-        {isProf ? (
-          <NotificationOverlayProf
-            isOpen={showNoti}
-            onClose={() => setShowNoti(false)}
-            anchorRef={notiRef}
-          />
-        ) : (
-          <NotificationOverlay
-            isOpen={showNoti}
-            onClose={() => setShowNoti(false)}
-            anchorRef={notiRef}
-          />
-        )}
+          {isProf ? (
+            <NotificationOverlayProf
+              isOpen={showNoti}
+              onClose={() => setShowNoti(false)}
+              anchorRef={notiRef}
+            />
+          ) : (
+            <NotificationOverlay
+              isOpen={showNoti}
+              onClose={() => setShowNoti(false)}
+              anchorRef={notiRef}
+            />
+          )}
 
-        <div className="w-9 h-9 rounded-full bg-[#513FDF] flex items-center justify-center text-white font-semibold text-sm cursor-pointer">
-          N
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#513FDF] text-sm font-semibold text-white">
+            N
+          </div>
         </div>
       </div>
     </header>
