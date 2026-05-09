@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS questions (
     status ENUM('pending', 'answered', 'deleted') DEFAULT 'pending',
     is_anonymous BOOLEAN DEFAULT FALSE,
     participation_score INT DEFAULT 0,
+    tags JSON DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_questions_board_id (board_id),

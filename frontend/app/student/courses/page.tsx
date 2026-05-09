@@ -44,6 +44,7 @@ type Activity = {
   time: string;
   content: string;
   subContent?: string;
+  tags?: string[];
   status: "UNANSWERED" | "ANSWERED" | "BOARD";
   type: "question" | "board";
   replies: Reply[];
@@ -59,6 +60,8 @@ export default function StudentClass() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activitySearch, setActivitySearch] = useState("");
+  const [selectedTag, setSelectedTag] = useState("All Tags");
+  const [availableTags, setAvailableTags] = useState<string[]>(["All Tags"]);
   const [filter, setFilter] = useState<
     "All" | "Answered" | "Unanswered" | "Board"
   >("All");
@@ -76,9 +79,20 @@ export default function StudentClass() {
     if (!session?.userId) {
       return;
     }
+    const status: "all" | "answered" | "unanswered" =
+      filter === "Answered"
+        ? "answered"
+        : filter === "Unanswered"
+          ? "unanswered"
+          : "all";
     Promise.all([
       getStudentDashboard(session.userId),
-      getStudentQuestions(session.userId, { scope: "all" }),
+      getStudentQuestions(session.userId, {
+        scope: "all",
+        status,
+        search: activitySearch || undefined,
+        tag: selectedTag === "All Tags" ? undefined : selectedTag,
+      }),
     ]).then(([dashboard, questions]) => {
       setData(dashboard);
       setActivities(
@@ -96,6 +110,7 @@ export default function StudentClass() {
               : "just now",
             content: question.title || question.content,
             subContent: question.title ? question.content : undefined,
+            tags: question.tags ?? [],
             status: question.status === "ANSWERED" ? "ANSWERED" : "UNANSWERED",
             type: "question",
             replies: (question.replies ?? []).map((reply) => ({
@@ -114,8 +129,15 @@ export default function StudentClass() {
             avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${question.author_id}`,
           })),
       );
+      setAvailableTags((prev) => [
+        "All Tags",
+        ...new Set([
+          ...prev.filter((tag) => tag !== "All Tags"),
+          ...questions.questions.flatMap((question) => question.tags ?? []),
+        ]),
+      ]);
     });
-  }, [session?.userId]);
+  }, [session?.userId, filter, activitySearch, selectedTag]);
 
   const toggleReplies = (id: string | number) => {
     setActivities((prev) =>
@@ -185,6 +207,7 @@ export default function StudentClass() {
   const handleCreatePost = ({
     title,
     detail,
+    tags,
     anonymous,
   }: {
     title: string;
@@ -198,6 +221,7 @@ export default function StudentClass() {
       course_code: data.session.course_code,
       title,
       detail,
+      tags,
       is_anonymous: anonymous,
     })
       .then((question) => {
@@ -210,6 +234,7 @@ export default function StudentClass() {
           time: "just now",
           content: question.title || question.content,
           subContent: question.content,
+          tags: question.tags ?? tags,
           status: "UNANSWERED",
           type: "question",
           replies: [],
@@ -340,7 +365,7 @@ export default function StudentClass() {
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4">
             <Link
               href="/student/courses/board"
               className="inline-block bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-2.5 rounded-full text-lg shadow-lg shadow-purple-200 hover:scale-105 active:scale-95 transition-all"
@@ -389,6 +414,18 @@ export default function StudentClass() {
                 className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
               />
             </div>
+
+            <select
+              value={selectedTag}
+              onChange={(event) => setSelectedTag(event.target.value)}
+              className="h-9 rounded-full border border-slate-200 bg-white px-4 pr-8 text-sm text-slate-500 focus:outline-none"
+            >
+              {availableTags.map((tag) => (
+                <option key={tag} value={tag}>
+                  {tag}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-6 min-h-[60vh] transition-all duration-200">
@@ -785,6 +822,19 @@ function StudentActivityCard({
           ) : (
             <div>
               <p className="text-slate-700 mb-3">{data.content}</p>
+
+              {data.tags?.length ? (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {data.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-500"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
 
               {/* Professor reply string*/}
               {data.professorReply && (

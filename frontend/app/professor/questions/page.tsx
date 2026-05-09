@@ -84,6 +84,7 @@ export default function ProfessorQuestionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedTag, setSelectedTag] = useState("all");
   const [filter, setFilter] = useState<QuestionFilter>("all");
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
@@ -124,6 +125,7 @@ export default function ProfessorQuestionsPage() {
       courseCode: selectedCourseCode || undefined,
       status,
       search: search || undefined,
+      tag: selectedTag === "all" ? undefined : selectedTag,
     })
       .then((response) => {
         setError("");
@@ -151,8 +153,21 @@ export default function ProfessorQuestionsPage() {
     selectedCourseCode,
     filter,
     search,
+    selectedTag, 
     refreshToken,
   ]);
+
+  const availableTags = useMemo(() => {
+    const tags = new Set<string>();
+    data?.student_questions.forEach((question) => {
+      question.tags?.forEach((tag) => {
+        if (tag.trim()) {
+          tags.add(tag.trim());
+        }
+      });
+    });
+    return ["all", ...Array.from(tags)];
+  }, [data]);
 
   const timelineItems = useMemo(() => {
     if (!data) {
@@ -356,6 +371,24 @@ export default function ProfessorQuestionsPage() {
               ))}
             </select>
 
+            <select
+              value={selectedTag}
+              onChange={(event) => {
+                setLoading(true);
+                setSelectedTag(event.target.value);
+              }}
+              className="h-9 rounded-full border border-slate-200 bg-white px-4 pr-8 text-sm text-slate-500 focus:outline-none"
+            >
+              <option value="all">All Tags</option>
+              {availableTags
+                .filter((tag) => tag !== "all")
+                .map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+            </select>
+
             <div className="relative flex-1 min-w-[230px] max-w-sm ml-auto">
               <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
               <input
@@ -520,6 +553,19 @@ function QuestionActivityCard({
 
           <p className="text-slate-800 font-semibold mb-1">{question.title}</p>
           <p className="text-slate-700 mb-4">{question.content}</p>
+
+          {question.tags?.length ? (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {question.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-500"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {professorReplies.length > 0 && (
             <div className="space-y-2 mb-3">

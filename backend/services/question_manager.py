@@ -2,6 +2,8 @@ from __future__ import annotations
 
 """Question management service for the Classroom Q&A System."""
 
+import json
+
 from fastapi import HTTPException, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -25,6 +27,7 @@ class QuestionManager:
         title: str,
         content: str,
         is_anonymous: bool = False,
+        tags: list[str] = None,
     ) -> Question:
         """Create and store a new question."""
         if student.role != "student":
@@ -48,6 +51,7 @@ class QuestionManager:
             content=cleaned_content,
             reply_content=None,
             status="pending",
+            tags=tags or [],
             is_anonymous=is_anonymous,
             participation_score=0.0,
             board=board,
@@ -144,6 +148,7 @@ class QuestionManager:
         course_code: str | None = None,
         status_filter: str = "all",
         search: str | None = None,
+        tag: str | None = None,
     ) -> dict[str, object]:
         """Return a professor-scoped question feed grouped by course context."""
         courses = db.execute(
@@ -178,6 +183,10 @@ class QuestionManager:
             "author.role = 'student'",
         ]
         params: dict[str, object] = {"professor_id": professor_id}
+        if tag and tag.strip():
+            question_where.append("JSON_CONTAINS(q.tags, CAST(:tag_json AS JSON))")
+            params["tag_json"] = json.dumps(tag.strip())
+
         if selected_course_code:
             question_where.append("c.course_code = :course_code")
             params["course_code"] = selected_course_code
@@ -213,6 +222,7 @@ class QuestionManager:
                     q.question_id,
                     {title_select},
                     q.content,
+                    q.tags,
                     q.status,
                     q.created_at,
                     q.updated_at,
@@ -563,11 +573,27 @@ class QuestionManager:
             "answered": "ANSWERED",
             "deleted": "DELETED",
         }
+
+        def serialize_tags(value: object) -> list[str]:
+            if value is None:
+                return []
+            if isinstance(value, list):
+                return [str(tag) for tag in value]
+            if isinstance(value, str):
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    return []
+                if isinstance(parsed, list):
+                    return [str(tag) for tag in parsed]
+            return []
+
         return [
             {
                 "id": str(row["question_id"]),
                 "title": str(row["title"]),
                 "content": str(row["content"]),
+                "tags": serialize_tags(row.get("tags")),
                 "status": status_map.get(str(row["status"]).lower(), "UNANSWERED"),
                 "student_id": str(row["student_id"]),
                 "student_name": str(row["student_name"]),

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from uuid import uuid4
 
@@ -63,6 +64,19 @@ with engine.begin() as conn:
         conn.execute(
             text("ALTER TABLE users ADD COLUMN full_name VARCHAR(150) NULL AFTER role")
         )
+    has_question_tags_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'questions'
+              AND COLUMN_NAME = 'tags'
+            """
+        )
+    ).scalar()
+    if not has_question_tags_column:
+        conn.execute(text("ALTER TABLE questions ADD COLUMN tags JSON NULL AFTER is_anonymous"))
     conn.execute(
         text(
             """
@@ -358,6 +372,7 @@ class CreateQuestionRequest(BaseModel):
     course_code: str = Field(min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=255)
     detail: str | None = None
+    tags: list[str] = Field(default_factory=list)
     is_anonymous: bool = False
 
 
@@ -420,6 +435,14 @@ def get_current_professor(
     return UserManager.require_professor(db=db, token=token)
 
 
+def get_current_user(
+    db: Session = Depends(get_db),
+    token: str = Depends(get_bearer_token),
+) -> User:
+    """Resolve the currently authenticated user."""
+    return UserManager.get_current_user(db=db, token=token)
+
+
 def require_student(db: Session, student_id: str) -> User:
     """Resolve and validate a student user."""
     user: User | None = UserManager.get_user_by_id(db=db, user_id=student_id)
@@ -460,6 +483,22 @@ def serialize_datetime(value: datetime | None) -> str | None:
     if value is None:
         return None
     return value.isoformat()
+
+
+def serialize_tags(value: object) -> list[str]:
+    """Normalize JSON tag values from MySQL into a list of strings."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(tag) for tag in value]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        if isinstance(parsed, list):
+            return [str(tag) for tag in parsed]
+    return []
 
 
 def has_table_column(db: Session, table_name: str, column_name: str) -> bool:
@@ -837,7 +876,9 @@ def get_student_questions(
     student_id: str,
     scope: str = Query(default="all", pattern="^(all|mine)$"),
     course_code: str | None = Query(default=None),
+    status_filter: str = Query(default="all", alias="status"),
     search: str | None = Query(default=None),
+    tag: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, list[dict[str, object | str | bool | None]]]:
     """Return questions for student feed pages."""
@@ -846,8 +887,12 @@ def get_student_questions(
 
     normalized_course_code = course_code.strip().upper() if course_code else None
     normalized_search = search.strip().lower() if search else None
+    normalized_status_filter = status_filter.strip().lower()
+    normalized_tag = tag.strip() if tag else None
     title_select = "q.title AS title" if supports_title else "q.content AS title"
     title_search_term = "q.title," if supports_title else ""
+    supports_tags = has_table_column(db=db, table_name="questions", column_name="tags")
+    tags_select = "q.tags" if supports_tags else "NULL AS tags"
 
     base_query = """
         SELECT
@@ -859,6 +904,7 @@ def get_student_questions(
             q.reply_content,
             q.status,
             q.is_anonymous,
+            {tags_select},
             q.created_at,
             q.updated_at,
             u.user_id AS author_id,
@@ -867,7 +913,7 @@ def get_student_questions(
         JOIN interaction_boards b ON b.board_id = q.board_id
         JOIN courses c ON c.course_code = b.course_code
         JOIN users u ON u.user_id = q.student_id
-    """.format(title_select=title_select)
+    """.format(title_select=title_select, tags_select=tags_select)
 
     params: dict[str, str] = {"student_id": student_id}
     where_clauses = ["q.status <> 'deleted'"]
@@ -884,6 +930,12 @@ def get_student_questions(
     if normalized_course_code:
         where_clauses.append("b.course_code = :course_code")
         params["course_code"] = normalized_course_code
+
+    if normalized_status_filter in {"answered", "unanswered", "pending"}:
+        where_clauses.append("q.status = :status")
+        params["status"] = (
+            "answered" if normalized_status_filter == "answered" else "pending"
+        )
 
     if normalized_search:
         where_clauses.append(
@@ -902,6 +954,10 @@ def get_student_questions(
             .format(title_search_term=title_search_term)
         )
         params["search"] = f"%{normalized_search}%"
+
+    if normalized_tag and supports_tags:
+        where_clauses.append("JSON_CONTAINS(q.tags, CAST(:tag_json AS JSON))")
+        params["tag_json"] = json.dumps(normalized_tag)
 
     query = f"""
         {base_query}
@@ -929,6 +985,7 @@ def get_student_questions(
             else str(row["reply_content"]),
             "status": status_map.get(str(row["status"]).lower(), "UNANSWERED"),
             "is_anonymous": bool(row["is_anonymous"]),
+            "tags": serialize_tags(row["tags"]),
             "created_at": serialize_datetime(row["created_at"]),
             "updated_at": serialize_datetime(row["updated_at"]),
             "author_id": str(row["author_id"]),
@@ -940,12 +997,155 @@ def get_student_questions(
     return {"questions": questions}
 
 
+@app.get("/api/courses/{course_code}/questions/search")
+def search_course_questions(
+    course_code: str,
+    q: str | None = Query(default=None),
+    status_filter: str = Query(default="all", alias="status"),
+    tag: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[dict[str, object]]:
+    """Search and filter questions for a course the current user can access."""
+    normalized_course_code = course_code.strip().upper()
+    if not normalized_course_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="course_code is required",
+        )
+
+    if current_user.role == "professor":
+        access_row = db.execute(
+            text(
+                """
+                SELECT 1
+                FROM courses
+                WHERE course_code = :course_code
+                  AND professor_id = :user_id
+                LIMIT 1
+                """
+            ),
+            {"course_code": normalized_course_code, "user_id": current_user.user_id},
+        ).first()
+    else:
+        access_row = db.execute(
+            text(
+                """
+                SELECT 1
+                FROM enrollments
+                WHERE course_code = :course_code
+                  AND student_id = :user_id
+                LIMIT 1
+                """
+            ),
+            {"course_code": normalized_course_code, "user_id": current_user.user_id},
+        ).first()
+
+    if access_row is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Course is not accessible for this user",
+        )
+
+    supports_title = has_table_column(db=db, table_name="questions", column_name="title")
+    supports_tags = has_table_column(db=db, table_name="questions", column_name="tags")
+    title_select = "q.title AS title" if supports_title else "q.content AS title"
+    title_search_term = "q.title," if supports_title else ""
+    tags_select = "q.tags" if supports_tags else "NULL AS tags"
+    normalized_status_filter = status_filter.strip().lower()
+    normalized_search = (q or "").strip().lower()
+    normalized_tag = tag.strip() if tag else None
+
+    where_clauses = [
+        "b.course_code = :course_code",
+        "q.status <> 'deleted'",
+    ]
+    params: dict[str, object] = {"course_code": normalized_course_code}
+
+    if normalized_status_filter in {"answered", "unanswered", "pending"}:
+        where_clauses.append("q.status = :status")
+        params["status"] = (
+            "answered" if normalized_status_filter == "answered" else "pending"
+        )
+
+    if normalized_search:
+        where_clauses.append(
+            """
+            LOWER(
+                CONCAT_WS(
+                    ' ',
+                    {title_search_term}
+                    q.content,
+                    COALESCE(u.nickname, ''),
+                    COALESCE(c.course_name, ''),
+                    b.course_code
+                )
+            ) LIKE :search
+            """.format(title_search_term=title_search_term)
+        )
+        params["search"] = f"%{normalized_search}%"
+
+    if normalized_tag and supports_tags:
+        where_clauses.append("JSON_CONTAINS(q.tags, CAST(:tag_json AS JSON))")
+        params["tag_json"] = json.dumps(normalized_tag)
+
+    rows = db.execute(
+        text(
+            f"""
+            SELECT
+                q.question_id,
+                {title_select},
+                q.content,
+                q.status,
+                q.student_id,
+                b.board_id,
+                b.course_code,
+                c.course_name,
+                COALESCE(u.full_name, u.nickname, u.user_id) AS student_name,
+                {tags_select},
+                q.created_at,
+                q.updated_at
+            FROM questions q
+            JOIN interaction_boards b ON b.board_id = q.board_id
+            JOIN courses c ON c.course_code = b.course_code
+            JOIN users u ON u.user_id = q.student_id
+            WHERE {' AND '.join(where_clauses)}
+            ORDER BY q.created_at DESC
+            """
+        ),
+        params,
+    ).mappings().all()
+
+    status_map = {
+        "pending": "UNANSWERED",
+        "answered": "ANSWERED",
+        "deleted": "DELETED",
+    }
+    return [
+        {
+            "id": str(row["question_id"]),
+            "title": str(row["title"]),
+            "content": str(row["content"]),
+            "status": status_map.get(str(row["status"]).lower(), "UNANSWERED"),
+            "student_id": str(row["student_id"]),
+            "student_name": str(row["student_name"]),
+            "course_code": str(row["course_code"]),
+            "course_name": str(row["course_name"]),
+            "board_id": str(row["board_id"]),
+            "tags": serialize_tags(row["tags"]),
+            "created_at": serialize_datetime(row["created_at"]),
+            "updated_at": serialize_datetime(row["updated_at"]),
+        }
+        for row in rows
+    ]
+
+
 @app.post("/students/{student_id}/questions", status_code=status.HTTP_201_CREATED)
 def create_student_question(
     student_id: str,
     payload: CreateQuestionRequest,
     db: Session = Depends(get_db),
-) -> dict[str, str | bool | None]:
+) -> dict[str, object]:
     """Create a new question inside an active course board."""
     student = require_student(db=db, student_id=student_id)
     supports_title = has_table_column(db=db, table_name="questions", column_name="title")
@@ -953,6 +1153,12 @@ def create_student_question(
     normalized_title = payload.title.strip()
     normalized_detail = (payload.detail or "").strip()
     content = normalized_detail or normalized_title
+    tags = [
+        tag.strip()
+        for tag in payload.tags
+        if isinstance(tag, str) and tag.strip()
+    ]
+    supports_tags = has_table_column(db=db, table_name="questions", column_name="tags")
 
     if not normalized_title or not content:
         raise HTTPException(
@@ -1024,7 +1230,8 @@ def create_student_question(
                     reply_content,
                     status,
                     is_anonymous,
-                    participation_score
+                    participation_score,
+                    tags
                 ) VALUES (
                     :question_id,
                     :board_id,
@@ -1034,7 +1241,8 @@ def create_student_question(
                     NULL,
                     'pending',
                     :is_anonymous,
-                    0
+                    0,
+                    :tags
                 )
                 """
             ),
@@ -1045,6 +1253,7 @@ def create_student_question(
                 "title": normalized_title,
                 "content": content,
                 "is_anonymous": payload.is_anonymous,
+                "tags": json.dumps(tags) if supports_tags else None,
             },
         )
     else:
@@ -1059,7 +1268,8 @@ def create_student_question(
                     reply_content,
                     status,
                     is_anonymous,
-                    participation_score
+                    participation_score,
+                    tags
                 ) VALUES (
                     :question_id,
                     :board_id,
@@ -1068,7 +1278,8 @@ def create_student_question(
                     NULL,
                     'pending',
                     :is_anonymous,
-                    0
+                    0,
+                    :tags
                 )
                 """
             ),
@@ -1078,6 +1289,7 @@ def create_student_question(
                 "student_id": student.user_id,
                 "content": content,
                 "is_anonymous": payload.is_anonymous,
+                "tags": json.dumps(tags) if supports_tags else None,
             },
         )
     db.commit()
@@ -1091,6 +1303,7 @@ def create_student_question(
         "reply_content": None,
         "status": "UNANSWERED",
         "is_anonymous": payload.is_anonymous,
+        "tags": tags,
         "created_at": created_at,
         "updated_at": created_at,
         "author_id": student.user_id,
@@ -1479,6 +1692,7 @@ def get_professor_questions(
     course_code: str | None = Query(default=None),
     status_filter: str = Query(default="all", alias="status"),
     search: str | None = Query(default=None),
+    tag: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Return professor question feed split into student questions and board sessions."""
@@ -1490,6 +1704,7 @@ def get_professor_questions(
         course_code=course_code,
         status_filter=status_filter,
         search=search,
+        tag=tag,
     )
     return {
         "professor": {

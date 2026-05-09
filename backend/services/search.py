@@ -2,7 +2,13 @@ from __future__ import annotations
 
 """Feed and search service for the Classroom Q&A System."""
 
+import json
+
+from sqlalchemy import func, or_
+from sqlalchemy.orm import Session
+
 from models.question import Question
+from models.board import InteractionBoard
 
 
 class FeedAndSearchManager:
@@ -29,41 +35,38 @@ class FeedAndSearchManager:
         """Check whether a search keyword is usable."""
         return len(keyword.strip()) > 0
 
+    @staticmethod
     def search_questions(
-        self,
-        keyword: str,
-        course_code: str | None = None,
-    ) -> list[Question]:
-        """Search questions by keyword (content, reply, or student name)."""
-        normalized_keyword = keyword.strip().lower()
-        questions = (
-            self.list_course_questions(course_code)
-            if course_code is not None
-            else list(self._questions)
-        )
-        if not normalized_keyword:
-            return questions
+        db: Session, 
+        course_code: str, 
+        keyword: str | None = None,
+        status: str | None = None,
+        tag: str | None = None,
+    ):
+        normalized_course_code = course_code.strip().upper()
+        query = db.query(Question).join(
+            InteractionBoard, Question.board_id == InteractionBoard.board_id
+        ).filter(InteractionBoard.course_code == normalized_course_code)
 
-        return [
-            question
-            for question in questions
-            # ค้นหาจากหัวข้อคำถาม
-            if normalized_keyword in question.title.lower()
-            # ค้นหาจากเนื้อหาคำถาม
-            if normalized_keyword in question.content.lower()
-            # ค้นหาจากเนื้อหาการตอบกลับของอาจารย์
-            or (
-                question.reply_content is not None
-                and normalized_keyword in question.reply_content.lower()
+        if keyword:
+            search_term = f"%{keyword}%"
+            query = query.filter(
+                or_(
+                    Question.title.ilike(search_term),
+                    Question.content.ilike(search_term)
+                )
             )
-            # ค้นหาจากชื่อเล่นนักศึกษา
-            or (
-                question.student is not None
-                and normalized_keyword in question.student.nickname.lower()
-            )
-            # ค้นหาจากรหัสนักศึกษา
-            or normalized_keyword in question.student_id.lower()
-        ]
+        if status:
+            normalized_status = status.strip().lower()
+            if normalized_status in {"unanswered", "pending"}:
+                normalized_status = "pending"
+            if normalized_status in {"answered", "pending"}:
+                query = query.filter(Question.status == normalized_status)
+
+        if tag:
+            query = query.filter(func.json_contains(Question.tags, json.dumps(tag.strip())))
+
+        return query.order_by(Question.created_at.desc()).all()
 
     def filter_questions(
         self,

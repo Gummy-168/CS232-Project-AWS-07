@@ -7,14 +7,42 @@ import JoinCourse from "../../../components/joincourse";
 import Header from "../../../components/Header";
 import { createStudentQuestionReply, getStudentQuestions } from "../../../lib/api";
 import { useAuthSession } from "../../../hooks/useAuthSession";
+
+type Reply = {
+  user: string;
+  avatar: string;
+  time: string;
+  text: string;
+  isProfessor: boolean;
+};
+
+type Activity = {
+  id: string;
+  subject: string;
+  section: string;
+  user: string;
+  time: string;
+  content: string;
+  tags: string[];
+  status: "UNANSWERED" | "ANSWERED" | "DELETED";
+  type: "question";
+  replies: Reply[];
+  showReplies: boolean;
+  professorReply?: string;
+  avatar: string;
+  subContent?: string;
+};
 /* ---------------- MAIN COMPONENT ---------------- */
 
 export default function Allquestions() {
   const { session } = useAuthSession();
-  const [activities, setActivities] = useState<any[]>([]);
+  const [activities, setActivities] = useState<Activity[]>([]);
   const [activitySearch, setActivitySearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
+  const [selectedTag, setSelectedTag] = useState("All Tags");
+  const [subjects, setSubjects] = useState<string[]>(["All Subjects"]);
+  const [tags, setTags] = useState<string[]>(["All Tags"]);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
   const toggleReplies = (id: string | number) => {
@@ -60,16 +88,24 @@ export default function Allquestions() {
     }
   };
 
-  const subjects = useMemo(() => {
-    const allSubjectsFromData = activities.map((item) => item.subject);
-    return ["All Subjects", ...new Set(allSubjectsFromData)];
-  }, [activities]);
-
   useEffect(() => {
     if (!session?.userId) {
       return;
     }
-    getStudentQuestions(session.userId, { scope: "mine" }).then((response) => {
+    const status: "all" | "answered" | "unanswered" =
+      filter === "Answered"
+        ? "answered"
+        : filter === "Unanswered"
+          ? "unanswered"
+          : "all";
+    getStudentQuestions(session.userId, {
+      scope: "mine",
+      courseCode:
+        selectedSubject === "All Subjects" ? undefined : selectedSubject,
+      status,
+      search: activitySearch || undefined,
+      tag: selectedTag === "All Tags" ? undefined : selectedTag,
+    }).then((response) => {
       setActivities(
         response.questions
           .filter((item) => item.status !== "DELETED")
@@ -84,6 +120,7 @@ export default function Allquestions() {
                 })
               : "just now",
             content: item.content,
+            tags: item.tags ?? [],
             status: item.status,
             type: "question",
             replies: (item.replies ?? []).map((reply) => ({
@@ -102,8 +139,22 @@ export default function Allquestions() {
             avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.author_id}`,
           })),
       );
+      setSubjects((prev) => [
+        "All Subjects",
+        ...new Set([
+          ...prev.filter((subject) => subject !== "All Subjects"),
+          ...response.questions.map((item) => item.course_code),
+        ]),
+      ]);
+      setTags((prev) => [
+        "All Tags",
+        ...new Set([
+          ...prev.filter((tag) => tag !== "All Tags"),
+          ...response.questions.flatMap((item) => item.tags ?? []),
+        ]),
+      ]);
     });
-  }, [session?.userId]);
+  }, [session?.userId, filter, selectedSubject, selectedTag, activitySearch]);
 
   const filteredActivities = useMemo(() => {
     return activities.filter((item) => {
@@ -151,7 +202,7 @@ export default function Allquestions() {
         onClose={() => setIsJoinModalOpen(false)}
       />
 
-      <main className="p-8 pt-[200px] space-y-6 h-full overflow-y-auto pb-10">
+      <main className="p-8 pt-[250px] space-y-6 h-full overflow-y-auto pb-10">
         {/* ACTIVITY TIMELINE */}
         <section className="max-w-6xl mx-auto mt-10">
           <div className="fixed top-[120px] left-64 right-0 z-10 bg-[#FCF9F8] pt-2 pb-4 px-8">
@@ -202,6 +253,22 @@ export default function Allquestions() {
                 </button>
               ))}
             </div>
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <span className="text-sm text-slate-500 mr-2">Tag:</span>
+              {tags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedTag(tag)}
+                  className={`px-4 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-all ${
+                    selectedTag === tag
+                      ? "bg-[#D1388D] text-white"
+                      : "text-slate-500 bg-slate-100 hover:bg-slate-200"
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="space-y-6 min-h-[60vh] transition-all duration-200">
             {filteredActivities.map((item) => (
@@ -219,7 +286,15 @@ export default function Allquestions() {
   );
 }
 /* ---------------- SUB COMPONENT ---------------- */
-function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
+function StudentActivityCard({
+  data,
+  onToggleReplies,
+  onPostReply,
+}: {
+  data: Activity;
+  onToggleReplies: (id: string) => void;
+  onPostReply: (id: string, text: string) => void;
+}) {
   const [draft, setDraft] = useState("");
   const isBoard = data.status?.toUpperCase().trim() === "BOARD";
   const isAnswered = data.status?.toUpperCase().trim() === "ANSWERED";
@@ -269,7 +344,7 @@ function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
       </div>
 
       <div className="flex gap-4">
-        <img src={data.avatar} className="w-12 h-12 rounded-full" />
+        <img src={data.avatar} alt="" className="w-12 h-12 rounded-full" />
 
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -302,6 +377,19 @@ function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
             <div>
               <p className="text-slate-700 mb-3">{data.content}</p>
 
+              {data.tags?.length ? (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {data.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-medium uppercase tracking-wide text-slate-500"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+
               {/* Professor reply string*/}
               {data.professorReply && (
                 <div className="border border-emerald-100 rounded-xl p-4 bg-[#F0FDF4] mb-3">
@@ -317,11 +405,11 @@ function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
               )}
 
               {/* Professor replies*/}
-              {data.replies?.some((r: any) => r.isProfessor) && (
+              {data.replies?.some((r) => r.isProfessor) && (
                 <div className="space-y-2 mb-3">
                   {data.replies
-                    .filter((r: any) => r.isProfessor)
-                    .map((r: any, i: number) => (
+                    .filter((r) => r.isProfessor)
+                    .map((r, i: number) => (
                       <div key={i} className="flex gap-3">
                         <div className="flex-1 border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4]">
                           <span className="bg-emerald-400 text-white text-[10px] px-2 py-0.5 rounded uppercase tracking-wider">
@@ -343,8 +431,8 @@ function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
                   className="text-slate-400 hover:text-[#5B41FF] flex items-center gap-1 transition-colors"
                 >
                   ↩{" "}
-                  {data.replies?.filter((r: any) => !r.isProfessor).length > 0
-                    ? data.replies.filter((r: any) => !r.isProfessor).length
+                  {data.replies?.filter((r) => !r.isProfessor).length > 0
+                    ? data.replies.filter((r) => !r.isProfessor).length
                     : ""}{" "}
                   {data.showReplies ? "ซ่อน replies" : "reply"}
                 </button>
@@ -354,11 +442,12 @@ function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
               {data.showReplies && (
                 <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
                   {data.replies
-                    ?.filter((r: any) => !r.isProfessor)
-                    .map((r: any, i: number) => (
+                    ?.filter((r) => !r.isProfessor)
+                    .map((r, i: number) => (
                       <div key={i} className="flex gap-3">
                         <img
                           src={r.avatar}
+                          alt=""
                           className="w-8 h-8 rounded-full flex-shrink-0"
                         />
                         <div className="bg-slate-50 rounded-xl px-3 py-2 flex-1">
@@ -379,6 +468,7 @@ function StudentActivityCard({ data, onToggleReplies, onPostReply }: any) {
                   <div className="flex gap-3 items-end pt-1">
                     <img
                       src={`https://api.dicebear.com/7.x/avataaars/svg?seed=me`}
+                      alt=""
                       className="w-8 h-8 rounded-full flex-shrink-0"
                     />
                     <textarea

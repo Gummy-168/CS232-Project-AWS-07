@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from typing import List, Optional
 
 
 class QuestionReplyResponse(BaseModel):
@@ -27,6 +28,7 @@ class CourseFeedQuestionResponse(BaseModel):
     title: str
     content: str
     status: str
+    tags: Optional[List[str]] = []
     student_id: str
     student_name: str
     course_code: str
@@ -44,6 +46,7 @@ class CourseQuestionFeedResponse(BaseModel):
     course_code: str
     course_name: str
     questions: list[CourseFeedQuestionResponse]
+    tags: Optional[List[str]] = []
 
 
 class ProfessorQuestionStatusUpdate(BaseModel):
@@ -64,3 +67,9 @@ class QuestionDeleteResponse(BaseModel):
 
     message: str
     question_id: str
+
+class QuestionCreate(BaseModel):
+    title: str
+    content: str
+    is_anonymous: bool = False
+    tags: Optional[List[str]] = []

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, String, Text, func, JSON
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -39,6 +39,7 @@ class Question(Base):
     reply_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     is_anonymous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    tags: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     participation_score: Mapped[float] = mapped_column(
         Float,
         nullable=False,
@@ -69,6 +70,7 @@ class Question(Base):
         reply_content: str | None = None,
         status: str = "pending",
         is_anonymous: bool = False,
+        tags: list[str] | None = None,
         participation_score: float = 0.0,
         board: InteractionBoard | None = None,
         student: User | None = None,
@@ -84,6 +86,7 @@ class Question(Base):
         self.reply_content = reply_content.strip() if reply_content else None
         self.status = self._normalize_status(status)
         self.is_anonymous = is_anonymous
+        self.tags = tags or []
         self.participation_score = participation_score
         self.board = board
         self.student = student

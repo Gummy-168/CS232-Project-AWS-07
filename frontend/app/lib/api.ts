@@ -114,6 +114,7 @@ export interface StudentQuestion {
   reply_content: string | null;
   status: "UNANSWERED" | "ANSWERED" | "DELETED";
   is_anonymous: boolean;
+  tags?: string[];
   created_at: string | null;
   updated_at: string | null;
   author_id: string;
@@ -201,6 +202,7 @@ export interface CreateStudentQuestionPayload {
   course_code: string;
   title: string;
   detail?: string;
+  tags?: string[];
   is_anonymous?: boolean;
 }
 
@@ -234,6 +236,7 @@ export interface ProfessorStudentQuestion {
   title: string;
   content: string;
   status: "UNANSWERED" | "ANSWERED" | "DELETED";
+  tags?: string[];
   student_id: string;
   student_name: string;
   course_code: string;
@@ -345,7 +348,9 @@ export async function getStudentQuestions(
   params?: {
     scope?: "all" | "mine";
     courseCode?: string;
+    status?: "all" | "answered" | "unanswered";
     search?: string;
+    tag?: string;
   },
 ) {
   const query = new URLSearchParams();
@@ -355,8 +360,14 @@ export async function getStudentQuestions(
   if (params?.courseCode?.trim()) {
     query.set("course_code", params.courseCode.trim().toUpperCase());
   }
+  if (params?.status?.trim() && params.status !== "all") {
+    query.set("status", params.status.trim().toLowerCase());
+  }
   if (params?.search?.trim()) {
     query.set("search", params.search.trim());
+  }
+  if (params?.tag?.trim()) {
+    query.set("tag", params.tag.trim());
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
 
@@ -445,6 +456,7 @@ export async function getProfessorQuestions(
     courseCode?: string;
     status?: "all" | "answered" | "unanswered";
     search?: string;
+    tag?: string;
   },
 ) {
   const query = new URLSearchParams();
@@ -456,6 +468,9 @@ export async function getProfessorQuestions(
   }
   if (params?.search?.trim()) {
     query.set("search", params.search.trim());
+  }
+  if (params?.tag?.trim()) {
+    query.set("tag", params.tag.trim());
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   return apiRequest<ProfessorQuestionsData>(
@@ -540,4 +555,57 @@ export function buildSessionFromLogin(
 
 export function getApiBaseUrl() {
   return API_BASE_URL;
+}
+
+export async function fetchQuestionsWithFilters(
+  courseCode: string,
+  token: string,
+  filters: { keyword?: string; status?: string; tag?: string }
+) {
+  const queryParams = new URLSearchParams();
+  if (filters.keyword) queryParams.append("q", filters.keyword);
+  if (filters.status) queryParams.append("status", filters.status);
+  if (filters.tag) queryParams.append("tag", filters.tag);
+
+  const res = await fetch(`${API_BASE_URL}/api/courses/${courseCode}/questions/search?${queryParams.toString()}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    let message = "Failed to fetch questions";
+    try {
+      const payload = (await res.json()) as ApiErrorPayload;
+      message = payload.detail || payload.message || message;
+    } catch {}
+    throw new ApiError(message, res.status);
+  }
+  return res.json();
+}
+
+export async function createQuestion(
+  payload: {
+    title: string;
+    content: string;
+    tags: string[];
+    is_anonymous: boolean;
+    course_code: string;
+  },
+  token: string,
+  studentId: string,
+) {
+  const response = await fetch(`${API_BASE_URL}/students/${studentId}/questions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.detail || "Failed to post question");
+  }
+
+  return await response.json();
 }
