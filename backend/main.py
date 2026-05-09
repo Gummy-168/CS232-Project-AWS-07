@@ -1809,6 +1809,8 @@ def create_student_question(
         else None
     )
 
+    enrollment_section_id = enrollment["section_id"]
+
     if payload.section_code and enrollment_section_code != payload.section_code.strip().upper():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
