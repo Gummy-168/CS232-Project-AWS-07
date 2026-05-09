@@ -322,7 +322,7 @@ export default function StudentCourseHomeView() {
                     <div className="rounded-[24px] bg-[#F4F0FF] p-5">
                       <p className="text-sm font-medium text-slate-500">Active Board</p>
                       <p className="mt-2 text-2xl font-semibold text-[#513FDF]">
-                        {activeBoard ? activeBoard.board_id : "None"}
+                        {activeBoard ? activeBoard.board_title || activeBoard.board_id : "None"}
                       </p>
                     </div>
                     <div className="rounded-[24px] bg-[#FFF6EC] p-5">
