@@ -61,7 +61,7 @@ export default function RegisterPage() {
 
       setSuccessMessage("Account created successfully. Redirecting to login...");
       window.setTimeout(() => {
-        router.replace("/?role=student");
+        router.replace("/login?role=student");
       }, 900);
     } catch (error) {
       if (error instanceof Error) {
@@ -190,7 +190,7 @@ export default function RegisterPage() {
 
         <div className="text-sm text-black flex flex-col items-center">
           <span>Already have an account?</span>
-          <Link href="/" className="text-[#AE2466] font-bold hover:underline">
+          <Link href="/login" className="text-[#AE2466] font-bold hover:underline">
             Back to login
           </Link>
         </div>

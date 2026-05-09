@@ -55,7 +55,7 @@ export default function Sidebar() {
     clearStoredSession();
     window.localStorage.removeItem("token");
     window.localStorage.removeItem("user");
-    router.replace("/");
+    router.replace("/login");
   };
 
   // Active
