@@ -94,7 +94,7 @@ export default function ProfessorSidebar() {
     clearStoredSession();
     window.localStorage.removeItem("token");
     window.localStorage.removeItem("user");
-    router.replace("/");
+    router.replace("/login");
   };
 
   const activeStyle =

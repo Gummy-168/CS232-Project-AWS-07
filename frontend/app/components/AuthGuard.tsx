@@ -24,7 +24,7 @@ export default function AuthGuard({
     }
 
     if (!session) {
-      router.replace("/");
+      router.replace("/login");
       return;
     }
 
