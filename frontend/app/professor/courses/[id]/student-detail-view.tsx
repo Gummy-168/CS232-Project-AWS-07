@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { use } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
   ChevronLeft,
@@ -9,73 +10,82 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Header from "@/app/components/Header";
 import CreateCourse from "@/app/components/createcourse";
+import { useAuthSession } from "@/app/hooks/useAuthSession";
+import {
+  ApiError,
+  createProfessorQuestionReply,
+  deleteProfessorQuestion,
+  getProfessorQuestionsByCourse,
+  getStudentAnalyticsForProfessor,
+  getStudentProfile,
+  getStudentQuestionsInCourse,
+  type ProfessorStudentQuestion,
+  updateProfessorQuestionStatus,
+} from "@/app/lib/api";
 
-type ActivityStatus = "UNANSWERED" | "ANSWERED";
+type FilterValue = "All" | "Answered" | "Unanswered";
 
-type ProfessorData = {
-  professor: { name: string; id: string };
-  course: { title: string; code: string };
-};
-
-type StudentStats = {
-  pending: number;
-  answered: number;
-  participating: string;
-  totalQuestions: number;
-};
-
-type StudentInfo = {
+type StudentProfileCard = {
   id: string;
   name: string;
   studentNumber: string;
   email: string;
   avatar: string;
-  stats: StudentStats;
+  stats: {
+    pending: number;
+    answered: number;
+    participating: string;
+    totalQuestions: number;
+  };
 };
 
-type Reply = {
-  user: string;
-  avatar: string;
-  time: string;
-  text: string;
-  isProfessor: boolean;
-};
+function initials(name: string) {
+  const tokens = name.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) {
+    return "NA";
+  }
+  return tokens
+    .slice(0, 2)
+    .map((token) => token[0]?.toUpperCase() || "")
+    .join("");
+}
 
-type Activity = {
-  id: number;
-  user: string;
-  avatar: string;
-  courseCode: string;
-  time: string;
-  content: string;
-  replies: Reply[];
-  showReplies: boolean;
-  status: ActivityStatus;
-};
+function avatarTone(seed: string) {
+  const palette = [
+    "bg-[#FFE7A8] text-[#C97A00]",
+    "bg-[#DDFBEA] text-[#099268]",
+    "bg-[#E4E0FF] text-[#5B41FF]",
+    "bg-[#FFE4EF] text-[#D1388D]",
+  ];
+  const hash = Array.from(seed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return palette[hash % palette.length];
+}
 
-type ActivityCardProps = {
-  data: Activity;
-  onToggleReplies: (id: number) => void;
-  onMarkAnswered: () => void;
-  onUnmarked: () => void;
-  onPostReply: (text: string) => void;
-  onDelete: () => void;
-  onDeleteReply: (activityId: number, replyIndex: number) => void;
-};
+function formatRelativeTime(value: string | null) {
+  if (!value) {
+    return "just now";
+  }
 
-const fetchProfessorData = async (): Promise<ProfessorData> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        professor: { name: "อาจารย์ สะปุกนิก", id: "PRF000001" },
-        course: { title: "CS232: Intro to Cloud Computing", code: "3A6572" },
-      });
-    }, 400);
-  });
-};
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "just now";
+  }
+
+  const diffMs = Date.now() - parsed.getTime();
+  const diffMinutes = Math.max(1, Math.round(diffMs / 60000));
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min ago`;
+  }
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours}h ago`;
+  }
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays}d ago`;
+}
 
 function InfoBox({ label, value }: { label: string; value: string }) {
   return (
@@ -97,7 +107,7 @@ function StatBox({
   label: string;
   value: string | number;
   valueClassName: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-white px-3.5 py-3">
@@ -115,45 +125,57 @@ function StatBox({
 }
 
 function ActivityCard({
-  data,
+  question,
+  isOpen,
+  replyDraft,
   onToggleReplies,
+  onReplyDraftChange,
   onMarkAnswered,
   onUnmarked,
   onPostReply,
   onDelete,
-  onDeleteReply,
-}: ActivityCardProps) {
-  const [replyText, setReplyText] = useState("");
-  const isAnswered = data.status === "ANSWERED";
+}: {
+  question: ProfessorStudentQuestion;
+  isOpen: boolean;
+  replyDraft: string;
+  onToggleReplies: () => void;
+  onReplyDraftChange: (value: string) => void;
+  onMarkAnswered: () => void;
+  onUnmarked: () => void;
+  onPostReply: () => void;
+  onDelete: () => void;
+}) {
+  const isAnswered = question.status === "ANSWERED";
 
   return (
     <article
       className={`rounded-2xl border p-4 md:p-5 ${
-        isAnswered
-          ? "border-emerald-100 bg-[#F2FCF7]"
-          : "border-slate-100 bg-white"
+        isAnswered ? "border-emerald-100 bg-[#F2FCF7]" : "border-slate-100 bg-white"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <img
-            src={data.avatar}
-            alt={`${data.user} avatar`}
-            className="mt-0.5 h-8 w-8 rounded-full object-cover"
-          />
+          <div
+            className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${avatarTone(
+              question.student_id,
+            )}`}
+          >
+            {initials(question.student_name)}
+          </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-[#23272F]">{data.user}</p>
+            <p className="truncate text-sm font-semibold text-[#23272F]">{question.student_name}</p>
             <p className="text-[11px] text-slate-400">
-              {data.time} • {data.courseCode}
+              {formatRelativeTime(question.created_at)} • {question.course_code}
             </p>
-            <p className="mt-1 text-sm text-[#303645]">{data.content}</p>
+            <p className="mt-1 text-sm text-[#303645]">{question.title || question.content}</p>
+            {question.title && question.content && question.title !== question.content ? (
+              <p className="mt-1 text-sm text-slate-500">{question.content}</p>
+            ) : null}
           </div>
         </div>
         <span
           className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-            isAnswered
-              ? "bg-emerald-50 text-emerald-600"
-              : "bg-orange-50 text-orange-500"
+            isAnswered ? "bg-emerald-50 text-emerald-600" : "bg-orange-50 text-orange-500"
           }`}
         >
           <span
@@ -165,39 +187,13 @@ function ActivityCard({
         </span>
       </div>
 
-      {data.replies.some((reply) => reply.isProfessor) ? (
-        <div className="mt-3 rounded-xl border border-emerald-200 bg-[#F8FFFB] px-3 py-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
-            Professor Reply
-          </p>
-          {data.replies
-            .map((reply, index) => ({ reply, index }))
-            .filter(({ reply }) => reply.isProfessor)
-            .map(({ reply, index }) => (
-              <div key={`${reply.time}-${index}`} className="mt-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] text-slate-400">{reply.time}</p>
-                  <button
-                    type="button"
-                    onClick={() => onDeleteReply(data.id, index)}
-                    className="text-[10px] font-medium text-rose-500 hover:text-rose-600"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <p className="text-sm text-[#2B3240]">{reply.text}</p>
-              </div>
-            ))}
-        </div>
-      ) : null}
-
       <div className="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => onToggleReplies(data.id)}
+          onClick={onToggleReplies}
           className="rounded-full bg-[#F3EEFF] px-3 py-1 text-[11px] font-medium text-[#5A46E8] hover:bg-[#EAE2FF]"
         >
-          ↩ {data.replies.filter((reply) => !reply.isProfessor).length} Reply
+          ↩ {question.replies.length} {isOpen ? "Hide" : "Reply"}
         </button>
         <div className="flex items-center gap-2">
           {isAnswered ? (
@@ -227,25 +223,36 @@ function ActivityCard({
         </div>
       </div>
 
-      {data.showReplies ? (
-        <div className="mt-3 rounded-xl border border-slate-100 bg-[#FAFAFE] p-3">
+      {isOpen ? (
+        <div className="mt-3 space-y-3 rounded-xl border border-slate-100 bg-[#FAFAFE] p-3">
+          {question.replies.length > 0
+            ? question.replies.map((reply) => (
+                <div
+                  key={reply.id}
+                  className={`rounded-lg px-3 py-2 ${
+                    reply.is_professor ? "bg-emerald-50" : "bg-white"
+                  }`}
+                >
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    {reply.is_professor ? "Professor Reply" : reply.author_name}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-700">{reply.content}</p>
+                </div>
+              ))
+            : null}
+
           <textarea
-            value={replyText}
-            onChange={(event) => setReplyText(event.target.value)}
+            value={replyDraft}
+            onChange={(event) => onReplyDraftChange(event.target.value)}
             placeholder="Reply as instructor..."
             rows={3}
             className="w-full resize-none rounded-lg border border-slate-100 bg-white px-3 py-2 text-sm text-[#2E3440] outline-none focus:border-[#B8A8FF]"
           />
-          <div className="mt-2 flex justify-end">
+          <div className="flex justify-end">
             <button
               type="button"
-              onClick={() => {
-                if (replyText.trim()) {
-                  onPostReply(replyText.trim());
-                  setReplyText("");
-                }
-              }}
-              disabled={!replyText.trim()}
+              onClick={onPostReply}
+              disabled={!replyDraft.trim()}
               className="rounded-lg bg-[#5A46E8] px-4 py-1.5 text-xs font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50 hover:bg-[#4D3DCC]"
             >
               Post Reply
@@ -257,157 +264,201 @@ function ActivityCard({
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <div className="flex h-[60vh] items-center justify-center">
+      <div className="flex items-center gap-3 text-slate-500">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-[#5A46E8]" />
+        Loading student data...
+      </div>
+    </div>
+  );
+}
+
 export default function StudentDetailView({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const [data, setData] = useState<ProfessorData | null>(null);
+  const searchParams = useSearchParams();
+  const { session } = useAuthSession();
+  const resolvedParams = use(params); 
+  const studentId = resolvedParams.id;
+  const selectedCourseCode =
+    searchParams.get("course_code")?.trim().toUpperCase() ?? "";
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [filter, setFilter] = useState<"All" | "Answered" | "Unanswered">("All");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState<FilterValue>("All");
+  const [studentProfile, setStudentProfile] = useState<StudentProfileCard | null>(null);
+  const [courseTitle, setCourseTitle] = useState("Course Detail");
+  const [professorName, setProfessorName] = useState("Professor");
+  const [questions, setQuestions] = useState<ProfessorStudentQuestion[]>([]);
+  const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [refreshToken, setRefreshToken] = useState(0);
 
   useEffect(() => {
-    fetchProfessorData().then(setData);
-  }, []);
-
-  const studentData: StudentInfo = {
-    id: params.id,
-    name: "สมปอง อยากสวย",
-    studentNumber: "6700000000",
-    email: "sompong.yak@dome.tu.ac.th",
-    avatar: "https://images.unsplash.com/photo-1544568100-847a948585b9?w=200&h=200&fit=crop",
-    stats: {
-      pending: 8,
-      answered: 12,
-      participating: "88%",
-      totalQuestions: 20,
-    },
-  };
-
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: 101,
-      user: studentData.name,
-      avatar: studentData.avatar,
-      courseCode: "CS232-54001",
-      time: "1 sec ago",
-      content: "ไก่กับไข่อะไรเกิดก่อนกัน",
-      replies: [],
-      showReplies: true,
-      status: "UNANSWERED",
-    },
-    {
-      id: 102,
-      user: studentData.name,
-      avatar: studentData.avatar,
-      courseCode: "CS232-54001",
-      time: "2h ago",
-      content: "คำถาม2",
-      replies: [
-        {
-          user: "อาจารย์ สะปุกนิก",
-          avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=PRF000001",
-          time: "1h ago",
-          text: "เดี๋ยวให้ดูตรงนี้เพิ่มนะคะ ลองดู...",
-          isProfessor: true,
-        },
-      ],
-      showReplies: false,
-      status: "ANSWERED",
-    },
-  ]);
-
-  const filteredActivities = useMemo(() => {
-    if (filter === "All") {
-      return activities;
-    }
-    if (filter === "Answered") {
-      return activities.filter((item) => item.status === "ANSWERED");
-    }
-    return activities.filter((item) => item.status === "UNANSWERED");
-  }, [activities, filter]);
-
-  const handleMarkAnswered = (id: number) => {
-    setActivities((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, status: "ANSWERED" } : item,
-      ),
-    );
-  };
-
-  const handleUnmarked = (id: number) => {
-    setActivities((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, status: "UNANSWERED" } : item,
-      ),
-    );
-  };
-
-  const toggleReplies = (id: number) => {
-    setActivities((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, showReplies: !item.showReplies } : item,
-      ),
-    );
-  };
-
-  const handlePostReply = (id: number, text: string) => {
-    const professorName = data?.professor.name || "Professor";
-    const professorId = data?.professor.id || "PRF000001";
-    setActivities((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              status: "ANSWERED",
-              showReplies: true,
-              replies: [
-                ...item.replies,
-                {
-                  user: professorName,
-                  avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${professorId}`,
-                  time: "just now",
-                  text,
-                  isProfessor: true,
-                },
-              ],
-            }
-          : item,
-      ),
-    );
-  };
-
-  const handleDeleteReply = (activityId: number, replyIndex: number) => {
-    setActivities((prev) =>
-      prev.map((item) => {
-        if (item.id !== activityId) {
-          return item;
-        }
-        const replies = item.replies.filter((_, idx) => idx !== replyIndex);
-        return {
-          ...item,
-          replies,
-          status: replies.some((reply) => reply.isProfessor)
-            ? "ANSWERED"
-            : "UNANSWERED",
-        };
-      }),
-    );
-  };
-
-  const confirmDelete = () => {
-    if (deleteTarget === null) {
+    if (!session?.userId || !session.accessToken || !studentId || !selectedCourseCode) {
+      setIsLoading(false);
       return;
     }
-    setActivities((prev) => prev.filter((item) => item.id !== deleteTarget));
-    setDeleteTarget(null);
+
+    if (studentId.trim().toUpperCase() === selectedCourseCode.trim().toUpperCase()) {
+      setError("Route validation failed: URL id appears to be course_code, not student_id");
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+
+    Promise.allSettled([
+      getProfessorQuestionsByCourse(session.userId, selectedCourseCode, session.accessToken),
+      getStudentAnalyticsForProfessor(
+        session.userId,
+        selectedCourseCode,
+        studentId,
+        session.accessToken,
+      ),
+      getStudentQuestionsInCourse(
+        session.userId,
+        selectedCourseCode,
+        studentId,
+        session.accessToken,
+      ),
+      getStudentProfile(studentId, session.accessToken, "professor"),
+    ]).then(([courseResult, analyticsResult, questionResult, profileResult]) => {
+      const courseData = courseResult.status === "fulfilled" ? courseResult.value : null;
+      const analyticsData =
+        analyticsResult.status === "fulfilled" ? analyticsResult.value : null;
+      const studentQuestions =
+        questionResult.status === "fulfilled" ? questionResult.value : [];
+      const profileData = profileResult.status === "fulfilled" ? profileResult.value : null;
+
+      console.log("[StudentDetail] params.id:", studentId);
+      console.log(
+        "[StudentDetail] enrolled student_id list:",
+        courseData?.enrolled_students.map((item) => item.student_id) ?? [],
+      );
+
+      if (
+        profileResult.status === "rejected" &&
+        profileResult.reason instanceof ApiError &&
+        (profileResult.reason.status === 401 || profileResult.reason.status === 403)
+      ) {
+        setError("Permission Denied: Please check professor role header");
+        setStudentProfile(null);
+        setQuestions([]);
+        setIsLoading(false);
+        return;
+      }
+
+      if (!analyticsData) {
+        if (
+          analyticsResult.status === "rejected" &&
+          analyticsResult.reason instanceof ApiError &&
+          analyticsResult.reason.status === 404
+        ) {
+          setError("Student data not found");
+        } else {
+          setError(
+            analyticsResult.status === "rejected" && analyticsResult.reason instanceof Error
+              ? analyticsResult.reason.message
+              : "Failed to load student data",
+          );
+        }
+        setStudentProfile(null);
+        setQuestions([]);
+        setIsLoading(false);
+        return;
+      }
+
+      const displayName = profileData?.full_name?.trim() || analyticsData.student.name;
+      const email = profileData?.email?.trim() || "-";
+
+      setStudentProfile({
+        id: studentId,
+        name: displayName,
+        studentNumber: analyticsData.student.id,
+        email,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+          analyticsData.student.id,
+        )}`,
+        stats: {
+          pending: analyticsData.stats.pending,
+          answered: analyticsData.stats.answered,
+          participating: `${analyticsData.stats.participation}%`,
+          totalQuestions: analyticsData.stats.total_questions,
+        },
+      });
+      setQuestions(studentQuestions);
+      setCourseTitle(
+        courseData?.course.title || `${analyticsData.course.code}: ${analyticsData.course.title}`,
+      );
+      setProfessorName(courseData?.professor.full_name || courseData?.professor.name || "Professor");
+      setError("");
+      setIsLoading(false);
+    });
+  }, [session?.accessToken, session?.userId, selectedCourseCode, studentId, refreshToken]);
+
+  const filteredQuestions = useMemo(() => {
+    if (filter === "Answered") {
+      return questions.filter((question) => question.status === "ANSWERED");
+    }
+    if (filter === "Unanswered") {
+      return questions.filter((question) => question.status !== "ANSWERED");
+    }
+    return questions;
+  }, [filter, questions]);
+
+  const refresh = () => setRefreshToken((prev) => prev + 1);
+
+  const handleMarkAnswered = async (questionId: string, isAnswered: boolean) => {
+    if (!session?.userId) return;
+    try {
+      await updateProfessorQuestionStatus(
+        session.userId,
+        questionId,
+        isAnswered ? "pending" : "answered",
+      );
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update question status");
+    }
+  };
+
+  const handleReply = async (questionId: string) => {
+    if (!session?.userId) return;
+    const content = (replyDrafts[questionId] || "").trim();
+    if (!content) return;
+
+    try {
+      await createProfessorQuestionReply(session.userId, questionId, { content });
+      setReplyDrafts((prev) => ({ ...prev, [questionId]: "" }));
+      setOpenReplies((prev) => ({ ...prev, [questionId]: true }));
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reply failed");
+    }
+  };
+
+  const handleDelete = async (questionId: string) => {
+    if (!session?.userId) return;
+    if (!window.confirm("Delete this question?")) return;
+
+    try {
+      await deleteProfessorQuestion(session.userId, questionId);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    }
   };
 
   return (
     <div className="h-full overflow-y-auto bg-[#F6F5F8] text-slate-700">
       <Header
-        professorName={data?.professor?.name}
+        professorName={professorName}
         onJoinCourse={() => setIsModalOpen(true)}
-        courseTitle={data?.course?.title}
-        codeId={data?.course?.code}
+        courseTitle={courseTitle}
+        codeId={selectedCourseCode}
         mode="course"
       />
       <CreateCourse isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
@@ -425,70 +476,84 @@ export default function StudentDetailView({ params }: { params: { id: string } }
             <span className="rounded-xl bg-[#F3EEFF] p-2 text-[#6A53E7]">
               <User size={16} />
             </span>
-            <p className="text-sm font-semibold text-[#232735]">รายละเอียดนักเรียน</p>
+            <p className="text-sm font-semibold text-[#232735]">Student Detail</p>
           </div>
 
-          <div className="rounded-2xl border border-slate-100 bg-[#FCFBFF] p-4 md:p-5">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-              <div className="lg:col-span-2">
-                <div className="mx-auto flex w-full max-w-[120px] flex-col items-center gap-2">
-                  <img
-                    src={studentData.avatar}
-                    alt="Student profile"
-                    className="h-24 w-24 rounded-3xl object-cover shadow-sm"
-                  />
-                  <p className="text-[9px] font-semibold tracking-widest text-slate-400">
-                    STUDENT PROFILE
-                  </p>
-                </div>
-              </div>
+          {isLoading ? <LoadingSpinner /> : null}
 
-              <div className="lg:col-span-6">
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <InfoBox label="Full Name" value={studentData.name} />
-                  <InfoBox label="Student Number" value={studentData.studentNumber} />
-                  <div className="md:col-span-2">
-                    <InfoBox label="Email" value={studentData.email} />
+          {!isLoading && error ? (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-600">
+              {error}
+            </div>
+          ) : null}
+
+          {!isLoading && !error && !studentProfile ? (
+            <div className="rounded-2xl border border-slate-100 bg-[#FCFBFF] px-5 py-4 text-sm text-slate-500">
+              Student data not found
+            </div>
+          ) : null}
+
+          {!isLoading && !error && studentProfile ? (
+            <div className="rounded-2xl border border-slate-100 bg-[#FCFBFF] p-4 md:p-5">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+                <div className="lg:col-span-2">
+                  <div className="mx-auto flex w-full max-w-[120px] flex-col items-center gap-2">
+                    <img
+                      src={studentProfile.avatar}
+                      alt="Student profile"
+                      className="h-24 w-24 rounded-3xl object-cover shadow-sm"
+                    />
+                    <p className="text-[9px] font-semibold tracking-widest text-slate-400">
+                      STUDENT PROFILE
+                    </p>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-6">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <InfoBox label="Full Name" value={studentProfile.name} />
+                    <InfoBox label="Student Number" value={studentProfile.studentNumber} />
+                    <div className="md:col-span-2">
+                      <InfoBox label="Email" value={studentProfile.email} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatBox
+                      label="Pending"
+                      value={studentProfile.stats.pending}
+                      valueClassName="text-[#D13184]"
+                      icon={<Clock3 size={14} className="text-[#FD64A4]" />}
+                    />
+                    <StatBox
+                      label="Answered"
+                      value={studentProfile.stats.answered}
+                      valueClassName="text-[#5A46E8]"
+                      icon={<CheckCircle2 size={14} className="text-[#22C55E]" />}
+                    />
+                    <StatBox
+                      label="Participating"
+                      value={studentProfile.stats.participating}
+                      valueClassName="text-[#1F2531]"
+                      icon={<TrendingUp size={14} className="text-[#5A46E8]" />}
+                    />
+                    <StatBox
+                      label="Total Questions"
+                      value={studentProfile.stats.totalQuestions}
+                      valueClassName="text-[#1F2531]"
+                      icon={<MessageSquare size={14} className="text-[#5A46E8]" />}
+                    />
                   </div>
                 </div>
               </div>
 
-              <div className="lg:col-span-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <StatBox
-                    label="Pending"
-                    value={studentData.stats.pending}
-                    valueClassName="text-[#D13184]"
-                    icon={<Clock3 size={14} className="text-[#FD64A4]" />}
-                  />
-                  <StatBox
-                    label="Answered"
-                    value={studentData.stats.answered}
-                    valueClassName="text-[#5A46E8]"
-                    icon={<CheckCircle2 size={14} className="text-[#22C55E]" />}
-                  />
-                  <StatBox
-                    label="Participating"
-                    value={studentData.stats.participating}
-                    valueClassName="text-[#1F2531]"
-                    icon={<TrendingUp size={14} className="text-[#5A46E8]" />}
-                  />
-                  <StatBox
-                    label="Total Questions"
-                    value={studentData.stats.totalQuestions}
-                    valueClassName="text-[#1F2531]"
-                    icon={<MessageSquare size={14} className="text-[#5A46E8]" />}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-[#232735]">
-                  Question From Them
-                </h3>
-                <div className="flex items-center gap-2">
+              <div className="mt-6 rounded-2xl border border-slate-100 bg-white p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wide text-[#232735]">
+                    Question From Them
+                  </h3>
                   <div className="flex rounded-full bg-[#F2F2F7] p-1 text-[11px]">
                     {(["All", "Answered", "Unanswered"] as const).map((name) => (
                       <button
@@ -505,60 +570,42 @@ export default function StudentDetailView({ params }: { params: { id: string } }
                       </button>
                     ))}
                   </div>
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[11px] font-medium text-slate-400 hover:bg-slate-50"
-                  >
-                    Filter
-                  </button>
                 </div>
-              </div>
 
-              <div className="space-y-3">
-                {filteredActivities.map((activity) => (
-                  <ActivityCard
-                    key={activity.id}
-                    data={activity}
-                    onToggleReplies={toggleReplies}
-                    onMarkAnswered={() => handleMarkAnswered(activity.id)}
-                    onUnmarked={() => handleUnmarked(activity.id)}
-                    onPostReply={(text) => handlePostReply(activity.id, text)}
-                    onDelete={() => setDeleteTarget(activity.id)}
-                    onDeleteReply={handleDeleteReply}
-                  />
-                ))}
+                {filteredQuestions.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
+                    No questions found for this student in the selected course.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredQuestions.map((question) => (
+                      <ActivityCard
+                        key={question.id}
+                        question={question}
+                        isOpen={Boolean(openReplies[question.id])}
+                        replyDraft={replyDrafts[question.id] || ""}
+                        onToggleReplies={() =>
+                          setOpenReplies((prev) => ({
+                            ...prev,
+                            [question.id]: !prev[question.id],
+                          }))
+                        }
+                        onReplyDraftChange={(value) =>
+                          setReplyDrafts((prev) => ({ ...prev, [question.id]: value }))
+                        }
+                        onMarkAnswered={() => handleMarkAnswered(question.id, false)}
+                        onUnmarked={() => handleMarkAnswered(question.id, true)}
+                        onPostReply={() => handleReply(question.id)}
+                        onDelete={() => handleDelete(question.id)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          ) : null}
         </section>
       </main>
-
-      {deleteTarget !== null ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl">
-            <p className="text-base font-semibold text-slate-800">ลบคำถามนี้?</p>
-            <p className="mt-1 text-sm text-slate-400">
-              การกระทำนี้ไม่สามารถย้อนกลับได้
-            </p>
-            <div className="mt-5 flex justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setDeleteTarget(null)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:bg-slate-50"
-              >
-                ยกเลิก
-              </button>
-              <button
-                type="button"
-                onClick={confirmDelete}
-                className="rounded-xl bg-rose-500 px-4 py-2 text-sm text-white hover:bg-rose-600"
-              >
-                ลบ
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
