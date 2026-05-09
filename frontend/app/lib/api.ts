@@ -346,6 +346,25 @@ export interface ProfessorQuestionsData {
   board_sessions: ProfessorBoardSession[];
 }
 
+export interface ProfessorStudentCourseAnalytics {
+  student: {
+    id: string;
+    name: string;
+    email?: string;
+    section_code?: string | null;
+  };
+  course: {
+    code: string;
+    title: string;
+  };
+  stats: {
+    pending: number;
+    answered: number;
+    total_questions: number;
+    participation: number;
+  };
+}
+
 async function apiRequest<TResponse>(
   path: string,
   init: RequestInit,
@@ -374,12 +393,17 @@ async function apiRequest<TResponse>(
   return (await response.json()) as TResponse;
 }
 
-function buildRoleHeaders(token: string, role?: UserRole) {
-  return {
-    Authorization: `Bearer ${token}`,
+function buildRoleHeaders(token?: string, role?: UserRole) {
+  const headers: Record<string, string> = {
     "X-Role": role ?? "student",
     "X-User-Role": role ?? "student",
   };
+
+  if (token?.trim()) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
 }
 
 export async function registerUser(payload: RegisterPayload) {
@@ -396,9 +420,14 @@ export async function loginUser(payload: LoginPayload) {
   });
 }
 
-export async function getStudentProfile(studentId: string) {
+export async function getStudentProfile(
+  studentId: string,
+  token?: string,
+  role: UserRole = "professor",
+) {
   return apiRequest<StudentProfile>(`/students/${studentId}/profile`, {
     method: "GET",
+    headers: buildRoleHeaders(token, role),
   });
 }
 
@@ -637,6 +666,90 @@ export async function getProfessorQuestions(
       method: "GET",
     },
   );
+}
+
+export async function getProfessorQuestionsByCourse(
+  professorId: string,
+  courseCode: string,
+  token: string,
+) {
+  const query = new URLSearchParams();
+  query.set("course_code", courseCode.trim().toUpperCase());
+  const suffix = `?${query.toString()}`;
+
+  return apiRequest<ProfessorQuestionsData>(
+    `/professors/${professorId}/questions${suffix}`,
+    {
+      method: "GET",
+      headers: buildRoleHeaders(token, "professor"),
+    },
+  );
+}
+
+export async function getStudentQuestionsInCourse(
+  professorId: string,
+  courseCode: string,
+  studentId: string,
+  token: string,
+) {
+  const response = await getProfessorQuestionsByCourse(professorId, courseCode, token);
+  const normalizedStudentId = studentId.trim().toLowerCase();
+
+  return response.student_questions.filter(
+    (question) =>
+      question.student_id.trim().toLowerCase() === normalizedStudentId &&
+      question.status !== "DELETED",
+  );
+}
+
+export async function getStudentAnalyticsForProfessor(
+  professorId: string,
+  courseCode: string,
+  studentId: string,
+  token: string,
+): Promise<ProfessorStudentCourseAnalytics> {
+  const response = await getProfessorQuestionsByCourse(professorId, courseCode, token);
+  const normalizedStudentId = studentId.trim().toLowerCase();
+  console.log("[StudentDetail][API] params.id:", studentId);
+  console.log(
+    "[StudentDetail][API] enrolled student_id list:",
+    response.enrolled_students.map((item) => item.student_id),
+  );
+  const student = response.enrolled_students.find(
+    (item) => item.student_id.trim().toLowerCase() === normalizedStudentId,
+  );
+
+  if (!student) {
+    throw new ApiError("Student data not found", 404);
+  }
+
+  const questions = response.student_questions.filter(
+    (question) =>
+      question.student_id.trim().toLowerCase() === normalizedStudentId &&
+      question.status !== "DELETED",
+  );
+  const answered = questions.filter((question) => question.status === "ANSWERED").length;
+  const pending = Math.max(questions.length - answered, 0);
+  const participation =
+    questions.length > 0 ? Math.round((answered / questions.length) * 100) : 0;
+
+  return {
+    student: {
+      id: student.student_id,
+      name: student.student_name,
+      section_code: student.section_code ?? null,
+    },
+    course: {
+      code: response.course.code,
+      title: response.course.title,
+    },
+    stats: {
+      pending,
+      answered,
+      total_questions: questions.length,
+      participation,
+    },
+  };
 }
 
 export async function createProfessorBoard(
