@@ -202,8 +202,10 @@ export default function ProfessorSidebar() {
             </Link>
 
             <Link
-              href={`/professor/questions${selectedCourseQuery}`}
-              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${inactiveStyle}`}
+              href={`/professor/analytics${selectedCourseQuery}`}
+              className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${
+                pathname === "/professor/analytics" ? activeStyle : inactiveStyle
+              }`}
             >
               <BarChart3 size={20} />
               <span className="text-base">Analytics</span>

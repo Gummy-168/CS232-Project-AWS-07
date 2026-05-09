@@ -183,6 +183,16 @@ export interface StudentAnalyticsData {
     day: string;
     value: number;
   }>;
+  course_activity: Array<{
+    course_code: string;
+    course_name: string;
+    title: string;
+    total_questions: number;
+    answered_questions: number;
+    board_sessions_joined: number;
+    total_replies: number;
+    total_interactions: number;
+  }>;
 }
 
 interface StudentCoursesResponse {

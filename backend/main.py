@@ -2227,16 +2227,67 @@ def get_student_analytics(
         {"student_id": student_id},
     ).mappings().one()
 
-    active_courses = db.execute(
+    course_activity_rows = db.execute(
         text(
             """
-            SELECT COUNT(*) AS total
-            FROM enrollments
-            WHERE student_id = :student_id
+            SELECT
+                e.course_code AS course_code,
+                c.course_name AS course_name,
+                COALESCE(q.total_questions, 0) AS total_questions,
+                COALESCE(q.answered_questions, 0) AS answered_questions,
+                COALESCE(bs.board_sessions_joined, 0) AS board_sessions_joined,
+                COALESCE(r.total_replies, 0) AS total_replies,
+                (
+                    COALESCE(q.total_questions, 0) +
+                    COALESCE(r.total_replies, 0)
+                ) AS total_interactions
+            FROM enrollments e
+            JOIN courses c
+              ON c.course_code = e.course_code
+            LEFT JOIN (
+                SELECT
+                    b.course_code AS course_code,
+                    COUNT(*) AS total_questions,
+                    SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions
+                FROM questions q
+                JOIN interaction_boards b
+                  ON b.board_id = q.board_id
+                WHERE q.student_id = :student_id
+                  AND q.status <> 'deleted'
+                GROUP BY b.course_code
+            ) q
+              ON q.course_code = e.course_code
+            LEFT JOIN (
+                SELECT
+                    b.course_code AS course_code,
+                    COUNT(DISTINCT q.board_id) AS board_sessions_joined
+                FROM questions q
+                JOIN interaction_boards b
+                  ON b.board_id = q.board_id
+                WHERE q.student_id = :student_id
+                  AND q.status <> 'deleted'
+                GROUP BY b.course_code
+            ) bs
+              ON bs.course_code = e.course_code
+            LEFT JOIN (
+                SELECT
+                    b.course_code AS course_code,
+                    COUNT(*) AS total_replies
+                FROM question_replies r
+                JOIN questions q
+                  ON q.question_id = r.question_id
+                JOIN interaction_boards b
+                  ON b.board_id = q.board_id
+                WHERE r.user_id = :student_id
+                GROUP BY b.course_code
+            ) r
+              ON r.course_code = e.course_code
+            WHERE e.student_id = :student_id
+            ORDER BY e.join_date DESC, e.course_code ASC
             """
         ),
         {"student_id": student_id},
-    ).mappings().one()
+    ).mappings().all()
 
     activity_rows = db.execute(
         text(
@@ -2280,7 +2331,7 @@ def get_student_analytics(
             "answered": answered_questions,
             "unanswered": pending_questions,
             "board": opened_boards,
-            "active_courses": int(active_courses["total"] or 0),
+            "active_courses": len(course_activity_rows),
         },
         "chart": [
             {"day": "Mon", "value": chart_by_day[0]},
@@ -2290,6 +2341,19 @@ def get_student_analytics(
             {"day": "Fri", "value": chart_by_day[4]},
             {"day": "Sat", "value": chart_by_day[5]},
             {"day": "Sun", "value": chart_by_day[6]},
+        ],
+        "course_activity": [
+            {
+                "course_code": str(row["course_code"] or ""),
+                "course_name": str(row["course_name"] or ""),
+                "title": f"{row['course_code']}: {row['course_name']}",
+                "total_questions": int(row["total_questions"] or 0),
+                "answered_questions": int(row["answered_questions"] or 0),
+                "board_sessions_joined": int(row["board_sessions_joined"] or 0),
+                "total_replies": int(row["total_replies"] or 0),
+                "total_interactions": int(row["total_interactions"] or 0),
+            }
+            for row in course_activity_rows
         ],
     }
 

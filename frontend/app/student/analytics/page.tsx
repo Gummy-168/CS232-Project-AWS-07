@@ -13,11 +13,32 @@ import {
 } from "recharts";
 import Header from "../../components/Header";
 import JoinCourse from "../../components/joincourse";
-import { getStudentAnalytics, getStudentDashboard } from "../../lib/api";
+import {
+  getStudentAnalytics,
+  getStudentDashboard,
+  type StudentAnalyticsData,
+} from "../../lib/api";
 import { useAuthSession } from "../../hooks/useAuthSession";
 
+type AnalyticsViewData = StudentAnalyticsData & {
+  session: {
+    course_code: string;
+    title: string;
+    time: string;
+    instructor: string;
+  };
+};
+
+interface TrendLabelProps {
+  x?: number;
+  y?: number;
+  width?: number;
+  value?: number | string;
+  index?: number;
+}
+
 const Dashboard = () => {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AnalyticsViewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -42,11 +63,19 @@ const Dashboard = () => {
       });
   }, [session?.userId]);
 
-  if (loading)
+  if (loading || !data)
     return <div className="p-8 text-center">Loading Dashboard...</div>;
 
   const openedBoards = Number(data?.stats?.opened_boards ?? data?.stats?.board ?? 0);
   const participatedBoards = Number(data?.stats?.participated_boards ?? 0);
+  const courseActivity = Array.isArray(data?.course_activity)
+    ? data.course_activity
+    : [];
+  const maxInteractions = courseActivity.reduce(
+    (max: number, course: { total_interactions?: number }) =>
+      Math.max(max, Number(course?.total_interactions ?? 0)),
+    0,
+  );
 
   const pieData = [
     { name: "Answered", value: data.stats.answered, color: "#4F46E5" },
@@ -107,10 +136,13 @@ const Dashboard = () => {
                     <LabelList
                       dataKey="value"
                       position="top"
-                      content={(props: any) => {
+                      content={(props: TrendLabelProps) => {
                         const { x, y, width, value, index } = props;
 
                         if (index !== activeIndex) return null;
+                        if (typeof x !== "number" || typeof y !== "number" || typeof width !== "number") {
+                          return null;
+                        }
 
                         return (
                           <text
@@ -125,7 +157,7 @@ const Dashboard = () => {
                         );
                       }}
                     />
-                    {data.chart.map((entry: any, index: number) => (
+                    {data.chart.map((_, index: number) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={
@@ -210,20 +242,44 @@ const Dashboard = () => {
         {/* Course Activity */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
           <h3 className="text-xl font-bold mb-4">Course Activity</h3>
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between items-center text-sm mb-1">
-              <span className="font-medium">{data.session.title}</span>
-              <span className="text-indigo-600 font-semibold text-xs">
-                1 interactions
-              </span>
+          {courseActivity.length === 0 ? (
+            <p className="text-sm text-slate-400">No enrolled courses yet.</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {courseActivity.map(
+                (course: {
+                  course_code: string;
+                  title: string;
+                  total_interactions: number;
+                }) => {
+                  const interactions = Number(course.total_interactions ?? 0);
+                  const widthPercent =
+                    maxInteractions > 0
+                      ? (interactions / maxInteractions) * 100
+                      : interactions > 0
+                        ? 100
+                        : 0;
+
+                  return (
+                    <div key={course.course_code} className="flex flex-col gap-2">
+                      <div className="flex justify-between items-center text-sm mb-1">
+                        <span className="font-medium">{course.title}</span>
+                        <span className="text-indigo-600 font-semibold text-xs">
+                          {interactions} interactions
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-500 to-pink-500 transition-all duration-500"
+                          style={{ width: `${widthPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                },
+              )}
             </div>
-            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-indigo-500 to-pink-500"
-                style={{ width: "10%" }}
-              />
-            </div>
-          </div>
+          )}
         </div>
       </main>
     </div>
@@ -231,7 +287,13 @@ const Dashboard = () => {
 };
 
 //  Sub-components
-const StatCard = ({ label, value, subValue }: any) => {
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  subValue?: string;
+}
+
+const StatCard = ({ label, value, subValue }: StatCardProps) => {
   const defaultLabelClasses =
     "text-[10px] font-bold text-slate-400 transition-colors duration-300 tracking-wider uppercase group-hover:text-pink-500";
   const defaultBorderClasses = "border-slate-100 transition-all duration-300";
