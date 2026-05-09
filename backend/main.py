@@ -12,14 +12,22 @@ from models.professor import Professor
 from models.user import User
 from schemas.course import CourseCreate, CourseResponse
 from schemas.enrollment import EnrollmentCreate, EnrollmentResponse
+from schemas.question import (
+    CourseQuestionFeedResponse,
+    ProfessorQuestionStatusUpdate,
+    QuestionDeleteResponse,
+    QuestionStatusResponse,
+)
 from schemas.user import TokenResponse, UserCreate, UserLogin
 from services.course_manager import CourseManager
 from services.enrollment_manager import EnrollmentManager
+from services.question_manager import QuestionManager
 from services.user_manager import UserManager
 
 import models.course
 import models.enrollment
 import models.professor
+import models.question
 import models.user
 
 app = FastAPI()
@@ -1370,186 +1378,44 @@ def get_professor_questions(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Return professor question feed split into student questions and board sessions."""
+    # TODO: Re-enable JWT security
     professor = require_professor(db=db, professor_id=professor_id)
-
-    courses = db.execute(
-        text(
-            """
-            SELECT course_code, course_name
-            FROM courses
-            WHERE professor_id = :professor_id
-            ORDER BY created_at DESC
-            """
-        ),
-        {"professor_id": professor_id},
-    ).mappings().all()
-
-    normalized_course_code = (course_code or "").strip().upper()
-    available_courses = {
-        str(row["course_code"]).strip().upper(): row for row in courses
-    }
-    if normalized_course_code and normalized_course_code not in available_courses:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course not found for this professor",
-        )
-
-    selected_course_code = normalized_course_code
-    if not selected_course_code and courses:
-        selected_course_code = str(courses[0]["course_code"]).strip().upper()
-
-    question_where = [
-        "c.professor_id = :professor_id",
-        "q.status <> 'deleted'",
-        "author.role = 'student'",
-    ]
-    params: dict[str, object] = {"professor_id": professor_id}
-    if selected_course_code:
-        question_where.append("c.course_code = :course_code")
-        params["course_code"] = selected_course_code
-
-    normalized_status_filter = status_filter.strip().lower()
-    if normalized_status_filter in {"answered", "unanswered", "pending"}:
-        question_where.append("q.status = :question_status")
-        params["question_status"] = (
-            "answered" if normalized_status_filter == "answered" else "pending"
-        )
-
-    normalized_search = (search or "").strip()
-    if normalized_search:
-        question_where.append(
-            """
-            (
-                q.title LIKE :search
-                OR q.content LIKE :search
-                OR COALESCE(author.full_name, author.nickname, author.user_id) LIKE :search
-            )
-            """
-        )
-        params["search"] = f"%{normalized_search}%"
-
-    question_rows = db.execute(
-        text(
-            f"""
-            SELECT
-                q.question_id,
-                q.title,
-                q.content,
-                q.status,
-                q.created_at,
-                q.updated_at,
-                q.student_id,
-                b.board_id,
-                b.course_code,
-                c.course_name,
-                COALESCE(author.full_name, author.nickname, author.user_id) AS student_name
-            FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
-            JOIN courses c ON c.course_code = b.course_code
-            JOIN users author ON author.user_id = q.student_id
-            WHERE {' AND '.join(question_where)}
-            ORDER BY q.created_at DESC
-            """
-        ),
-        params,
-    ).mappings().all()
-
-    question_ids = [str(row["question_id"]) for row in question_rows]
-    replies_map = get_question_replies_map(db=db, question_ids=question_ids)
-    status_map = {
-        "pending": "UNANSWERED",
-        "answered": "ANSWERED",
-        "deleted": "DELETED",
-    }
-    student_questions = [
-        {
-            "id": str(row["question_id"]),
-            "title": str(row["title"]),
-            "content": str(row["content"]),
-            "status": status_map.get(str(row["status"]).lower(), "UNANSWERED"),
-            "student_id": str(row["student_id"]),
-            "student_name": str(row["student_name"]),
-            "course_code": str(row["course_code"]),
-            "course_name": str(row["course_name"]),
-            "board_id": str(row["board_id"]),
-            "created_at": serialize_datetime(row["created_at"]),
-            "updated_at": serialize_datetime(row["updated_at"]),
-            "replies": replies_map.get(str(row["question_id"]), []),
-        }
-        for row in question_rows
-    ]
-
-    board_where = ["c.professor_id = :professor_id"]
-    board_params: dict[str, object] = {"professor_id": professor_id}
-    if selected_course_code:
-        board_where.append("c.course_code = :course_code")
-        board_params["course_code"] = selected_course_code
-
-    board_rows = db.execute(
-        text(
-            f"""
-            SELECT
-                b.board_id,
-                b.course_code,
-                c.course_name,
-                b.status,
-                b.created_at,
-                COUNT(q.question_id) AS total_questions,
-                SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
-                SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions
-            FROM interaction_boards b
-            JOIN courses c ON c.course_code = b.course_code
-            LEFT JOIN questions q
-                ON q.board_id = b.board_id
-               AND q.status <> 'deleted'
-            WHERE {' AND '.join(board_where)}
-            GROUP BY b.board_id, b.course_code, c.course_name, b.status, b.created_at
-            ORDER BY b.created_at DESC
-            """
-        ),
-        board_params,
-    ).mappings().all()
-
-    selected_course = available_courses.get(selected_course_code)
-    selected_title = (
-        f"{selected_course_code}: {selected_course['course_name']}"
-        if selected_course
-        else "No active course"
+    feed = QuestionManager.get_professor_question_feed(
+        db=db,
+        professor_id=professor_id,
+        course_code=course_code,
+        status_filter=status_filter,
+        search=search,
     )
-
     return {
         "professor": {
             "id": professor.user_id,
             "name": professor.nickname,
             "full_name": professor.full_name,
         },
-        "courses": [
-            {
-                "course_code": str(row["course_code"]),
-                "course_name": str(row["course_name"]),
-            }
-            for row in courses
-        ],
-        "selected_course_code": selected_course_code,
-        "course": {
-            "code": selected_course_code,
-            "title": selected_title,
-        },
-        "student_questions": student_questions,
-        "board_sessions": [
-            {
-                "board_id": str(row["board_id"]),
-                "course_code": str(row["course_code"]),
-                "course_name": str(row["course_name"]),
-                "status": str(row["status"]).upper(),
-                "created_at": serialize_datetime(row["created_at"]),
-                "total_questions": int(row["total_questions"] or 0),
-                "answered_questions": int(row["answered_questions"] or 0),
-                "unanswered_questions": int(row["unanswered_questions"] or 0),
-            }
-            for row in board_rows
-        ],
+        **feed,
     }
+
+
+@app.get(
+    "/professors/{professor_id}/courses/{course_code}/questions",
+    response_model=CourseQuestionFeedResponse,
+)
+def get_course_question_feed(
+    professor_id: str,
+    course_code: str,
+    search: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> CourseQuestionFeedResponse:
+    """Return all student questions for one professor-owned course."""
+    # TODO: Re-enable JWT security
+    require_professor(db=db, professor_id=professor_id)
+    return QuestionManager.get_course_feed(
+        db=db,
+        professor_id=professor_id,
+        course_code=course_code,
+        search=search,
+    )
 
 
 @app.post(
@@ -1621,114 +1487,44 @@ def create_professor_board_session(
     }
 
 
-@app.patch("/professors/{professor_id}/questions/{question_id}/status")
+@app.patch(
+    "/professors/{professor_id}/questions/{question_id}/status",
+    response_model=QuestionStatusResponse,
+)
 def update_professor_question_status(
     professor_id: str,
     question_id: str,
-    payload: UpdateProfessorQuestionStatusRequest,
+    payload: ProfessorQuestionStatusUpdate,
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> QuestionStatusResponse:
     """Allow professor to mark a question answered or unanswered."""
+    # TODO: Re-enable JWT security
     require_professor(db=db, professor_id=professor_id)
-    normalized_status = payload.status.strip().lower()
-    if normalized_status not in {"answered", "pending", "unanswered"}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="status must be one of: answered, pending, unanswered",
-        )
-    resolved_status = "pending" if normalized_status == "unanswered" else normalized_status
-
-    question = db.execute(
-        text(
-            """
-            SELECT q.question_id
-            FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
-            JOIN courses c ON c.course_code = b.course_code
-            WHERE q.question_id = :question_id
-              AND q.status <> 'deleted'
-              AND c.professor_id = :professor_id
-            LIMIT 1
-            """
-        ),
-        {
-            "question_id": question_id,
-            "professor_id": professor_id,
-        },
-    ).mappings().first()
-    if question is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Question not found for this professor",
-        )
-
-    db.execute(
-        text(
-            """
-            UPDATE questions
-            SET status = :status,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE question_id = :question_id
-            """
-        ),
-        {
-            "status": resolved_status,
-            "question_id": question_id,
-        },
+    return QuestionManager.update_question_status(
+        db=db,
+        professor_id=professor_id,
+        question_id=question_id,
+        status_value=payload.status,
     )
-    db.commit()
-
-    return {
-        "question_id": question_id,
-        "status": "ANSWERED" if resolved_status == "answered" else "UNANSWERED",
-    }
 
 
-@app.delete("/professors/{professor_id}/questions/{question_id}")
+@app.delete(
+    "/professors/{professor_id}/questions/{question_id}",
+    response_model=QuestionDeleteResponse,
+)
 def delete_professor_question(
     professor_id: str,
     question_id: str,
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> QuestionDeleteResponse:
     """Allow professor to soft-delete a question in their own course."""
+    # TODO: Re-enable JWT security
     require_professor(db=db, professor_id=professor_id)
-    question = db.execute(
-        text(
-            """
-            SELECT q.question_id
-            FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
-            JOIN courses c ON c.course_code = b.course_code
-            WHERE q.question_id = :question_id
-              AND q.status <> 'deleted'
-              AND c.professor_id = :professor_id
-            LIMIT 1
-            """
-        ),
-        {
-            "question_id": question_id,
-            "professor_id": professor_id,
-        },
-    ).mappings().first()
-    if question is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Question not found for this professor",
-        )
-
-    db.execute(
-        text(
-            """
-            UPDATE questions
-            SET status = 'deleted',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE question_id = :question_id
-            """
-        ),
-        {"question_id": question_id},
+    return QuestionManager.delete_question_for_professor(
+        db=db,
+        professor_id=professor_id,
+        question_id=question_id,
     )
-    db.commit()
-    return {"message": "Question deleted successfully", "question_id": question_id}
 
 
 @app.post(

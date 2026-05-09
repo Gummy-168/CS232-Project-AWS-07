@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from .course import CourseCreate, CourseResponse
 from .enrollment import EnrollmentCreate, EnrollmentResponse
+from .question import (
+    CourseFeedQuestionResponse,
+    CourseQuestionFeedResponse,
+    ProfessorQuestionStatusUpdate,
+    QuestionDeleteResponse,
+    QuestionReplyResponse,
+    QuestionStatusResponse,
+)
 from .user import TokenResponse, UserCreate, UserLogin
 
 __all__ = [
@@ -14,4 +22,10 @@ __all__ = [
     "CourseResponse",
     "EnrollmentCreate",
     "EnrollmentResponse",
+    "QuestionReplyResponse",
+    "CourseFeedQuestionResponse",
+    "CourseQuestionFeedResponse",
+    "ProfessorQuestionStatusUpdate",
+    "QuestionStatusResponse",
+    "QuestionDeleteResponse",
 ]
