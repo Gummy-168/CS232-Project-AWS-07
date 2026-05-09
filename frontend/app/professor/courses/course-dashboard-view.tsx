@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import Header from "@/app/components/Header";
+import ConfirmCloseBoardModal from "@/app/components/confirm-close-board-modal";
 import CreateCourse from "../../components/createcourse";
 import CreateSection from "../../components/createsection";
 import GenerateJoinCode from "../../components/generatejoincode";
@@ -160,6 +161,9 @@ export default function ProfessorCourseDashboardView() {
   const [filter, setFilter] = useState<TimelineFilter>("all");
   const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<ReplyDrafts>({});
+  const [boardToClose, setBoardToClose] = useState<ProfessorBoardSession | null>(null);
+  const [closeBoardError, setCloseBoardError] = useState("");
+  const [isClosingBoard, setIsClosingBoard] = useState(false);
 
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
@@ -498,15 +502,33 @@ export default function ProfessorCourseDashboardView() {
     if (!session?.userId) {
       return;
     }
-    if (!window.confirm("Close this board? Students will no longer post new questions to it.")) {
-      return;
-    }
+
+    setIsClosingBoard(true);
+    setCloseBoardError("");
     try {
       await closeProfessorBoard(session.userId, boardId);
+      setBoardToClose(null);
       refresh();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Close board failed");
+      setCloseBoardError(
+        err instanceof Error ? err.message : "Close board failed",
+      );
+    } finally {
+      setIsClosingBoard(false);
     }
+  };
+
+  const handleRequestCloseBoard = (board: ProfessorBoardSession) => {
+    setBoardToClose(board);
+    setCloseBoardError("");
+  };
+
+  const handleDismissCloseBoard = () => {
+    if (isClosingBoard) {
+      return;
+    }
+    setBoardToClose(null);
+    setCloseBoardError("");
   };
 
   const handleGenerateJoinCode = async () => {
@@ -632,6 +654,25 @@ export default function ProfessorCourseDashboardView() {
         error={joinCodeError}
         onClose={() => setIsJoinCodeModalOpen(false)}
         onGenerate={handleGenerateJoinCode}
+      />
+      <ConfirmCloseBoardModal
+        isOpen={!!boardToClose}
+        boardTitle={
+          boardToClose?.board_title || boardToClose?.board_id || "Active Board"
+        }
+        courseCode={data?.course.code || selectedCourseCode}
+        sectionCode={boardToClose?.section_code || selectedSectionCode}
+        questionCount={boardToClose?.total_questions ?? totalQuestions}
+        pendingCount={boardToClose?.unanswered_questions ?? pendingCount}
+        isSubmitting={isClosingBoard}
+        error={closeBoardError}
+        onClose={handleDismissCloseBoard}
+        onConfirm={() => {
+          if (!boardToClose) {
+            return;
+          }
+          void handleCloseBoard(boardToClose.board_id);
+        }}
       />
 
       <main className="pb-16 pt-44 xl:pt-32">
@@ -811,7 +852,7 @@ export default function ProfessorCourseDashboardView() {
                         {latestBoard?.status === "ACTIVE" ? (
                           <button
                             type="button"
-                            onClick={() => handleCloseBoard(latestBoard.board_id)}
+                            onClick={() => handleRequestCloseBoard(latestBoard)}
                             className="inline-flex items-center justify-center rounded-2xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
                           >
                             Close Board
