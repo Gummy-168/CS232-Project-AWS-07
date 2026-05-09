@@ -112,6 +112,7 @@ export interface StudentQuestion {
   id: string;
   course_code: string;
   course_name: string;
+  board_id?: string;
   section_id?: string | null;
   section_code?: string | null;
   title: string;
@@ -246,6 +247,7 @@ interface UpdateNicknameResponse {
 
 export interface CreateStudentQuestionPayload {
   course_code: string;
+  board_id?: string;
   section_code?: string;
   title: string;
   detail?: string;
@@ -362,6 +364,14 @@ async function apiRequest<TResponse>(
   return (await response.json()) as TResponse;
 }
 
+function buildRoleHeaders(token: string, role?: UserRole) {
+  return {
+    Authorization: `Bearer ${token}`,
+    "X-Role": role ?? "student",
+    "X-User-Role": role ?? "student",
+  };
+}
+
 export async function registerUser(payload: RegisterPayload) {
   return apiRequest<RegisterResponse>("/register", {
     method: "POST",
@@ -416,6 +426,7 @@ export async function getStudentQuestions(
   params?: {
     scope?: "all" | "mine";
     courseCode?: string;
+    boardId?: string;
     sectionCode?: string;
     status?: "all" | "answered" | "unanswered";
     search?: string;
@@ -428,6 +439,9 @@ export async function getStudentQuestions(
   }
   if (params?.courseCode?.trim()) {
     query.set("course_code", params.courseCode.trim().toUpperCase());
+  }
+  if (params?.boardId?.trim()) {
+    query.set("board_id", params.boardId.trim());
   }
   if (params?.sectionCode?.trim()) {
     query.set("section_code", params.sectionCode.trim().toUpperCase());
@@ -459,6 +473,32 @@ export async function createStudentQuestion(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export async function getBoardQuestions(
+  boardId: string,
+  token: string,
+  role?: UserRole,
+) {
+  const response = await apiRequest<unknown>(`/boards/${boardId.trim()}/questions`, {
+    method: "GET",
+    headers: buildRoleHeaders(token, role),
+  });
+
+  if (Array.isArray(response)) {
+    return { questions: response as StudentQuestion[] };
+  }
+
+  if (
+    response &&
+    typeof response === "object" &&
+    "questions" in response &&
+    Array.isArray((response as { questions?: unknown }).questions)
+  ) {
+    return response as { questions: StudentQuestion[] };
+  }
+
+  return { questions: [] as StudentQuestion[] };
 }
 
 export async function updateStudentQuestion(
@@ -721,15 +761,17 @@ export async function createQuestion(
     tags: string[];
     is_anonymous: boolean;
     course_code: string;
+    board_id: string;
   },
   token: string,
   studentId: string,
+  role?: UserRole,
 ) {
   const response = await fetch(`${API_BASE_URL}/students/${studentId}/questions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
+      ...buildRoleHeaders(token, role),
     },
     body: JSON.stringify(payload),
   });

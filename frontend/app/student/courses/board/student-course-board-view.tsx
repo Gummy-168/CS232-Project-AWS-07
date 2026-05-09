@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
-import { ChevronLeft, Clock3, MessageCircleMore, Search } from "lucide-react";
+import { ChevronLeft, Clock3, MessageCircleMore, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import AskModal from "../../../components/askmodal";
 import Header from "../../../components/Header";
 import JoinCourse from "../../../components/joincourse";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
+  createQuestion,
+  getBoardQuestions,
   type StudentCourseBoardData,
   type StudentQuestion,
   getStudentCourseBoard,
@@ -108,40 +111,67 @@ export default function StudentCourseBoardView() {
   const { session } = useAuthSession();
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
+  const selectedBoardId = searchParams.get("board_id")?.trim() ?? "";
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isAskModalOpen, setIsAskModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<BoardFilter>("All");
   const [courseBoard, setCourseBoard] = useState<StudentCourseBoardData | null>(null);
   const [questions, setQuestions] = useState<StudentQuestion[]>([]);
 
   useEffect(() => {
-    if (!session?.userId || !selectedCourseCode) {
+    if (!session?.userId || !selectedCourseCode || !selectedBoardId) {
+      setIsLoading(false);
       return;
     }
 
-    Promise.all([
+    setIsLoading(true);
+    Promise.allSettled([
       getStudentCourseBoard(session.userId, selectedCourseCode),
+      getBoardQuestions(selectedBoardId, session.accessToken, session.role),
       getStudentQuestions(session.userId, {
         scope: "all",
         courseCode: selectedCourseCode,
+        boardId: selectedBoardId,
       }),
-    ])
-      .then(([boardResponse, questionResponse]) => {
-        setCourseBoard(boardResponse);
-        setQuestions(
-          questionResponse.questions.filter((question) => question.status !== "DELETED"),
-        );
-      })
-      .catch(() => {
-        setCourseBoard(null);
-        setQuestions([]);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, [selectedCourseCode, session?.userId]);
+    ]).then(([boardResult, boardQuestionsResult, questionResult]) => {
+      const boardResponse =
+        boardResult.status === "fulfilled" ? boardResult.value : null;
+      const boardQuestions =
+        boardQuestionsResult.status === "fulfilled"
+          ? boardQuestionsResult.value.questions
+          : [];
+      const fallbackQuestions =
+        questionResult.status === "fulfilled"
+          ? questionResult.value.questions.filter(
+              (question) => question.board_id === selectedBoardId,
+            )
+          : [];
+
+      setCourseBoard(boardResponse);
+      setQuestions(
+        (boardQuestions.length > 0 || boardQuestionsResult.status === "fulfilled"
+          ? boardQuestions
+          : fallbackQuestions
+        ).filter((question) => question.status !== "DELETED"),
+      );
+      if (boardResult.status === "rejected" && questionResult.status === "rejected") {
+        const message =
+          boardResult.reason instanceof Error
+            ? boardResult.reason.message
+            : questionResult.reason instanceof Error
+              ? questionResult.reason.message
+              : "Failed to load board";
+        setError(message);
+      } else {
+        setError("");
+      }
+      setIsLoading(false);
+    });
+  }, [selectedBoardId, selectedCourseCode, session?.accessToken, session?.role, session?.userId]);
 
   const filteredQuestions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -162,6 +192,60 @@ export default function StudentCourseBoardView() {
     });
   }, [filter, questions, search]);
 
+  const activeBoard = courseBoard?.active_board ?? null;
+  const isBoardActive =
+    (activeBoard?.status ?? "").trim().toLowerCase() === "active" &&
+    activeBoard?.board_id === selectedBoardId;
+  const canAskQuestion = Boolean(isBoardActive);
+
+  const handleCreateQuestion = async (payload: {
+    title: string;
+    detail: string;
+    tags: string[];
+    anonymous: boolean;
+  }) => {
+    const studentId = session?.userId || "stu001";
+    if (!session?.accessToken || !selectedCourseCode || !selectedBoardId) {
+      return;
+    }
+
+    try {
+      const created = await createQuestion(
+        {
+          title: payload.title,
+          content: payload.detail || payload.title,
+          tags: payload.tags,
+          is_anonymous: payload.anonymous,
+          course_code: selectedCourseCode,
+          board_id: selectedBoardId,
+        },
+        session.accessToken,
+        studentId,
+        session.role,
+      );
+      setQuestions((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      setCourseBoard((prev) =>
+        prev && prev.active_board
+          ? {
+              ...prev,
+              active_board:
+                prev.active_board.board_id === selectedBoardId
+                  ? {
+                      ...prev.active_board,
+                      total_questions: prev.active_board.total_questions + 1,
+                      unanswered_questions: prev.active_board.unanswered_questions + 1,
+                    }
+                  : prev.active_board,
+            }
+          : prev,
+      );
+      setIsAskModalOpen(false);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to post question";
+      setError(message);
+    }
+  };
+
   if (!selectedCourseCode || !session?.userId) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#FCF9F8] text-lg text-slate-500">
@@ -178,7 +262,13 @@ export default function StudentCourseBoardView() {
     );
   }
 
-  const activeBoard = courseBoard?.active_board ?? null;
+  if (!selectedBoardId) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FCF9F8] text-lg text-slate-500">
+        Missing board_id in the URL.
+      </div>
+    );
+  }
   const resolvedProfessorName =
     courseBoard?.course.professor_full_name?.trim() ||
     courseBoard?.course.professor_name ||
@@ -201,6 +291,18 @@ export default function StudentCourseBoardView() {
       <JoinCourse
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
+      />
+      <AskModal
+        isOpen={isAskModalOpen}
+        onClose={() => setIsAskModalOpen(false)}
+        onAdd={handleCreateQuestion}
+        courseTitle={
+          activeBoard
+            ? `${courseBoard?.course.course_code || selectedCourseCode} · ${
+                activeBoard.board_title || activeBoard.board_id
+              }`
+            : selectedCourseCode
+        }
       />
 
       <main className="pb-10 pt-40">
@@ -241,12 +343,24 @@ export default function StudentCourseBoardView() {
                   <MessageCircleMore size={16} />
                   {activeBoard.total_questions} questions
                 </div>
-                <span className="rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-semibold text-emerald-700">
-                  Active
+                <span
+                  className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+                    isBoardActive
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {activeBoard.status || "Active"}
                 </span>
               </div>
             )}
           </section>
+
+          {error && (
+            <div className="rounded-[28px] border border-rose-100 bg-rose-50 px-6 py-4 text-sm font-medium text-rose-600">
+              {error}
+            </div>
+          )}
 
           {activeBoard ? (
             <>
@@ -286,19 +400,32 @@ export default function StudentCourseBoardView() {
                   </button>
                 ))}
 
-                <label className="relative ml-auto w-full max-w-[460px]">
-                  <Search
-                    className="absolute left-5 top-1/2 -translate-y-1/2 text-[#A08ECF]"
-                    size={22}
-                  />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search questions or answers..."
-                    className="h-16 w-full rounded-full border border-slate-200 bg-white pl-14 pr-6 text-lg text-slate-700 shadow-sm outline-none transition focus:border-[#C4B5FD]"
-                  />
-                </label>
+                <div className="ml-auto flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                  {canAskQuestion && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAskModalOpen(true)}
+                      className="inline-flex h-16 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] px-6 text-base font-semibold text-white shadow-lg shadow-purple-200 transition hover:scale-[1.01]"
+                    >
+                      <Plus size={20} />
+                      Ask Question
+                    </button>
+                  )}
+
+                  <label className="relative w-full max-w-[460px]">
+                    <Search
+                      className="absolute left-5 top-1/2 -translate-y-1/2 text-[#A08ECF]"
+                      size={22}
+                    />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search questions or answers..."
+                      className="h-16 w-full rounded-full border border-slate-200 bg-white pl-14 pr-6 text-lg text-slate-700 shadow-sm outline-none transition focus:border-[#C4B5FD]"
+                    />
+                  </label>
+                </div>
               </section>
 
               <section className="space-y-5">
