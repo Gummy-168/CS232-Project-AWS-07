@@ -4,7 +4,6 @@ from uuid import uuid4
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -12,11 +11,14 @@ from database import Base, SessionLocal, engine
 from models.professor import Professor
 from models.user import User
 from schemas.course import CourseCreate, CourseResponse
+from schemas.enrollment import EnrollmentCreate, EnrollmentResponse
 from schemas.user import TokenResponse, UserCreate, UserLogin
 from services.course_manager import CourseManager
+from services.enrollment_manager import EnrollmentManager
 from services.user_manager import UserManager
 
 import models.course
+import models.enrollment
 import models.professor
 import models.user
 
@@ -312,12 +314,6 @@ with engine.begin() as conn:
             """
         )
     )
-
-
-class JoinCourseRequest(BaseModel):
-    """Request schema for student course enrollment."""
-
-    course_code: str = Field(min_length=1, max_length=50)
 
 
 class CreateQuestionRequest(BaseModel):
@@ -698,65 +694,30 @@ def get_student_courses(
     return {"courses": courses}
 
 
-@app.post("/students/{student_id}/courses/join", status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/students/{student_id}/courses/join",
+    response_model=EnrollmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def join_student_course(
     student_id: str,
-    payload: JoinCourseRequest,
+    payload: EnrollmentCreate,
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> EnrollmentResponse:
     """Enroll a student into a course by course code."""
-    require_student(db=db, student_id=student_id)
-    normalized_course_code = payload.course_code.strip().upper()
+    # TODO: Re-enable JWT security
+    resolved_student_id = (payload.student_id or student_id).strip()
+    student = require_student(db=db, student_id=resolved_student_id)
 
-    course = db.execute(
-        text(
-            """
-            SELECT course_code, course_name, is_active
-            FROM courses
-            WHERE course_code = :course_code
-            """
-        ),
-        {"course_code": normalized_course_code},
-    ).mappings().first()
-
-    if course is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Course code not found",
-        )
-
-    if not bool(course["is_active"]):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This course is not active",
-        )
-
-    try:
-        db.execute(
-            text(
-                """
-                INSERT INTO enrollments (student_id, course_code)
-                VALUES (:student_id, :course_code)
-                """
-            ),
-            {
-                "student_id": student_id,
-                "course_code": normalized_course_code,
-            },
-        )
-        db.commit()
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Student already joined this course",
-        ) from exc
-
-    return {
-        "message": "Joined course successfully",
-        "course_code": normalized_course_code,
-        "course_name": str(course["course_name"]),
-    }
+    enrollment_data = EnrollmentCreate(
+        student_id=resolved_student_id,
+        course_code=payload.course_code,
+    )
+    return EnrollmentManager.enroll_student(
+        db=db,
+        enrollment_data=enrollment_data,
+        student=student,
+    )
 
 
 @app.get("/students/{student_id}/questions")

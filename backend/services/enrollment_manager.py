@@ -2,83 +2,94 @@ from __future__ import annotations
 
 """Enrollment service for the Classroom Q&A System."""
 
-from datetime import datetime
+from fastapi import HTTPException, status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from models.course import Course
 from models.enrollment import Enrollment
 from models.user import User
+from schemas.enrollment import EnrollmentCreate
 
 
 class EnrollmentManager:
     """Handles enrollment-related operations."""
 
-    def __init__(self) -> None:
-        self._enrollments: list[Enrollment] = []
-        self._next_enrollment_id = 1
-
+    @classmethod
     def enroll_student(
-        self,
+        cls,
+        db: Session,
+        enrollment_data: EnrollmentCreate,
         student: User,
-        course: Course,
     ) -> Enrollment:
-        """Link a student with a course."""
+        """Enroll a student in a course if the request is valid."""
         if student.role != "student":
-            raise ValueError("Only students can be enrolled in courses.")
-        if not course.verify_enrollment_eligibility(
-            already_enrolled=self._has_enrollment(student.user_id, course.course_code)
-        ):
-            raise ValueError("Student is not eligible to enroll in this course.")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only students can join courses",
+            )
+
+        normalized_course_code = enrollment_data.course_code.strip().upper()
+        course: Course | None = (
+            db.query(Course).filter(Course.course_code == normalized_course_code).first()
+        )
+        if course is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course code not found",
+            )
+
+        existing_enrollment: Enrollment | None = (
+            db.query(Enrollment)
+            .filter(
+                Enrollment.student_id == student.user_id,
+                Enrollment.course_code == normalized_course_code,
+            )
+            .first()
+        )
+        if existing_enrollment is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Student already joined this course",
+            )
 
         enrollment = Enrollment(
-            enrollment_id=self._next_enrollment_id,
             student_id=student.user_id,
-            course_code=course.course_code,
-            join_date=datetime.utcnow(),
-            student=student,
-            course=course,
+            course_code=normalized_course_code,
         )
-        self._enrollments.append(enrollment)
-        self._next_enrollment_id += 1
+        enrollment.normalize_state()
+
+        db.add(enrollment)
+        try:
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Student already joined this course",
+            ) from exc
+        except Exception:
+            db.rollback()
+            raise
+        db.refresh(enrollment)
+
         return enrollment
 
-    def get_enrollment_by_id(self, enrollment_id: int) -> Enrollment | None:
-        """Retrieve enrollment details by identifier."""
-        return next(
-            (
-                enrollment
-                for enrollment in self._enrollments
-                if enrollment.enrollment_id == enrollment_id
-            ),
-            None,
-        )
-
-    def get_enrollments_by_student(self, student_id: str) -> list[Enrollment]:
-        """Retrieve enrollments for a student."""
-        return [
-            enrollment
-            for enrollment in self._enrollments
-            if enrollment.student_id == student_id
-        ]
-
-    def get_enrollments_by_course(self, course_code: str) -> list[Enrollment]:
-        """Retrieve enrollments for a course."""
+    @classmethod
+    def get_enrollment_by_student_and_course(
+        cls,
+        db: Session,
+        student_id: str,
+        course_code: str,
+    ) -> Enrollment | None:
+        """Retrieve one enrollment by student and course."""
         normalized_code = course_code.strip().upper()
-        return [
-            enrollment
-            for enrollment in self._enrollments
-            if enrollment.course_code.strip().upper() == normalized_code
-        ]
-
-    @property
-    def enrollments(self) -> list[Enrollment]:
-        """Expose a copy of managed enrollments."""
-        return list(self._enrollments)
-
-    def _has_enrollment(self, student_id: str, course_code: str) -> bool:
-        """Check whether a student is already enrolled in a course."""
-        normalized_code = course_code.strip().upper()
-        return any(
-            enrollment.student_id == student_id
-            and enrollment.course_code.strip().upper() == normalized_code
-            for enrollment in self._enrollments
+        normalized_student_id = student_id.strip()
+        return (
+            db.query(Enrollment)
+            .filter(
+                Enrollment.student_id == normalized_student_id,
+                Enrollment.course_code == normalized_code,
+            )
+            .first()
         )
