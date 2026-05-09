@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CornerDownLeft, Eye, Search } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/app/components/Header";
 import CreateCourse from "../../components/createcourse";
 import { useAuthSession } from "../../hooks/useAuthSession";
@@ -12,6 +13,7 @@ import {
   deleteProfessorQuestion,
   getProfessorQuestions,
   type ProfessorBoardSession,
+  type ProfessorCourseResponse,
   type ProfessorQuestionReply,
   type ProfessorQuestionsData,
   type ProfessorStudentQuestion,
@@ -74,17 +76,42 @@ function sortTimeline(items: TimelineItem[]) {
 }
 
 export default function ProfessorQuestionsPage() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { session } = useAuthSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<QuestionFilter>("all");
-  const [selectedCourseCode, setSelectedCourseCode] = useState("");
+  const selectedCourseCode =
+    searchParams.get("course_code")?.trim().toUpperCase() || "";
   const [data, setData] = useState<ProfessorQuestionsData | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<ReplyDrafts>({});
+
+  useEffect(() => {
+    const handleCourseCreated = (event: Event) => {
+      const createdCourse = (event as CustomEvent<ProfessorCourseResponse>).detail;
+      if (!createdCourse?.course_code) {
+        return;
+      }
+      setLoading(true);
+      router.replace(
+        `${pathname}?course_code=${encodeURIComponent(
+          createdCourse.course_code.trim().toUpperCase(),
+        )}`,
+      );
+      setRefreshToken((prev) => prev + 1);
+    };
+
+    window.addEventListener("askademy-course-created", handleCourseCreated);
+    return () => {
+      window.removeEventListener("askademy-course-created", handleCourseCreated);
+    };
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!session?.userId) {
@@ -102,7 +129,11 @@ export default function ProfessorQuestionsPage() {
         setError("");
         setData(response);
         if (!selectedCourseCode && response.selected_course_code) {
-          setSelectedCourseCode(response.selected_course_code);
+          router.replace(
+            `${pathname}?course_code=${encodeURIComponent(
+              response.selected_course_code.trim().toUpperCase(),
+            )}`,
+          );
         }
       })
       .catch((err: unknown) => {
@@ -113,7 +144,15 @@ export default function ProfessorQuestionsPage() {
       .finally(() => {
         setLoading(false);
       });
-  }, [session?.userId, selectedCourseCode, filter, search, refreshToken]);
+  }, [
+    pathname,
+    router,
+    session?.userId,
+    selectedCourseCode,
+    filter,
+    search,
+    refreshToken,
+  ]);
 
   const timelineItems = useMemo(() => {
     if (!data) {
@@ -217,7 +256,10 @@ export default function ProfessorQuestionsPage() {
         onJoinCourse={() => setIsModalOpen(true)}
         mode="questions"
       />
-      <CreateCourse isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreateCourse
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
 
       <main className="px-6 pt-[126px] pb-12 w-full">
         <section className="bg-white rounded-[28px] shadow-sm border border-slate-100 mb-8 p-8 max-w-5xl mx-auto text-center">
@@ -232,7 +274,16 @@ export default function ProfessorQuestionsPage() {
               value={selectedCourseCode}
               onChange={(event) => {
                 setLoading(true);
-                setSelectedCourseCode(event.target.value);
+                const nextCourseCode = event.target.value.trim().toUpperCase();
+                if (nextCourseCode) {
+                  router.replace(
+                    `${pathname}?course_code=${encodeURIComponent(
+                      nextCourseCode,
+                    )}`,
+                  );
+                } else {
+                  router.replace(pathname);
+                }
               }}
               className="min-w-[280px] max-w-full px-4 py-2.5 rounded-full border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none"
             >
@@ -284,7 +335,16 @@ export default function ProfessorQuestionsPage() {
               value={selectedCourseCode}
               onChange={(event) => {
                 setLoading(true);
-                setSelectedCourseCode(event.target.value);
+                const nextCourseCode = event.target.value.trim().toUpperCase();
+                if (nextCourseCode) {
+                  router.replace(
+                    `${pathname}?course_code=${encodeURIComponent(
+                      nextCourseCode,
+                    )}`,
+                  );
+                } else {
+                  router.replace(pathname);
+                }
               }}
               className="h-9 rounded-full border border-slate-200 bg-white px-4 pr-8 text-sm text-slate-500 focus:outline-none"
             >

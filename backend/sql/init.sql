@@ -54,6 +54,23 @@ CREATE TABLE IF NOT EXISTS enrollments (
         ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS course_sections (
+    section_id VARCHAR(50) PRIMARY KEY,
+    course_code VARCHAR(50) NOT NULL,
+    section_code VARCHAR(50) NOT NULL,
+    meeting_days VARCHAR(100) NOT NULL DEFAULT '',
+    start_time VARCHAR(5) NOT NULL,
+    end_time VARCHAR(5) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_course_sections_course_code (course_code),
+    UNIQUE KEY uq_course_sections_course_section (course_code, section_code),
+    CONSTRAINT fk_course_sections_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS interaction_boards (
     board_id VARCHAR(50) PRIMARY KEY,
     course_code VARCHAR(50) NOT NULL,
@@ -216,6 +233,19 @@ WHERE role = 'professor';
 INSERT IGNORE INTO courses (course_code, course_name, professor_id, is_active)
 VALUES
     ('CS232', 'Smart Classroom Interaction System', 'prof001', TRUE);
+
+INSERT IGNORE INTO course_sections (
+    section_id,
+    course_code,
+    section_code,
+    meeting_days,
+    start_time,
+    end_time,
+    is_active
+)
+VALUES
+    ('sec-cs232-100001', 'CS232', 'SEC 100001', 'Monday,Wednesday', '13:00', '16:00', TRUE),
+    ('sec-cs232-100002', 'CS232', 'SEC 100002', 'Tuesday,Thursday', '13:00', '16:00', TRUE);
 
 INSERT IGNORE INTO enrollments (student_id, course_code)
 VALUES

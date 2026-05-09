@@ -53,6 +53,40 @@ interface RegisterResponse {
   message: string;
 }
 
+export interface CreateProfessorCoursePayload {
+  course_code: string;
+  course_name: string;
+  professor_id: string;
+  is_active?: boolean;
+}
+
+export interface ProfessorCourseResponse {
+  course_code: string;
+  course_name: string;
+  professor_id: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface CreateProfessorSectionPayload {
+  section_code: string;
+  meeting_days: string[];
+  start_time: string;
+  end_time: string;
+  is_active?: boolean;
+}
+
+export interface ProfessorSectionResponse {
+  section_id: string;
+  course_code: string;
+  section_code: string;
+  meeting_days: string[];
+  start_time: string;
+  end_time: string;
+  is_active: boolean;
+  created_at: string;
+}
+
 export interface StudentProfile {
   user_id: string;
   full_name: string;
@@ -233,6 +267,7 @@ export interface ProfessorQuestionsData {
     code: string;
     title: string;
   };
+  sections: ProfessorSectionResponse[];
   student_questions: ProfessorStudentQuestion[];
   board_sessions: ProfessorBoardSession[];
 }
@@ -381,6 +416,27 @@ export async function getStudentAnalytics(studentId: string) {
   return apiRequest<StudentAnalyticsData>(`/students/${studentId}/analytics`, {
     method: "GET",
   });
+}
+
+export async function createProfessorCourse(payload: CreateProfessorCoursePayload) {
+  return apiRequest<ProfessorCourseResponse>("/courses", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createProfessorSection(
+  professorId: string,
+  courseCode: string,
+  payload: CreateProfessorSectionPayload,
+) {
+  return apiRequest<ProfessorSectionResponse>(
+    `/professors/${professorId}/courses/${courseCode.trim().toUpperCase()}/sections`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export async function getProfessorQuestions(

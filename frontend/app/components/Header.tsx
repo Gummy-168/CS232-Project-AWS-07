@@ -112,7 +112,7 @@ export default function Header({
   };
 
   return (
-    <header className="fixed top-0 left-67 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
+    <header className="fixed top-0 left-64 right-0 flex items-center justify-between px-8 z-10 py-10 bg-[#F9F9F9]">
       <div className="space-y-1">{renderLeft()}</div>
 
       <div className="flex items-center gap-4">

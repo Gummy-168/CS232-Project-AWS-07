@@ -1,4 +1,6 @@
+/* eslint-disable */
 "use client";
+export { default } from "./course-dashboard-view";
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import CreateCourse from "../../components/createcourse";
@@ -184,7 +186,7 @@ const INITIAL_ACTIVITIES = [
 
 /* ---------------- MAIN COMPONENT ---------------- */
 
-export default function ProfessorDashboard() {
+export function LegacyProfessorDashboardMock() {
   const router = useRouter();
   const [data, setData] = useState(null);
   const [activities, setActivities] = useState(INITIAL_ACTIVITIES);

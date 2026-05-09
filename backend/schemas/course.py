@@ -26,3 +26,28 @@ class CourseResponse(BaseModel):
     professor_id: str
     is_active: bool
     created_at: datetime
+
+
+class CourseSectionCreate(BaseModel):
+    """Request schema for creating a course section."""
+
+    section_code: str = Field(min_length=1, max_length=50)
+    meeting_days: list[str] = Field(default_factory=list)
+    start_time: str = Field(min_length=1, max_length=5)
+    end_time: str = Field(min_length=1, max_length=5)
+    is_active: bool = True
+
+
+class CourseSectionResponse(BaseModel):
+    """Response schema for course section data."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    section_id: str
+    course_code: str
+    section_code: str
+    meeting_days: list[str]
+    start_time: str
+    end_time: str
+    is_active: bool
+    created_at: datetime

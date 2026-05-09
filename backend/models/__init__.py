@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .board import InteractionBoard
 from .course import Course
+from .course_section import CourseSection
 from .enrollment import Enrollment
 from .professor import Professor
 from .question import Question
@@ -13,6 +14,7 @@ __all__ = [
     "User",
     "Professor",
     "Course",
+    "CourseSection",
     "Enrollment",
     "InteractionBoard",
     "Question",

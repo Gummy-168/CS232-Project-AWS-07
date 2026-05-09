@@ -49,6 +49,19 @@ INSERT IGNORE INTO courses (course_code, course_name, professor_id, is_active)
 VALUES
     ('CS232', 'Smart Classroom Interaction System', 'prof001', TRUE);
 
+INSERT IGNORE INTO course_sections (
+    section_id,
+    course_code,
+    section_code,
+    meeting_days,
+    start_time,
+    end_time,
+    is_active
+)
+VALUES
+    ('sec-cs232-100001', 'CS232', 'SEC 100001', 'Monday,Wednesday', '13:00', '16:00', TRUE),
+    ('sec-cs232-100002', 'CS232', 'SEC 100002', 'Tuesday,Thursday', '13:00', '16:00', TRUE);
+
 INSERT IGNORE INTO enrollments (student_id, course_code)
 VALUES
     ('stu001', 'CS232'),

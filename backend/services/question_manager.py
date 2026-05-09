@@ -276,6 +276,19 @@ class QuestionManager:
             if selected_course
             else "No active course"
         )
+        section_rows = []
+        if selected_course_code:
+            section_rows = db.execute(
+                text(
+                    """
+                    SELECT section_id, section_code, meeting_days, start_time, end_time, is_active
+                    FROM course_sections
+                    WHERE course_code = :course_code
+                    ORDER BY section_code ASC, created_at ASC
+                    """
+                ),
+                {"course_code": selected_course_code},
+            ).mappings().all()
 
         return {
             "courses": [
@@ -290,6 +303,21 @@ class QuestionManager:
                 "code": selected_course_code,
                 "title": selected_title,
             },
+            "sections": [
+                {
+                    "section_id": str(row["section_id"]),
+                    "section_code": str(row["section_code"]),
+                    "meeting_days": [
+                        day.strip()
+                        for day in str(row["meeting_days"] or "").split(",")
+                        if day.strip()
+                    ],
+                    "start_time": str(row["start_time"]),
+                    "end_time": str(row["end_time"]),
+                    "is_active": bool(row["is_active"]),
+                }
+                for row in section_rows
+            ],
             "student_questions": student_questions,
             "board_sessions": [
                 {

@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 from database import Base, SessionLocal, engine
 from models.professor import Professor
 from models.user import User
-from schemas.course import CourseCreate, CourseResponse
+from schemas.course import (
+    CourseCreate,
+    CourseResponse,
+    CourseSectionCreate,
+    CourseSectionResponse,
+)
 from schemas.enrollment import EnrollmentCreate, EnrollmentResponse
 from schemas.question import (
     CourseQuestionFeedResponse,
@@ -25,6 +30,7 @@ from services.question_manager import QuestionManager
 from services.user_manager import UserManager
 
 import models.course
+import models.course_section
 import models.enrollment
 import models.professor
 import models.question
@@ -322,6 +328,28 @@ with engine.begin() as conn:
             """
         )
     )
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS course_sections (
+                section_id VARCHAR(50) PRIMARY KEY,
+                course_code VARCHAR(50) NOT NULL,
+                section_code VARCHAR(50) NOT NULL,
+                meeting_days VARCHAR(100) NOT NULL DEFAULT '',
+                start_time VARCHAR(5) NOT NULL,
+                end_time VARCHAR(5) NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_course_sections_course_code (course_code),
+                CONSTRAINT uq_course_sections_course_section UNIQUE (course_code, section_code),
+                CONSTRAINT fk_course_sections_course
+                    FOREIGN KEY (course_code) REFERENCES courses(course_code)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE
+            )
+            """
+        )
+    )
 
 
 class CreateQuestionRequest(BaseModel):
@@ -606,6 +634,82 @@ def create_course(
         db=db,
         course_data=course_data,
         professor=professor,
+    )
+
+
+@app.get(
+    "/professors/{professor_id}/courses/{course_code}/sections",
+    response_model=list[CourseSectionResponse],
+)
+def list_course_sections(
+    professor_id: str,
+    course_code: str,
+    db: Session = Depends(get_db),
+) -> list[CourseSectionResponse]:
+    """List sections under one professor-owned course."""
+    professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
+    if professor is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    sections = CourseManager.list_sections(
+        db=db,
+        professor=professor,
+        course_code=course_code,
+    )
+    return [
+        CourseSectionResponse(
+            section_id=section.section_id,
+            course_code=section.course_code,
+            section_code=section.section_code,
+            meeting_days=[
+                day.strip() for day in section.meeting_days.split(",") if day.strip()
+            ],
+            start_time=section.start_time,
+            end_time=section.end_time,
+            is_active=section.is_active,
+            created_at=section.created_at,
+        )
+        for section in sections
+    ]
+
+
+@app.post(
+    "/professors/{professor_id}/courses/{course_code}/sections",
+    response_model=CourseSectionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_course_section(
+    professor_id: str,
+    course_code: str,
+    section_data: CourseSectionCreate,
+    db: Session = Depends(get_db),
+) -> CourseSectionResponse:
+    """Create a section under one professor-owned course."""
+    professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
+    if professor is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    section = CourseManager.create_section(
+        db=db,
+        professor=professor,
+        course_code=course_code,
+        section_data=section_data,
+    )
+    return CourseSectionResponse(
+        section_id=section.section_id,
+        course_code=section.course_code,
+        section_code=section.section_code,
+        meeting_days=[day.strip() for day in section.meeting_days.split(",") if day.strip()],
+        start_time=section.start_time,
+        end_time=section.end_time,
+        is_active=section.is_active,
+        created_at=section.created_at,
     )
 
 

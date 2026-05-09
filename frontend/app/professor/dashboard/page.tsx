@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
+"use client";
 
-export default function ProfessorDashboardAliasPage() {
-  redirect("/professor/questions");
-}
+export { default } from "../questions/page";
