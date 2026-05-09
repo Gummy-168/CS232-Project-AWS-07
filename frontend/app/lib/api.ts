@@ -223,28 +223,6 @@ export interface StudentCourseBoardData {
     answered_questions: number;
     unanswered_questions: number;
   } | null;
-  general_board?: {
-    board_id: string;
-    board_title?: string | null;
-    section_id?: string | null;
-    section_code?: string | null;
-    status: string;
-    created_at: string | null;
-    total_questions: number;
-    answered_questions: number;
-    unanswered_questions: number;
-  } | null;
-  live_board?: {
-    board_id: string;
-    board_title?: string | null;
-    section_id?: string | null;
-    section_code?: string | null;
-    status: string;
-    created_at: string | null;
-    total_questions: number;
-    answered_questions: number;
-    unanswered_questions: number;
-  } | null;
 }
 
 interface StudentQuestionsResponse {
