@@ -11,7 +11,7 @@ class EnrollmentCreate(BaseModel):
     """Request schema for joining a course."""
 
     student_id: str | None = Field(default=None, min_length=1, max_length=50)
-    course_code: str = Field(min_length=1, max_length=50)
+    join_code: str = Field(min_length=1, max_length=20)
 
 
 class EnrollmentResponse(BaseModel):
@@ -22,4 +22,8 @@ class EnrollmentResponse(BaseModel):
     enrollment_id: int
     student_id: str
     course_code: str
+    section_id: str | None = None
+    section_code: str | None = None
+    course_name: str | None = None
+    message: str | None = None
     join_date: datetime

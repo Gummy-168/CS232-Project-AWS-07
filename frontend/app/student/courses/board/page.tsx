@@ -1,4 +1,7 @@
 "use client";
+
+export { default } from "./student-course-board-view";
+/* eslint-disable */
 import React, { useEffect, useState } from "react";
 import { ChevronLeft, CheckCircle2,Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -17,7 +20,7 @@ const formatTimeAgo = (dateString: string) => {
   }
 };
 
-const LabDiscussionPage = () => {
+const LegacyLabDiscussionPage = () => {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -252,4 +255,4 @@ function DiscussionCard({ data }: { data: any }) {
   );
 }
 
-export default LabDiscussionPage;
+export { LegacyLabDiscussionPage };

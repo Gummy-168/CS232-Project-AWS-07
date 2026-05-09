@@ -13,6 +13,8 @@ from models.professor import Professor
 from models.user import User
 from schemas.course import (
     CourseCreate,
+    CourseJoinCodeCreate,
+    CourseJoinCodeResponse,
     CourseResponse,
     CourseSectionCreate,
     CourseSectionResponse,
@@ -31,6 +33,7 @@ from services.question_manager import QuestionManager
 from services.user_manager import UserManager
 
 import models.course
+import models.course_join_code
 import models.course_section
 import models.enrollment
 import models.professor
@@ -358,6 +361,83 @@ with engine.begin() as conn:
                 CONSTRAINT uq_course_sections_course_section UNIQUE (course_code, section_code),
                 CONSTRAINT fk_course_sections_course
                     FOREIGN KEY (course_code) REFERENCES courses(course_code)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE
+            )
+            """
+        )
+    )
+    has_enrollment_section_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'enrollments'
+              AND COLUMN_NAME = 'section_id'
+            """
+        )
+    ).scalar()
+    if not has_enrollment_section_column:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE enrollments
+                ADD COLUMN section_id VARCHAR(50) NULL AFTER course_code
+                """
+            )
+        )
+        conn.execute(text("ALTER TABLE enrollments ADD INDEX idx_enrollments_section_id (section_id)"))
+    has_enrollment_section_fk = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'enrollments'
+              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+              AND CONSTRAINT_NAME = 'fk_enrollments_section'
+            """
+        )
+    ).scalar()
+    if not has_enrollment_section_fk:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE enrollments
+                ADD CONSTRAINT fk_enrollments_section
+                    FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+                    ON UPDATE CASCADE
+                    ON DELETE SET NULL
+                """
+            )
+        )
+    conn.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS course_join_codes (
+                join_code_id VARCHAR(50) PRIMARY KEY,
+                code VARCHAR(20) NOT NULL UNIQUE,
+                course_code VARCHAR(50) NOT NULL,
+                section_id VARCHAR(50) NULL,
+                professor_id VARCHAR(50) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_course_join_codes_code (code),
+                INDEX idx_course_join_codes_course_code (course_code),
+                INDEX idx_course_join_codes_section_id (section_id),
+                INDEX idx_course_join_codes_professor_id (professor_id),
+                CONSTRAINT fk_course_join_codes_course
+                    FOREIGN KEY (course_code) REFERENCES courses(course_code)
+                    ON UPDATE CASCADE
+                    ON DELETE CASCADE,
+                CONSTRAINT fk_course_join_codes_section
+                    FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+                    ON UPDATE CASCADE
+                    ON DELETE SET NULL,
+                CONSTRAINT fk_course_join_codes_professor
+                    FOREIGN KEY (professor_id) REFERENCES professors(professor_id)
                     ON UPDATE CASCADE
                     ON DELETE CASCADE
             )
@@ -752,6 +832,117 @@ def create_course_section(
     )
 
 
+@app.get(
+    "/professors/{professor_id}/courses/{course_code}/join-code",
+    response_model=CourseJoinCodeResponse | None,
+)
+def get_active_course_join_code(
+    professor_id: str,
+    course_code: str,
+    section_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> CourseJoinCodeResponse | None:
+    """Return the current active join code for one course or section."""
+    professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
+    if professor is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    join_code = CourseManager.get_active_join_code(
+        db=db,
+        professor=professor,
+        course_code=course_code,
+        section_code=section_code,
+    )
+    if join_code is None:
+        return None
+
+    section_code_value = None
+    if join_code.section_id:
+        section_row = db.execute(
+            text(
+                """
+                SELECT section_code
+                FROM course_sections
+                WHERE section_id = :section_id
+                LIMIT 1
+                """
+            ),
+            {"section_id": join_code.section_id},
+        ).mappings().first()
+        if section_row is not None:
+            section_code_value = str(section_row["section_code"])
+
+    return CourseJoinCodeResponse(
+        join_code_id=join_code.join_code_id,
+        code=join_code.code,
+        course_code=join_code.course_code,
+        section_id=join_code.section_id,
+        section_code=section_code_value,
+        professor_id=join_code.professor_id,
+        expires_at=join_code.expires_at,
+        is_active=join_code.is_active,
+        created_at=join_code.created_at,
+    )
+
+
+@app.post(
+    "/professors/{professor_id}/courses/{course_code}/join-code",
+    response_model=CourseJoinCodeResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_course_join_code(
+    professor_id: str,
+    course_code: str,
+    payload: CourseJoinCodeCreate,
+    db: Session = Depends(get_db),
+) -> CourseJoinCodeResponse:
+    """Generate a new 15-minute join code for one course or section."""
+    professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
+    if professor is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    join_code = CourseManager.create_join_code(
+        db=db,
+        professor=professor,
+        course_code=course_code,
+        section_code=payload.section_code,
+    )
+
+    section_code_value = None
+    if join_code.section_id:
+        section_row = db.execute(
+            text(
+                """
+                SELECT section_code
+                FROM course_sections
+                WHERE section_id = :section_id
+                LIMIT 1
+                """
+            ),
+            {"section_id": join_code.section_id},
+        ).mappings().first()
+        if section_row is not None:
+            section_code_value = str(section_row["section_code"])
+
+    return CourseJoinCodeResponse(
+        join_code_id=join_code.join_code_id,
+        code=join_code.code,
+        course_code=join_code.course_code,
+        section_id=join_code.section_id,
+        section_code=section_code_value,
+        professor_id=join_code.professor_id,
+        expires_at=join_code.expires_at,
+        is_active=join_code.is_active,
+        created_at=join_code.created_at,
+    )
+
+
 @app.get("/students/{student_id}/profile")
 def get_student_profile(
     student_id: str,
@@ -820,10 +1011,13 @@ def get_student_courses(
                 c.is_active,
                 c.professor_id,
                 p.nickname AS professor_name,
+                e.section_id,
+                s.section_code,
                 e.join_date
             FROM enrollments e
             JOIN courses c ON c.course_code = e.course_code
             LEFT JOIN professors p ON p.professor_id = c.professor_id
+            LEFT JOIN course_sections s ON s.section_id = e.section_id
             WHERE e.student_id = :student_id
             ORDER BY e.join_date DESC
             """
@@ -838,11 +1032,99 @@ def get_student_courses(
             "is_active": bool(row["is_active"]),
             "professor_id": str(row["professor_id"]),
             "professor_name": str(row["professor_name"] or row["professor_id"]),
+            "section_id": str(row["section_id"]) if row["section_id"] else None,
+            "section_code": str(row["section_code"]) if row["section_code"] else None,
             "join_date": serialize_datetime(row["join_date"]),
         }
         for row in rows
     ]
     return {"courses": courses}
+
+
+@app.get("/students/{student_id}/courses/{course_code}/board")
+def get_student_course_board(
+    student_id: str,
+    course_code: str,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Return the active board and course summary for one enrolled student course."""
+    student = require_student(db=db, student_id=student_id)
+    normalized_course_code = course_code.strip().upper()
+
+    course = db.execute(
+        text(
+            """
+            SELECT
+                c.course_code,
+                c.course_name,
+                COALESCE(p.nickname, c.professor_id) AS professor_name
+            FROM enrollments e
+            JOIN courses c ON c.course_code = e.course_code
+            LEFT JOIN professors p ON p.professor_id = c.professor_id
+            WHERE e.student_id = :student_id
+              AND c.course_code = :course_code
+            LIMIT 1
+            """
+        ),
+        {
+            "student_id": student_id,
+            "course_code": normalized_course_code,
+        },
+    ).mappings().first()
+
+    if course is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found for this student",
+        )
+
+    active_board = db.execute(
+        text(
+            """
+            SELECT
+                b.board_id,
+                b.status,
+                b.created_at,
+                COUNT(q.question_id) AS total_questions,
+                SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
+                SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions
+            FROM interaction_boards b
+            LEFT JOIN questions q
+                ON q.board_id = b.board_id
+               AND q.status <> 'deleted'
+            WHERE b.course_code = :course_code
+              AND b.status = 'active'
+            GROUP BY b.board_id, b.status, b.created_at
+            ORDER BY b.created_at DESC
+            LIMIT 1
+            """
+        ),
+        {"course_code": normalized_course_code},
+    ).mappings().first()
+
+    return {
+        "student": {
+            "id": student.user_id,
+            "name": student.nickname,
+        },
+        "course": {
+            "course_code": str(course["course_code"]),
+            "course_name": str(course["course_name"]),
+            "professor_name": str(course["professor_name"]),
+        },
+        "active_board": (
+            {
+                "board_id": str(active_board["board_id"]),
+                "status": str(active_board["status"]).upper(),
+                "created_at": serialize_datetime(active_board["created_at"]),
+                "total_questions": int(active_board["total_questions"] or 0),
+                "answered_questions": int(active_board["answered_questions"] or 0),
+                "unanswered_questions": int(active_board["unanswered_questions"] or 0),
+            }
+            if active_board
+            else None
+        ),
+    }
 
 
 @app.post(
@@ -855,19 +1137,43 @@ def join_student_course(
     payload: EnrollmentCreate,
     db: Session = Depends(get_db),
 ) -> EnrollmentResponse:
-    """Enroll a student into a course by course code."""
+    """Enroll a student into a course by a timed join code."""
     # TODO: Re-enable JWT security
     resolved_student_id = (payload.student_id or student_id).strip()
     student = require_student(db=db, student_id=resolved_student_id)
 
     enrollment_data = EnrollmentCreate(
         student_id=resolved_student_id,
-        course_code=payload.course_code,
+        join_code=payload.join_code,
     )
-    return EnrollmentManager.enroll_student(
+    enrollment = EnrollmentManager.enroll_student(
         db=db,
         enrollment_data=enrollment_data,
         student=student,
+    )
+    course_row = db.execute(
+        text(
+            """
+            SELECT
+                c.course_name,
+                s.section_code
+            FROM enrollments e
+            JOIN courses c ON c.course_code = e.course_code
+            LEFT JOIN course_sections s ON s.section_id = e.section_id
+            WHERE e.enrollment_id = :enrollment_id
+            LIMIT 1
+            """
+        ),
+        {"enrollment_id": enrollment.enrollment_id},
+    ).mappings().first()
+    return EnrollmentResponse(
+        enrollment_id=enrollment.enrollment_id,
+        student_id=enrollment.student_id,
+        course_code=enrollment.course_code,
+        section_id=enrollment.section_id,
+        section_code=str(course_row["section_code"]) if course_row and course_row["section_code"] else None,
+        course_name=str(course_row["course_name"]) if course_row and course_row["course_name"] else None,
+        join_date=enrollment.join_date,
     )
 
 

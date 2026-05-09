@@ -1,5 +1,8 @@
 "use client";
 
+export { default } from "./student-course-home-view";
+/* eslint-disable */
+
 import React, { useState, useMemo, useEffect } from "react";
 import { Search, Contact, Clock, PenLine } from "lucide-react";
 import Link from "next/link";
@@ -55,7 +58,7 @@ type Activity = {
 
 /* ---------------- MAIN COMPONENT ---------------- */
 
-export default function StudentClass() {
+function LegacyStudentClass() {
   const { session } = useAuthSession();
   const [data, setData] = useState<DashboardData | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);

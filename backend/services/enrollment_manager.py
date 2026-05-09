@@ -6,9 +6,9 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from models.course import Course
 from models.enrollment import Enrollment
 from models.user import User
+from services.course_manager import CourseManager
 from schemas.enrollment import EnrollmentCreate
 
 
@@ -29,15 +29,11 @@ class EnrollmentManager:
                 detail="Only students can join courses",
             )
 
-        normalized_course_code = enrollment_data.course_code.strip().upper()
-        course: Course | None = (
-            db.query(Course).filter(Course.course_code == normalized_course_code).first()
+        course, section, _join_code = CourseManager.consume_join_code(
+            db=db,
+            code=enrollment_data.join_code,
         )
-        if course is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Course code not found",
-            )
+        normalized_course_code = course.course_code.strip().upper()
 
         existing_enrollment: Enrollment | None = (
             db.query(Enrollment)
@@ -56,6 +52,7 @@ class EnrollmentManager:
         enrollment = Enrollment(
             student_id=student.user_id,
             course_code=normalized_course_code,
+            section_id=section.section_id if section else None,
         )
         enrollment.normalize_state()
 

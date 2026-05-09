@@ -51,3 +51,25 @@ class CourseSectionResponse(BaseModel):
     end_time: str
     is_active: bool
     created_at: datetime
+
+
+class CourseJoinCodeCreate(BaseModel):
+    """Request schema for generating a new timed join code."""
+
+    section_code: str | None = Field(default=None, min_length=1, max_length=50)
+
+
+class CourseJoinCodeResponse(BaseModel):
+    """Response schema for one active or newly generated join code."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    join_code_id: str
+    code: str
+    course_code: str
+    section_id: str | None = None
+    section_code: str | None = None
+    professor_id: str
+    expires_at: datetime
+    is_active: bool
+    created_at: datetime

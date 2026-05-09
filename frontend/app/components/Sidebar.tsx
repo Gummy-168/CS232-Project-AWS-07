@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import JoinCourse from "./joincourse";
 import { getStudentCourses } from "../lib/api";
 import { clearStoredSession } from "../lib/auth";
@@ -22,6 +22,7 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { session } = useAuthSession();
   const [isFeedOpen, setIsFeedOpen] = useState(pathname.includes("/feed"));
   const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
@@ -29,6 +30,8 @@ export default function Sidebar() {
   const [courses, setCourses] = useState<Array<{ course_code: string; course_name: string }>>(
     [],
   );
+  const selectedCourseCode =
+    searchParams.get("course_code")?.trim().toUpperCase() || "";
 
   useEffect(() => {
     if (!session?.userId) {
@@ -127,16 +130,20 @@ export default function Sidebar() {
                   courses.map((course) => (
                     <Link
                       key={course.course_code}
-                      href="/student/courses"
+                      href={`/student/courses?course_code=${encodeURIComponent(
+                        course.course_code,
+                      )}`}
                       className={`group relative flex items-center gap-3 py-2 pr-4 rounded-full w-full text-sm font-medium transition-all overflow-hidden ${
-                        pathname === "/student/courses" ||
-                        pathname.startsWith("/student/courses/")
+                        (pathname === "/student/courses" ||
+                          pathname.startsWith("/student/courses/")) &&
+                        selectedCourseCode === course.course_code
                           ? "text-[#7B61FF] bg-[#FAF8FF]"
                           : "text-slate-400 hover:text-[#7B61FF]"
                       }`}
                     >
                       {(pathname === "/student/courses" ||
-                        pathname.startsWith("/student/courses/")) && (
+                        pathname.startsWith("/student/courses/")) &&
+                        selectedCourseCode === course.course_code && (
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
                       )}
                       <div className="flex items-center gap-3 pl-4">

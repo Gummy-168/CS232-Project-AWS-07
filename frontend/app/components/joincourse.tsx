@@ -22,14 +22,17 @@ const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
 
   const handleJoin = () => {
     const fullCode = code.trim().toUpperCase();
-    if (fullCode.length < 2 || !session?.userId || loading) return;
+    if (fullCode.length < 6 || !session?.userId || loading) return;
 
     setLoading(true);
     setErrorMsg("");
     joinStudentCourse(session.userId, fullCode)
       .then((response) => {
-        setJoinedCourses((prev) => [...prev, response.course_code]);
-        setSuccessMsg(`เข้าร่วมคอร์ส ${response.course_code} สำเร็จ!`);
+        const joinedLabel = response.section_code
+          ? `${response.course_code} (${response.section_code})`
+          : response.course_code;
+        setJoinedCourses((prev) => [...prev, joinedLabel]);
+        setSuccessMsg(`เข้าร่วมคอร์ส ${joinedLabel} สำเร็จ!`);
         setCode("");
         onJoined?.(response.course_code);
         setTimeout(() => {
@@ -64,8 +67,8 @@ const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
         {/* Body */}
         <div className="px-8 pb-10 flex flex-col items-center">
           <div className="text-center mb-6">
-            <h3 className="text-lg font-bold text-[#4A4A68] mb-1">Course Code</h3>
-            <p className="text-slate-500 text-sm">กรอกโค้ดคลาสเรียนจากอาจารย์</p>
+            <h3 className="text-lg font-bold text-[#4A4A68] mb-1">Join Code</h3>
+            <p className="text-slate-500 text-sm">กรอกโค้ด 15 นาทีที่อาจารย์สร้างให้</p>
           </div>
 
           <div className="w-full mb-8">
@@ -73,7 +76,7 @@ const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
               type="text"
               value={code}
               onChange={(event) => setCode(event.target.value.toUpperCase())}
-              placeholder="เช่น CS232"
+              placeholder="เช่น ASK-A1B2C3"
               className="w-full text-center text-lg font-bold tracking-wider text-[#4A4A68] bg-slate-50 rounded-2xl border border-slate-200 px-4 py-3 focus:ring-2 focus:ring-[#5B41FF]/30 focus:border-[#5B41FF] focus:bg-white transition-all outline-none"
             />
           </div>
@@ -110,7 +113,7 @@ const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
             </button>
             <button
               onClick={handleJoin}
-              disabled={code.trim().length < 2 || loading}
+              disabled={code.trim().length < 6 || loading}
               className="flex-1 py-3 rounded-2xl bg-[#5B41FF] text-white text-sm font-medium hover:bg-[#4a34e0] transition disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {loading ? "Joining..." : "Join Course"}

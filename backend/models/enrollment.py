@@ -32,6 +32,12 @@ class Enrollment(Base):
         nullable=False,
         index=True,
     )
+    section_id: Mapped[str | None] = mapped_column(
+        String(50),
+        ForeignKey("course_sections.section_id", onupdate="CASCADE", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     join_date: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
@@ -42,3 +48,5 @@ class Enrollment(Base):
         """Normalize string fields before persistence."""
         self.student_id = self.student_id.strip()
         self.course_code = self.course_code.strip().upper()
+        if self.section_id is not None:
+            self.section_id = self.section_id.strip()

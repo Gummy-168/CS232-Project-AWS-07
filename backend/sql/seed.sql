@@ -62,10 +62,10 @@ VALUES
     ('sec-cs232-100001', 'CS232', 'SEC 100001', 'Monday,Wednesday', '13:00', '16:00', TRUE),
     ('sec-cs232-100002', 'CS232', 'SEC 100002', 'Tuesday,Thursday', '13:00', '16:00', TRUE);
 
-INSERT IGNORE INTO enrollments (student_id, course_code)
+INSERT IGNORE INTO enrollments (student_id, course_code, section_id)
 VALUES
-    ('stu001', 'CS232'),
-    ('stu002', 'CS232');
+    ('stu001', 'CS232', 'sec-cs232-100001'),
+    ('stu002', 'CS232', 'sec-cs232-100002');
 
 INSERT IGNORE INTO interaction_boards (board_id, course_code, status)
 VALUES

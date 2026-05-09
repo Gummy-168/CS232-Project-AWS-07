@@ -102,6 +102,8 @@ export interface StudentCourse {
   is_active: boolean;
   professor_id: string;
   professor_name: string;
+  section_id?: string | null;
+  section_code?: string | null;
   join_date: string | null;
 }
 
@@ -182,6 +184,26 @@ interface StudentCoursesResponse {
   courses: StudentCourse[];
 }
 
+export interface StudentCourseBoardData {
+  student: {
+    id: string;
+    name: string;
+  };
+  course: {
+    course_code: string;
+    course_name: string;
+    professor_name: string;
+  };
+  active_board: {
+    board_id: string;
+    status: string;
+    created_at: string | null;
+    total_questions: number;
+    answered_questions: number;
+    unanswered_questions: number;
+  } | null;
+}
+
 interface StudentQuestionsResponse {
   questions: StudentQuestion[];
 }
@@ -190,6 +212,20 @@ interface JoinCourseResponse {
   message: string;
   course_code: string;
   course_name: string;
+  section_id?: string | null;
+  section_code?: string | null;
+}
+
+export interface ProfessorJoinCodeResponse {
+  join_code_id: string;
+  code: string;
+  course_code: string;
+  section_id: string | null;
+  section_code: string | null;
+  professor_id: string;
+  expires_at: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 interface UpdateNicknameResponse {
@@ -336,10 +372,19 @@ export async function getStudentCourses(studentId: string) {
   });
 }
 
-export async function joinStudentCourse(studentId: string, courseCode: string) {
+export async function getStudentCourseBoard(studentId: string, courseCode: string) {
+  return apiRequest<StudentCourseBoardData>(
+    `/students/${studentId}/courses/${courseCode.trim().toUpperCase()}/board`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function joinStudentCourse(studentId: string, joinCode: string) {
   return apiRequest<JoinCourseResponse>(`/students/${studentId}/courses/join`, {
     method: "POST",
-    body: JSON.stringify({ course_code: courseCode }),
+    body: JSON.stringify({ join_code: joinCode }),
   });
 }
 
@@ -446,6 +491,38 @@ export async function createProfessorSection(
     {
       method: "POST",
       body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function getProfessorJoinCode(
+  professorId: string,
+  courseCode: string,
+  sectionCode?: string,
+) {
+  const query = new URLSearchParams();
+  if (sectionCode?.trim()) {
+    query.set("section_code", sectionCode.trim().toUpperCase());
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return apiRequest<ProfessorJoinCodeResponse | null>(
+    `/professors/${professorId}/courses/${courseCode.trim().toUpperCase()}/join-code${suffix}`,
+    {
+      method: "GET",
+    },
+  );
+}
+
+export async function createProfessorJoinCode(
+  professorId: string,
+  courseCode: string,
+  payload?: { section_code?: string },
+) {
+  return apiRequest<ProfessorJoinCodeResponse>(
+    `/professors/${professorId}/courses/${courseCode.trim().toUpperCase()}/join-code`,
+    {
+      method: "POST",
+      body: JSON.stringify(payload ?? {}),
     },
   );
 }

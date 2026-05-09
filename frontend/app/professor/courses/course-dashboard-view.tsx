@@ -17,14 +17,18 @@ import {
 import Header from "@/app/components/Header";
 import CreateCourse from "../../components/createcourse";
 import CreateSection from "../../components/createsection";
+import GenerateJoinCode from "../../components/generatejoincode";
 import { useAuthSession } from "../../hooks/useAuthSession";
 import {
+  createProfessorJoinCode,
   createProfessorBoard,
   createProfessorQuestionReply,
   deleteProfessorQuestion,
+  getProfessorJoinCode,
   getProfessorQuestions,
   type ProfessorBoardSession,
   type ProfessorCourseResponse,
+  type ProfessorJoinCodeResponse,
   type ProfessorQuestionsData,
   type ProfessorSectionResponse,
   type ProfessorStudentQuestion,
@@ -134,8 +138,12 @@ export default function ProfessorCourseDashboardView() {
   const { session, isHydrated } = useAuthSession();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [isJoinCodeModalOpen, setIsJoinCodeModalOpen] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState<ProfessorQuestionsData | null>(null);
+  const [joinCode, setJoinCode] = useState<ProfessorJoinCodeResponse | null>(null);
+  const [joinCodeError, setJoinCodeError] = useState("");
+  const [isJoinCodeLoading, setIsJoinCodeLoading] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [studentSearch, setStudentSearch] = useState("");
   const [activitySearch, setActivitySearch] = useState("");
@@ -146,6 +154,7 @@ export default function ProfessorCourseDashboardView() {
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
   const selectedSection = searchParams.get("sec")?.trim().toUpperCase() || "ALL";
+  const selectedSectionCode = selectedSection === "ALL" ? undefined : selectedSection;
 
   useEffect(() => {
     const handleCourseCreated = (event: Event) => {
@@ -204,6 +213,26 @@ export default function ProfessorCourseDashboardView() {
     session?.userId,
     refreshToken,
   ]);
+
+  useEffect(() => {
+    if (!session?.userId || session.role !== "professor" || !selectedCourseCode) {
+      setJoinCode(null);
+      setJoinCodeError("");
+      return;
+    }
+
+    getProfessorJoinCode(session.userId, selectedCourseCode, selectedSectionCode)
+      .then((response) => {
+        setJoinCode(response);
+        setJoinCodeError("");
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Failed to load join code";
+        setJoinCode(null);
+        setJoinCodeError(message);
+      });
+  }, [selectedCourseCode, selectedSectionCode, session?.role, session?.userId, refreshToken]);
 
   const sortedBoards = useMemo(() => {
     if (!data) {
@@ -394,6 +423,28 @@ export default function ProfessorCourseDashboardView() {
     }
   };
 
+  const handleGenerateJoinCode = async () => {
+    if (!session?.userId || !selectedCourseCode) {
+      return;
+    }
+
+    setIsJoinCodeLoading(true);
+    setJoinCodeError("");
+    try {
+      const generated = await createProfessorJoinCode(session.userId, selectedCourseCode, {
+        section_code: selectedSectionCode,
+      });
+      setJoinCode(generated);
+      setRefreshToken((prev) => prev + 1);
+    } catch (err) {
+      setJoinCodeError(
+        err instanceof Error ? err.message : "Generate join code failed",
+      );
+    } finally {
+      setIsJoinCodeLoading(false);
+    }
+  };
+
   const handleDelete = async (questionId: string) => {
     if (!session?.userId) {
       return;
@@ -486,6 +537,16 @@ export default function ProfessorCourseDashboardView() {
         onClose={() => setIsSectionModalOpen(false)}
         onSectionCreated={handleSectionCreated}
       />
+      <GenerateJoinCode
+        isOpen={isJoinCodeModalOpen}
+        courseCode={selectedCourseCode}
+        sectionCode={selectedSectionCode}
+        joinCode={joinCode}
+        isLoading={isJoinCodeLoading}
+        error={joinCodeError}
+        onClose={() => setIsJoinCodeModalOpen(false)}
+        onGenerate={handleGenerateJoinCode}
+      />
 
       <main className="pb-16 pt-44 xl:pt-32">
         <div className="mx-auto w-full max-w-[1360px] px-6 xl:px-8 2xl:px-10">
@@ -528,6 +589,15 @@ export default function ProfessorCourseDashboardView() {
           >
             <Plus size={16} />
             Create Sec
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsJoinCodeModalOpen(true)}
+            disabled={!selectedCourseCode}
+            className="inline-flex items-center gap-2 rounded-full border border-[#E6DFFD] bg-white px-4 py-2 text-sm font-semibold text-[#6C56EC] transition hover:border-[#CBBEFF] hover:bg-[#FBF9FF]"
+          >
+            <Eye size={16} />
+            {selectedSectionCode ? "Generate Sec Code" : "Generate Course Code"}
           </button>
         </section>
 
@@ -577,6 +647,17 @@ export default function ProfessorCourseDashboardView() {
                         <span className="rounded-full bg-[#FFF1F8] px-3 py-1">
                           {sortedBoards.length} board sessions
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsJoinCodeModalOpen(true)}
+                          className="rounded-full border border-[#E6DFFD] bg-white px-3 py-1 text-[#6C56EC] transition hover:bg-[#FBF9FF]"
+                        >
+                          {joinCode?.code
+                            ? `Join Code: ${joinCode.code}`
+                            : selectedSectionCode
+                              ? "Generate Sec Join Code"
+                              : "Generate Course Join Code"}
+                        </button>
                       </div>
                     </div>
 
