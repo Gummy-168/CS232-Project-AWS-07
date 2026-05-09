@@ -9,7 +9,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
 
-from .board import InteractionBoard
 from .user import User
 
 
@@ -22,10 +21,12 @@ class Question(Base):
     VALID_STATUSES = {"pending", "answered", "deleted"}
 
     question_id: Mapped[str] = mapped_column(String(50), primary_key=True)
-    board_id: Mapped[str] = mapped_column(
+    board_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    course_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    section_id: Mapped[str | None] = mapped_column(
         String(50),
-        ForeignKey("interaction_boards.board_id", onupdate="CASCADE", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("course_sections.section_id", onupdate="CASCADE", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
     student_id: Mapped[str] = mapped_column(
@@ -57,13 +58,14 @@ class Question(Base):
         onupdate=func.now(),
     )
 
-    board: InteractionBoard | None = None
     student: User | None = None
 
     def __init__(
         self,
         question_id: str,
-        board_id: int | str,
+        board_id: int | str | None,
+        course_code: str,
+        section_id: str | None,
         student_id: str,
         title: str,
         content: str,
@@ -79,7 +81,9 @@ class Question(Base):
     ) -> None:
         """Initialize a question instance with legacy compatibility."""
         self.question_id = question_id
-        self.board_id = str(board_id).strip()
+        self.board_id = str(board_id).strip() if board_id is not None else None
+        self.course_code = course_code.strip()
+        self.section_id = section_id
         self.student_id = student_id.strip()
         self.title = self._clean_title(title)
         self.content = self._clean_content(content)
@@ -88,7 +92,6 @@ class Question(Base):
         self.is_anonymous = is_anonymous
         self.tags = tags or []
         self.participation_score = participation_score
-        self.board = board
         self.student = student
         if created_at is not None:
             self.created_at = created_at

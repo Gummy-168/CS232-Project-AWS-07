@@ -33,7 +33,7 @@ class CourseFeedQuestionResponse(BaseModel):
     student_name: str
     course_code: str
     course_name: str
-    board_id: str
+    board_id: str | None
     created_at: str | None
     updated_at: str | None
     replies: list[QuestionReplyResponse]

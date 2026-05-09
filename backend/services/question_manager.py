@@ -225,7 +225,7 @@ class QuestionManager:
             params["course_code"] = selected_course_code
 
         if selected_section_id:
-            question_where.append("b.section_id = :section_id")
+            question_where.append("COALESCE(b.section_id, q.section_id) = :section_id")
             params["section_id"] = selected_section_id
 
         normalized_status_filter = status_filter.strip().lower()
@@ -265,15 +265,15 @@ class QuestionManager:
                     q.updated_at,
                     q.student_id,
                     b.board_id,
-                    b.course_code,
-                    b.section_id,
+                    COALESCE(b.course_code, q.course_code) AS course_code,
+                    COALESCE(b.section_id, q.section_id) AS section_id,
                     s.section_code,
                     c.course_name,
                     COALESCE(author.full_name, author.nickname, author.user_id) AS student_name
                 FROM questions q
-                JOIN interaction_boards b ON b.board_id = q.board_id
-                JOIN courses c ON c.course_code = b.course_code
-                LEFT JOIN course_sections s ON s.section_id = b.section_id
+                LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+                LEFT JOIN courses c ON c.course_code = COALESCE(b.course_code, q.course_code)
+                LEFT JOIN course_sections s ON s.section_id = COALESCE(b.section_id, q.section_id)
                 JOIN users author ON author.user_id = q.student_id
                 WHERE {' AND '.join(question_where)}
                 ORDER BY q.created_at DESC
@@ -475,8 +475,8 @@ class QuestionManager:
                 """
                 SELECT q.question_id
                 FROM questions q
-                JOIN interaction_boards b ON b.board_id = q.board_id
-                JOIN courses c ON c.course_code = b.course_code
+                LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+                JOIN courses c ON c.course_code = COALESCE(b.course_code, q.course_code)
                 WHERE q.question_id = :question_id
                   AND q.status <> 'deleted'
                   AND c.professor_id = :professor_id
@@ -528,8 +528,8 @@ class QuestionManager:
                 """
                 SELECT q.question_id
                 FROM questions q
-                JOIN interaction_boards b ON b.board_id = q.board_id
-                JOIN courses c ON c.course_code = b.course_code
+                LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+                JOIN courses c ON c.course_code = COALESCE(b.course_code, q.course_code)
                 WHERE q.question_id = :question_id
                   AND q.status <> 'deleted'
                   AND c.professor_id = :professor_id

@@ -123,7 +123,9 @@ CREATE TABLE IF NOT EXISTS course_join_codes (
 
 CREATE TABLE IF NOT EXISTS questions (
     question_id VARCHAR(50) PRIMARY KEY,
-    board_id VARCHAR(50) NOT NULL,
+    board_id VARCHAR(50) NULL,
+    course_code VARCHAR(50) NOT NULL,
+    section_id VARCHAR(50) NULL,
     student_id VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
@@ -135,11 +137,21 @@ CREATE TABLE IF NOT EXISTS questions (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_questions_board_id (board_id),
+    INDEX idx_questions_course_code (course_code),
+    INDEX idx_questions_section_id (section_id),
     INDEX idx_questions_student_id (student_id),
     CONSTRAINT fk_questions_board
         FOREIGN KEY (board_id) REFERENCES interaction_boards(board_id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
+    CONSTRAINT fk_questions_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_questions_section
+        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL,
     CONSTRAINT fk_questions_student
         FOREIGN KEY (student_id) REFERENCES users(user_id)
         ON UPDATE CASCADE

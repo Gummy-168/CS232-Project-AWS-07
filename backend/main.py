@@ -37,6 +37,7 @@ import models.course_join_code
 import models.course_section
 import models.enrollment
 import models.professor
+import models.board
 import models.question
 import models.user
 
@@ -80,6 +81,67 @@ with engine.begin() as conn:
     ).scalar()
     if not has_question_tags_column:
         conn.execute(text("ALTER TABLE questions ADD COLUMN tags JSON NULL AFTER is_anonymous"))
+    question_board_nullable = conn.execute(
+        text(
+            """
+            SELECT IS_NULLABLE
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'questions'
+              AND COLUMN_NAME = 'board_id'
+            """
+        )
+    ).scalar()
+    if question_board_nullable == 'NO':
+        conn.execute(text("ALTER TABLE questions MODIFY COLUMN board_id VARCHAR(50) NULL"))
+    has_question_course_code_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'questions'
+              AND COLUMN_NAME = 'course_code'
+            """
+        )
+    ).scalar()
+    if not has_question_course_code_column:
+        conn.execute(text("ALTER TABLE questions ADD COLUMN course_code VARCHAR(50) NULL AFTER board_id"))
+    has_question_section_id_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'questions'
+              AND COLUMN_NAME = 'section_id'
+            """
+        )
+    ).scalar()
+    if not has_question_section_id_column:
+        conn.execute(text("ALTER TABLE questions ADD COLUMN section_id VARCHAR(50) NULL AFTER course_code"))
+    conn.execute(
+        text(
+            """
+            UPDATE questions q
+            LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+            SET q.course_code = b.course_code,
+                q.section_id = b.section_id
+            WHERE q.course_code IS NULL OR q.course_code = ''
+            """
+        )
+    )
+    course_code_not_null = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM questions
+            WHERE course_code IS NULL OR course_code = ''
+            """
+        )
+    ).scalar()
+    if course_code_not_null == 0:
+        conn.execute(text("ALTER TABLE questions MODIFY COLUMN course_code VARCHAR(50) NOT NULL"))
     conn.execute(
         text(
             """
@@ -780,36 +842,38 @@ def get_on_class_participation_stats(
     student_id: str,
 ) -> tuple[int, int, int]:
     """
-    Calculate on-class participation based on board sessions.
+    Calculate on-class participation based on board sessions and direct course questions.
 
     Participation means the student asked at least one non-deleted question
-    in a board session of an enrolled course, after the student joined.
+    in a board session or directly in an enrolled course, after the student joined.
     """
     board_stats = db.execute(
         text(
             """
             SELECT
                 COUNT(DISTINCT b.board_id) AS opened_boards,
-                COUNT(DISTINCT q.board_id) AS participated_boards
+                COUNT(DISTINCT CASE WHEN q.board_id IS NOT NULL THEN q.board_id END) AS board_participated_count,
+                COUNT(DISTINCT CASE WHEN q.board_id IS NULL THEN 1 END) AS direct_question_count
             FROM enrollments e
-            JOIN interaction_boards b
+            LEFT JOIN interaction_boards b
                 ON b.course_code = e.course_code
             LEFT JOIN questions q
-                ON q.board_id = b.board_id
+                ON (q.board_id = b.board_id OR (q.board_id IS NULL AND COALESCE(q.course_code, '') = e.course_code))
                AND q.student_id = :student_id
                AND q.status <> 'deleted'
             WHERE e.student_id = :student_id
-              AND b.created_at >= e.join_date
             """
         ),
         {"student_id": student_id},
     ).mappings().one()
 
     opened_boards = int(board_stats["opened_boards"] or 0)
-    participated_boards = int(board_stats["participated_boards"] or 0)
+    board_participated = int(board_stats["board_participated_count"] or 0)
+    direct_questions = int(board_stats["direct_question_count"] or 0)
+    participated_boards = board_participated + (1 if direct_questions > 0 else 0)
     on_class_participation = (
-        int(round((participated_boards / opened_boards) * 100))
-        if opened_boards > 0
+        int(round((participated_boards / max(opened_boards, 1)) * 100))
+        if opened_boards > 0 or direct_questions > 0
         else 0
     )
     return on_class_participation, opened_boards, participated_boards
@@ -1351,7 +1415,7 @@ def get_student_questions(
     base_query = """
         SELECT
             q.question_id,
-            b.course_code,
+            COALESCE(b.course_code, q.course_code) AS course_code,
             c.course_name,
             {title_select},
             q.content,
@@ -1361,15 +1425,15 @@ def get_student_questions(
             {tags_select},
             q.created_at,
             q.updated_at,
-            b.section_id,
+            COALESCE(b.section_id, q.section_id) AS section_id,
             s.section_code,
             u.user_id AS author_id,
             u.nickname AS author_name,
             u.full_name AS author_full_name
         FROM questions q
-        JOIN interaction_boards b ON b.board_id = q.board_id
-        JOIN courses c ON c.course_code = b.course_code
-        LEFT JOIN course_sections s ON s.section_id = b.section_id
+        LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+        LEFT JOIN courses c ON c.course_code = COALESCE(b.course_code, q.course_code)
+        LEFT JOIN course_sections s ON s.section_id = COALESCE(b.section_id, q.section_id)
         JOIN users u ON u.user_id = q.student_id
     """.format(title_select=title_select, tags_select=tags_select)
 
@@ -1381,20 +1445,20 @@ def get_student_questions(
     else:
         base_query += """
             JOIN enrollments e
-                ON e.course_code = b.course_code
+                ON e.course_code = COALESCE(b.course_code, q.course_code)
                 AND e.student_id = :student_id
         """
         where_clauses.append(
             """
             (
-                (e.section_id IS NULL AND b.section_id IS NULL)
-                OR b.section_id = e.section_id
+                (e.section_id IS NULL AND COALESCE(b.section_id, q.section_id) IS NULL)
+                OR COALESCE(b.section_id, q.section_id) = e.section_id
             )
             """
         )
 
     if normalized_course_code:
-        where_clauses.append("b.course_code = :course_code")
+        where_clauses.append("COALESCE(b.course_code, q.course_code) = :course_code")
         params["course_code"] = normalized_course_code
 
     if normalized_section_code:
@@ -1532,7 +1596,7 @@ def search_course_questions(
     normalized_tag = tag.strip() if tag else None
 
     where_clauses = [
-        "b.course_code = :course_code",
+        "COALESCE(b.course_code, q.course_code) = :course_code",
         "q.status <> 'deleted'",
     ]
     params: dict[str, object] = {"course_code": normalized_course_code}
@@ -1574,15 +1638,15 @@ def search_course_questions(
                 q.status,
                 q.student_id,
                 b.board_id,
-                b.course_code,
+                COALESCE(b.course_code, q.course_code) AS course_code,
                 c.course_name,
                 COALESCE(u.full_name, u.nickname, u.user_id) AS student_name,
                 {tags_select},
                 q.created_at,
                 q.updated_at
             FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
-            JOIN courses c ON c.course_code = b.course_code
+            LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+            LEFT JOIN courses c ON c.course_code = COALESCE(b.course_code, q.course_code)
             JOIN users u ON u.user_id = q.student_id
             WHERE {' AND '.join(where_clauses)}
             ORDER BY q.created_at DESC
@@ -1700,22 +1764,7 @@ def create_student_question(
         },
     ).mappings().first()
 
-    board_id = str(board["board_id"]) if board else f"board_{uuid4().hex[:10]}"
-    if board is None:
-        db.execute(
-            text(
-                """
-                INSERT INTO interaction_boards (board_id, course_code, section_id, status)
-                VALUES (:board_id, :course_code, :section_id, 'active')
-                """
-            ),
-            {
-                "board_id": board_id,
-                "course_code": normalized_course_code,
-                "section_id": enrollment_section_id,
-            },
-        )
-
+    board_id = str(board["board_id"]) if board else None
     question_id = f"q_{uuid4().hex[:12]}"
     created_at = datetime.utcnow().isoformat()
     if supports_title:
@@ -1725,6 +1774,8 @@ def create_student_question(
                 INSERT INTO questions (
                     question_id,
                     board_id,
+                    course_code,
+                    section_id,
                     student_id,
                     title,
                     content,
@@ -1736,6 +1787,8 @@ def create_student_question(
                 ) VALUES (
                     :question_id,
                     :board_id,
+                    :course_code,
+                    :section_id,
                     :student_id,
                     :title,
                     :content,
@@ -1750,6 +1803,8 @@ def create_student_question(
             {
                 "question_id": question_id,
                 "board_id": board_id,
+                "course_code": normalized_course_code,
+                "section_id": enrollment_section_id,
                 "student_id": student.user_id,
                 "title": normalized_title,
                 "content": content,
@@ -1764,6 +1819,8 @@ def create_student_question(
                 INSERT INTO questions (
                     question_id,
                     board_id,
+                    course_code,
+                    section_id,
                     student_id,
                     content,
                     reply_content,
@@ -1774,6 +1831,8 @@ def create_student_question(
                 ) VALUES (
                     :question_id,
                     :board_id,
+                    :course_code,
+                    :section_id,
                     :student_id,
                     :content,
                     NULL,
@@ -1787,6 +1846,8 @@ def create_student_question(
             {
                 "question_id": question_id,
                 "board_id": board_id,
+                "course_code": normalized_course_code,
+                "section_id": enrollment_section_id,
                 "student_id": student.user_id,
                 "content": content,
                 "is_anonymous": payload.is_anonymous,
@@ -1834,9 +1895,9 @@ def update_student_question(
                 q.question_id,
                 q.student_id,
                 q.status,
-                b.course_code
+                COALESCE(b.course_code, q.course_code) AS course_code
             FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
+            LEFT JOIN interaction_boards b ON b.board_id = q.board_id
             WHERE q.question_id = :question_id
             LIMIT 1
             """
@@ -1942,11 +2003,11 @@ def create_student_question_reply(
             SELECT
                 q.question_id,
                 q.status,
-                b.course_code
+                COALESCE(b.course_code, q.course_code) AS course_code
             FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
+            LEFT JOIN interaction_boards b ON b.board_id = q.board_id
             JOIN enrollments e
-                ON e.course_code = b.course_code
+                ON e.course_code = COALESCE(b.course_code, q.course_code)
                 AND e.student_id = :student_id
             WHERE q.question_id = :question_id
             LIMIT 1
@@ -2143,40 +2204,40 @@ def get_student_analytics(
               ON c.course_code = e.course_code
             LEFT JOIN (
                 SELECT
-                    b.course_code AS course_code,
+                    COALESCE(b.course_code, q.course_code) AS course_code,
                     COUNT(*) AS total_questions,
                     SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions
                 FROM questions q
-                JOIN interaction_boards b
+                LEFT JOIN interaction_boards b
                   ON b.board_id = q.board_id
                 WHERE q.student_id = :student_id
                   AND q.status <> 'deleted'
-                GROUP BY b.course_code
+                GROUP BY COALESCE(b.course_code, q.course_code)
             ) q
               ON q.course_code = e.course_code
             LEFT JOIN (
                 SELECT
-                    b.course_code AS course_code,
-                    COUNT(DISTINCT q.board_id) AS board_sessions_joined
+                    COALESCE(b.course_code, q.course_code) AS course_code,
+                    COUNT(DISTINCT CASE WHEN q.board_id IS NOT NULL THEN q.board_id END) AS board_sessions_joined
                 FROM questions q
-                JOIN interaction_boards b
+                LEFT JOIN interaction_boards b
                   ON b.board_id = q.board_id
                 WHERE q.student_id = :student_id
                   AND q.status <> 'deleted'
-                GROUP BY b.course_code
+                GROUP BY COALESCE(b.course_code, q.course_code)
             ) bs
               ON bs.course_code = e.course_code
             LEFT JOIN (
                 SELECT
-                    b.course_code AS course_code,
+                    COALESCE(b.course_code, q.course_code) AS course_code,
                     COUNT(*) AS total_replies
                 FROM question_replies r
                 JOIN questions q
                   ON q.question_id = r.question_id
-                JOIN interaction_boards b
+                LEFT JOIN interaction_boards b
                   ON b.board_id = q.board_id
                 WHERE r.user_id = :student_id
-                GROUP BY b.course_code
+                GROUP BY COALESCE(b.course_code, q.course_code)
             ) r
               ON r.course_code = e.course_code
             WHERE e.student_id = :student_id
@@ -2592,8 +2653,8 @@ def create_professor_question_reply(
             """
             SELECT q.question_id
             FROM questions q
-            JOIN interaction_boards b ON b.board_id = q.board_id
-            JOIN courses c ON c.course_code = b.course_code
+            LEFT JOIN interaction_boards b ON b.board_id = q.board_id
+            JOIN courses c ON c.course_code = COALESCE(b.course_code, q.course_code)
             WHERE q.question_id = :question_id
               AND q.status <> 'deleted'
               AND c.professor_id = :professor_id
