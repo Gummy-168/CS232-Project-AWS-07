@@ -20,6 +20,7 @@ import CreateSection from "../../components/createsection";
 import GenerateJoinCode from "../../components/generatejoincode";
 import { useAuthSession } from "../../hooks/useAuthSession";
 import {
+  closeProfessorBoard,
   createProfessorJoinCode,
   createProfessorBoard,
   createProfessorQuestionReply,
@@ -86,7 +87,7 @@ function statusPillClasses(status: ProfessorStudentQuestion["status"]) {
 }
 
 function boardStatusPillClasses(status: string) {
-  return status.toUpperCase() === "OPEN"
+  return status.toUpperCase() === "ACTIVE"
     ? "bg-violet-50 text-violet-600"
     : "bg-slate-100 text-slate-500";
 }
@@ -129,6 +130,15 @@ function formatSectionLabel(sectionCode: string) {
     return normalized;
   }
   return `SEC ${normalized}`;
+}
+
+function buildCourseQuery(courseCode: string, sectionCode?: string | null) {
+  const query = new URLSearchParams();
+  query.set("course_code", courseCode.trim().toUpperCase());
+  if (sectionCode?.trim()) {
+    query.set("sec", sectionCode.trim().toUpperCase());
+  }
+  return query.toString();
 }
 
 export default function ProfessorCourseDashboardView() {
@@ -186,6 +196,7 @@ export default function ProfessorCourseDashboardView() {
 
     getProfessorQuestions(session.userId, {
       courseCode: selectedCourseCode || undefined,
+      sectionCode: selectedSectionCode,
       status: "all",
     })
       .then((response) => {
@@ -209,6 +220,7 @@ export default function ProfessorCourseDashboardView() {
     pathname,
     router,
     selectedCourseCode,
+    selectedSectionCode,
     session?.role,
     session?.userId,
     refreshToken,
@@ -272,15 +284,13 @@ export default function ProfessorCourseDashboardView() {
       return [];
     }
 
-    const byStudent = new Map<
+    const questionStatsByStudent = new Map<
       string,
-      { id: string; name: string; totalQuestions: number; answeredQuestions: number }
+      { totalQuestions: number; answeredQuestions: number }
     >();
 
     data.student_questions.forEach((question) => {
-      const existing = byStudent.get(question.student_id) ?? {
-        id: question.student_id,
-        name: question.student_name,
+      const existing = questionStatsByStudent.get(question.student_id) ?? {
         totalQuestions: 0,
         answeredQuestions: 0,
       };
@@ -289,7 +299,22 @@ export default function ProfessorCourseDashboardView() {
       if (question.status === "ANSWERED") {
         existing.answeredQuestions += 1;
       }
-      byStudent.set(question.student_id, existing);
+      questionStatsByStudent.set(question.student_id, existing);
+    });
+
+    const byStudent = new Map<
+      string,
+      { id: string; name: string; totalQuestions: number; answeredQuestions: number }
+    >();
+
+    data.enrolled_students.forEach((student) => {
+      const stats = questionStatsByStudent.get(student.student_id);
+      byStudent.set(student.student_id, {
+        id: student.student_id,
+        name: student.student_name,
+        totalQuestions: stats?.totalQuestions ?? 0,
+        answeredQuestions: stats?.answeredQuestions ?? 0,
+      });
     });
 
     return Array.from(byStudent.values()).sort((a, b) => {
@@ -379,7 +404,7 @@ export default function ProfessorCourseDashboardView() {
           return true;
         }
 
-        return [board.board_id, board.course_code, board.course_name]
+        return [board.board_title || board.board_id, board.board_id, board.course_code, board.course_name]
           .join(" ")
           .toLowerCase()
           .includes(normalizedSearch);
@@ -414,12 +439,73 @@ export default function ProfessorCourseDashboardView() {
     if (!session?.userId || !selectedCourseCode) {
       return;
     }
+    if (!selectedSectionCode) {
+      window.alert("Please select a section before opening a board.");
+      return;
+    }
+
+    const title = window.prompt("Board title (e.g. Week 6 - AWS Deployment)");
+    if (title === null) {
+      return;
+    }
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      window.alert("Please enter a board title.");
+      return;
+    }
 
     try {
-      await createProfessorBoard(session.userId, selectedCourseCode);
+      await createProfessorBoard(
+        session.userId,
+        selectedCourseCode,
+        selectedSectionCode,
+        { boardTitle: normalizedTitle },
+      );
       refresh();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Create board failed");
+      const message = err instanceof Error ? err.message : "Create board failed";
+      if (message.toLowerCase().includes("active board")) {
+        const forceReplace = window.confirm(
+          `${message}\n\nDo you want to close the current board and open a new one?`,
+        );
+        if (!forceReplace) {
+          return;
+        }
+        try {
+          await createProfessorBoard(
+            session.userId,
+            selectedCourseCode,
+            selectedSectionCode,
+            {
+              boardTitle: normalizedTitle,
+              forceCloseExisting: true,
+            },
+          );
+          refresh();
+          return;
+        } catch (forceErr) {
+          window.alert(
+            forceErr instanceof Error ? forceErr.message : "Create board failed",
+          );
+          return;
+        }
+      }
+      window.alert(message);
+    }
+  };
+
+  const handleCloseBoard = async (boardId: string) => {
+    if (!session?.userId) {
+      return;
+    }
+    if (!window.confirm("Close this board? Students will no longer post new questions to it.")) {
+      return;
+    }
+    try {
+      await closeProfessorBoard(session.userId, boardId);
+      refresh();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Close board failed");
     }
   };
 
@@ -668,7 +754,7 @@ export default function ProfessorCourseDashboardView() {
                             Latest Board
                           </p>
                           <p className="mt-2 text-lg font-bold text-[#2A2340]">
-                            {latestBoard?.board_id || "No active board"}
+                            {latestBoard?.board_title || latestBoard?.board_id || "No active board"}
                           </p>
                         </div>
                         <span
@@ -704,7 +790,11 @@ export default function ProfessorCourseDashboardView() {
                           <Link
                             href={`/professor/courses/boardreview?course_code=${encodeURIComponent(
                               data.selected_course_code,
-                            )}&board_id=${encodeURIComponent(latestBoard.board_id)}`}
+                            )}&board_id=${encodeURIComponent(latestBoard.board_id)}${
+                              latestBoard.section_code
+                                ? `&sec=${encodeURIComponent(latestBoard.section_code)}`
+                                : ""
+                            }`}
                             className="flex-1 rounded-2xl bg-gradient-to-r from-[#5B41FF] to-[#D94FA2] px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-violet-100"
                           >
                             Review Session
@@ -718,9 +808,19 @@ export default function ProfessorCourseDashboardView() {
                             Open Board
                           </button>
                         )}
+                        {latestBoard?.status === "ACTIVE" ? (
+                          <button
+                            type="button"
+                            onClick={() => handleCloseBoard(latestBoard.board_id)}
+                            className="inline-flex items-center justify-center rounded-2xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                          >
+                            Close Board
+                          </button>
+                        ) : null}
                         <Link
-                          href={`/professor/questions?course_code=${encodeURIComponent(
+                          href={`/professor/questions?${buildCourseQuery(
                             data.selected_course_code,
+                            selectedSectionCode,
                           )}`}
                           className="inline-flex items-center justify-center rounded-2xl border border-[#E1DAFA] px-4 py-3 text-sm font-semibold text-[#6B5AD8] transition hover:bg-[#FBF9FF]"
                         >
@@ -806,7 +906,7 @@ export default function ProfessorCourseDashboardView() {
                 <div className="mt-6 space-y-3">
                   {studentSummaries.length === 0 ? (
                     <div className="rounded-3xl bg-[#FBFAFF] px-5 py-10 text-center text-sm text-[#9B91C7]">
-                      No student questions in this course yet.
+                      No students enrolled in this class yet.
                     </div>
                   ) : (
                     studentSummaries.map((student) => (
@@ -814,7 +914,7 @@ export default function ProfessorCourseDashboardView() {
                         key={student.id}
                         href={`/professor/courses/${encodeURIComponent(
                           student.id,
-                        )}?course_code=${encodeURIComponent(data.selected_course_code)}`}
+                        )}?${buildCourseQuery(data.selected_course_code, selectedSectionCode)}`}
                         className="flex items-center justify-between gap-4 rounded-[24px] border border-transparent bg-[#FBFAFF] px-4 py-4 transition hover:border-[#E5DEFF] hover:bg-white"
                       >
                         <div className="flex min-w-0 items-center gap-3">
@@ -921,15 +1021,20 @@ export default function ProfessorCourseDashboardView() {
                                   <span className="rounded-full bg-[#F1EDFF] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#7B68E5]">
                                     {board.course_code}
                                   </span>
+                                  {board.section_code ? (
+                                    <span className="rounded-full bg-[#FFF3E8] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#D97706]">
+                                      {formatSectionLabel(board.section_code)}
+                                    </span>
+                                  ) : null}
                                   <span className="text-sm font-semibold text-[#2A2340]">
-                                    {board.board_id}
+                                    {board.board_title || board.board_id}
                                   </span>
                                   <span className="text-xs text-[#A39ACB]">
                                     {formatRelativeTime(board.created_at)}
                                   </span>
                                 </div>
                                 <h3 className="mt-3 text-2xl font-bold text-[#473A7A]">
-                                  {board.course_code} Course Board
+                                  {board.board_title || `${board.course_code} Course Board`}
                                 </h3>
                                 <p className="mt-2 text-sm text-[#8D84B6]">
                                   {board.total_questions} questions in this session,{" "}
@@ -949,7 +1054,11 @@ export default function ProfessorCourseDashboardView() {
                               <Link
                                 href={`/professor/courses/boardreview?course_code=${encodeURIComponent(
                                   board.course_code,
-                                )}&board_id=${encodeURIComponent(board.board_id)}`}
+                                )}&board_id=${encodeURIComponent(board.board_id)}${
+                                  board.section_code
+                                    ? `&sec=${encodeURIComponent(board.section_code)}`
+                                    : ""
+                                }`}
                                 className="rounded-full bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-5 py-2.5 text-sm font-semibold text-white"
                               >
                                 Review Session
@@ -989,6 +1098,11 @@ export default function ProfessorCourseDashboardView() {
                                 <span className="rounded-full bg-[#F1EDFF] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#7B68E5]">
                                   {question.course_code}
                                 </span>
+                                {question.section_code ? (
+                                  <span className="rounded-full bg-[#FFF3E8] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#D97706]">
+                                    {formatSectionLabel(question.section_code)}
+                                  </span>
+                                ) : null}
                                 <span className="text-base font-bold text-[#2A2340]">
                                   {question.student_name}
                                 </span>

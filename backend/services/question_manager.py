@@ -146,6 +146,7 @@ class QuestionManager:
         db: Session,
         professor_id: str,
         course_code: str | None = None,
+        section_code: str | None = None,
         status_filter: str = "all",
         search: str | None = None,
         tag: str | None = None,
@@ -177,6 +178,38 @@ class QuestionManager:
         if not selected_course_code and courses:
             selected_course_code = str(courses[0]["course_code"]).strip().upper()
 
+        normalized_section_code = (section_code or "").strip().upper()
+        selected_section_id: str | None = None
+        section_rows = []
+        if selected_course_code:
+            section_rows = db.execute(
+                text(
+                    """
+                    SELECT section_id, course_code, section_code, meeting_days, start_time, end_time, is_active
+                    FROM course_sections
+                    WHERE course_code = :course_code
+                    ORDER BY section_code ASC, created_at ASC
+                    """
+                ),
+                {"course_code": selected_course_code},
+            ).mappings().all()
+
+            if normalized_section_code:
+                matching_section = next(
+                    (
+                        row
+                        for row in section_rows
+                        if str(row["section_code"]).strip().upper() == normalized_section_code
+                    ),
+                    None,
+                )
+                if matching_section is None:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail="Section not found for this course",
+                    )
+                selected_section_id = str(matching_section["section_id"])
+
         question_where = [
             "c.professor_id = :professor_id",
             "q.status <> 'deleted'",
@@ -190,6 +223,10 @@ class QuestionManager:
         if selected_course_code:
             question_where.append("c.course_code = :course_code")
             params["course_code"] = selected_course_code
+
+        if selected_section_id:
+            question_where.append("b.section_id = :section_id")
+            params["section_id"] = selected_section_id
 
         normalized_status_filter = status_filter.strip().lower()
         if normalized_status_filter in {"answered", "unanswered", "pending"}:
@@ -229,11 +266,14 @@ class QuestionManager:
                     q.student_id,
                     b.board_id,
                     b.course_code,
+                    b.section_id,
+                    s.section_code,
                     c.course_name,
                     COALESCE(author.full_name, author.nickname, author.user_id) AS student_name
                 FROM questions q
                 JOIN interaction_boards b ON b.board_id = q.board_id
                 JOIN courses c ON c.course_code = b.course_code
+                LEFT JOIN course_sections s ON s.section_id = b.section_id
                 JOIN users author ON author.user_id = q.student_id
                 WHERE {' AND '.join(question_where)}
                 ORDER BY q.created_at DESC
@@ -255,25 +295,34 @@ class QuestionManager:
             board_where.append("c.course_code = :course_code")
             board_params["course_code"] = selected_course_code
 
+        if selected_section_id:
+            board_where.append("b.section_id = :section_id")
+            board_params["section_id"] = selected_section_id
+
         board_rows = db.execute(
             text(
                 f"""
                 SELECT
                     b.board_id,
                     b.course_code,
+                    b.section_id,
+                    s.section_code,
                     c.course_name,
+                    b.board_title,
                     b.status,
                     b.created_at,
+                    b.closed_at,
                     COUNT(q.question_id) AS total_questions,
                     SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
                     SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions
                 FROM interaction_boards b
                 JOIN courses c ON c.course_code = b.course_code
+                LEFT JOIN course_sections s ON s.section_id = b.section_id
                 LEFT JOIN questions q
                     ON q.board_id = b.board_id
                    AND q.status <> 'deleted'
                 WHERE {' AND '.join(board_where)}
-                GROUP BY b.board_id, b.course_code, c.course_name, b.status, b.created_at
+                GROUP BY b.board_id, b.course_code, b.section_id, s.section_code, c.course_name, b.board_title, b.status, b.created_at, b.closed_at
                 ORDER BY b.created_at DESC
                 """
             ),
@@ -286,19 +335,6 @@ class QuestionManager:
             if selected_course
             else "No active course"
         )
-        section_rows = []
-        if selected_course_code:
-            section_rows = db.execute(
-                text(
-                    """
-                    SELECT section_id, section_code, meeting_days, start_time, end_time, is_active
-                    FROM course_sections
-                    WHERE course_code = :course_code
-                    ORDER BY section_code ASC, created_at ASC
-                    """
-                ),
-                {"course_code": selected_course_code},
-            ).mappings().all()
 
         return {
             "courses": [
@@ -328,14 +364,54 @@ class QuestionManager:
                 }
                 for row in section_rows
             ],
+            "enrolled_students": [
+                {
+                    "student_id": str(row["student_id"]),
+                    "student_name": str(row["student_name"]),
+                    "section_id": str(row["section_id"]) if row["section_id"] else None,
+                    "section_code": str(row["section_code"]) if row["section_code"] else None,
+                }
+                for row in (
+                    db.execute(
+                        text(
+                            """
+                            SELECT
+                                u.user_id AS student_id,
+                                COALESCE(u.full_name, u.nickname, u.user_id) AS student_name,
+                                e.section_id,
+                                s.section_code
+                            FROM enrollments e
+                            JOIN users u ON u.user_id = e.student_id
+                            LEFT JOIN course_sections s ON s.section_id = e.section_id
+                            WHERE e.course_code = :course_code
+                              AND (
+                                    :section_id IS NULL
+                                 OR e.section_id = :section_id
+                              )
+                            ORDER BY student_name ASC
+                            """
+                        ),
+                        {
+                            "course_code": selected_course_code,
+                            "section_id": selected_section_id,
+                        },
+                    ).mappings().all()
+                    if selected_course_code
+                    else []
+                )
+            ],
             "student_questions": student_questions,
             "board_sessions": [
                 {
                     "board_id": str(row["board_id"]),
                     "course_code": str(row["course_code"]),
+                    "section_id": str(row["section_id"]) if row["section_id"] else None,
+                    "section_code": str(row["section_code"]) if row["section_code"] else None,
                     "course_name": str(row["course_name"]),
+                    "board_title": str(row["board_title"] or row["board_id"]),
                     "status": str(row["status"]).upper(),
                     "created_at": cls._serialize_datetime(row["created_at"]),
+                    "closed_at": cls._serialize_datetime(row["closed_at"]),
                     "total_questions": int(row["total_questions"] or 0),
                     "answered_questions": int(row["answered_questions"] or 0),
                     "unanswered_questions": int(row["unanswered_questions"] or 0),
@@ -531,6 +607,7 @@ class QuestionManager:
                     r.question_id,
                     r.user_id,
                     u.nickname AS user_name,
+                    u.full_name AS user_full_name,
                     u.role AS user_role,
                     r.content,
                     r.created_at,
@@ -553,6 +630,9 @@ class QuestionManager:
                     "question_id": question_id,
                     "author_id": str(row["user_id"]),
                     "author_name": str(row["user_name"] or row["user_id"]),
+                    "author_full_name": str(
+                        row["user_full_name"] or row["user_name"] or row["user_id"]
+                    ),
                     "is_professor": str(row["user_role"]).lower() == "professor",
                     "content": str(row["content"]),
                     "created_at": cls._serialize_datetime(row["created_at"]),
@@ -598,6 +678,8 @@ class QuestionManager:
                 "student_id": str(row["student_id"]),
                 "student_name": str(row["student_name"]),
                 "course_code": str(row["course_code"]),
+                "section_id": str(row["section_id"]) if row["section_id"] else None,
+                "section_code": str(row["section_code"]) if row["section_code"] else None,
                 "course_name": str(row["course_name"]),
                 "board_id": str(row["board_id"]),
                 "created_at": cls._serialize_datetime(row["created_at"]),

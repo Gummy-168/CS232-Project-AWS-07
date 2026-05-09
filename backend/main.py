@@ -367,6 +367,113 @@ with engine.begin() as conn:
             """
         )
     )
+    has_board_section_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+              AND COLUMN_NAME = 'section_id'
+            """
+        )
+    ).scalar()
+    if not has_board_section_column:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE interaction_boards
+                ADD COLUMN section_id VARCHAR(50) NULL AFTER course_code
+                """
+            )
+        )
+        conn.execute(
+            text("ALTER TABLE interaction_boards ADD INDEX idx_interaction_boards_section_id (section_id)")
+        )
+    has_board_section_fk = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+              AND CONSTRAINT_NAME = 'fk_interaction_boards_section'
+            """
+        )
+    ).scalar()
+    if not has_board_section_fk:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE interaction_boards
+                ADD CONSTRAINT fk_interaction_boards_section
+                    FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+                    ON UPDATE CASCADE
+                    ON DELETE SET NULL
+                """
+            )
+        )
+    has_board_title_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+              AND COLUMN_NAME = 'board_title'
+            """
+        )
+    ).scalar()
+    if not has_board_title_column:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE interaction_boards
+                ADD COLUMN board_title VARCHAR(255) NULL AFTER section_id
+                """
+            )
+        )
+    has_board_opened_by_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+              AND COLUMN_NAME = 'opened_by'
+            """
+        )
+    ).scalar()
+    if not has_board_opened_by_column:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE interaction_boards
+                ADD COLUMN opened_by VARCHAR(50) NULL AFTER board_title
+                """
+            )
+        )
+    has_board_closed_at_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+              AND COLUMN_NAME = 'closed_at'
+            """
+        )
+    ).scalar()
+    if not has_board_closed_at_column:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE interaction_boards
+                ADD COLUMN closed_at DATETIME NULL AFTER created_at
+                """
+            )
+        )
     has_enrollment_section_column = conn.execute(
         text(
             """
@@ -450,6 +557,7 @@ class CreateQuestionRequest(BaseModel):
     """Request schema for creating a student question."""
 
     course_code: str = Field(min_length=1, max_length=50)
+    section_code: str | None = Field(default=None, min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=255)
     detail: str | None = None
     tags: list[str] = Field(default_factory=list)
@@ -485,6 +593,14 @@ class CreateProfessorReplyRequest(BaseModel):
     """Request schema for professor reply on a question."""
 
     content: str = Field(min_length=1, max_length=2000)
+
+
+class CreateProfessorBoardRequest(BaseModel):
+    """Request schema for opening a board session by professor."""
+
+    board_title: str = Field(min_length=1, max_length=255)
+    section_code: str | None = Field(default=None, min_length=1, max_length=50)
+    force_close_existing: bool = False
 
 
 def get_db() -> Session:
@@ -625,6 +741,7 @@ def get_question_replies_map(
                 r.question_id,
                 r.user_id,
                 u.nickname AS user_name,
+                u.full_name AS user_full_name,
                 u.role AS user_role,
                 r.content,
                 r.created_at,
@@ -647,6 +764,9 @@ def get_question_replies_map(
                 "question_id": question_id,
                 "author_id": str(row["user_id"]),
                 "author_name": str(row["user_name"] or row["user_id"]),
+                "author_full_name": str(
+                    row["user_full_name"] or row["user_name"] or row["user_id"]
+                ),
                 "is_professor": str(row["user_role"]).lower() == "professor",
                 "content": str(row["content"]),
                 "created_at": serialize_datetime(row["created_at"]),
@@ -1011,6 +1131,7 @@ def get_student_courses(
                 c.is_active,
                 c.professor_id,
                 p.nickname AS professor_name,
+                p.full_name AS professor_full_name,
                 e.section_id,
                 s.section_code,
                 e.join_date
@@ -1032,6 +1153,9 @@ def get_student_courses(
             "is_active": bool(row["is_active"]),
             "professor_id": str(row["professor_id"]),
             "professor_name": str(row["professor_name"] or row["professor_id"]),
+            "professor_full_name": str(
+                row["professor_full_name"] or row["professor_name"] or row["professor_id"]
+            ),
             "section_id": str(row["section_id"]) if row["section_id"] else None,
             "section_code": str(row["section_code"]) if row["section_code"] else None,
             "join_date": serialize_datetime(row["join_date"]),
@@ -1057,10 +1181,14 @@ def get_student_course_board(
             SELECT
                 c.course_code,
                 c.course_name,
-                COALESCE(p.nickname, c.professor_id) AS professor_name
+                COALESCE(p.nickname, c.professor_id) AS professor_name,
+                COALESCE(p.full_name, p.nickname, c.professor_id) AS professor_full_name,
+                e.section_id,
+                s.section_code
             FROM enrollments e
             JOIN courses c ON c.course_code = e.course_code
             LEFT JOIN professors p ON p.professor_id = c.professor_id
+            LEFT JOIN course_sections s ON s.section_id = e.section_id
             WHERE e.student_id = :student_id
               AND c.course_code = :course_code
             LIMIT 1
@@ -1083,23 +1211,34 @@ def get_student_course_board(
             """
             SELECT
                 b.board_id,
+                b.board_title,
+                b.section_id,
+                s.section_code,
                 b.status,
                 b.created_at,
                 COUNT(q.question_id) AS total_questions,
                 SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
                 SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions
             FROM interaction_boards b
+            LEFT JOIN course_sections s ON s.section_id = b.section_id
             LEFT JOIN questions q
                 ON q.board_id = b.board_id
                AND q.status <> 'deleted'
             WHERE b.course_code = :course_code
+              AND (
+                    (:section_id IS NULL AND b.section_id IS NULL)
+                 OR b.section_id = :section_id
+              )
               AND b.status = 'active'
-            GROUP BY b.board_id, b.status, b.created_at
+            GROUP BY b.board_id, b.section_id, s.section_code, b.status, b.created_at
             ORDER BY b.created_at DESC
             LIMIT 1
             """
         ),
-        {"course_code": normalized_course_code},
+        {
+            "course_code": normalized_course_code,
+            "section_id": str(course["section_id"]) if course["section_id"] else None,
+        },
     ).mappings().first()
 
     return {
@@ -1111,10 +1250,16 @@ def get_student_course_board(
             "course_code": str(course["course_code"]),
             "course_name": str(course["course_name"]),
             "professor_name": str(course["professor_name"]),
+            "professor_full_name": str(course["professor_full_name"]),
+            "section_id": str(course["section_id"]) if course["section_id"] else None,
+            "section_code": str(course["section_code"]) if course["section_code"] else None,
         },
         "active_board": (
             {
                 "board_id": str(active_board["board_id"]),
+                "board_title": str(active_board["board_title"] or active_board["board_id"]),
+                "section_id": str(active_board["section_id"]) if active_board["section_id"] else None,
+                "section_code": str(active_board["section_code"]) if active_board["section_code"] else None,
                 "status": str(active_board["status"]).upper(),
                 "created_at": serialize_datetime(active_board["created_at"]),
                 "total_questions": int(active_board["total_questions"] or 0),
@@ -1182,6 +1327,7 @@ def get_student_questions(
     student_id: str,
     scope: str = Query(default="all", pattern="^(all|mine)$"),
     course_code: str | None = Query(default=None),
+    section_code: str | None = Query(default=None),
     status_filter: str = Query(default="all", alias="status"),
     search: str | None = Query(default=None),
     tag: str | None = Query(default=None),
@@ -1192,6 +1338,7 @@ def get_student_questions(
     supports_title = has_table_column(db=db, table_name="questions", column_name="title")
 
     normalized_course_code = course_code.strip().upper() if course_code else None
+    normalized_section_code = section_code.strip().upper() if section_code else None
     normalized_search = search.strip().lower() if search else None
     normalized_status_filter = status_filter.strip().lower()
     normalized_tag = tag.strip() if tag else None
@@ -1213,11 +1360,15 @@ def get_student_questions(
             {tags_select},
             q.created_at,
             q.updated_at,
+            b.section_id,
+            s.section_code,
             u.user_id AS author_id,
-            u.nickname AS author_name
+            u.nickname AS author_name,
+            u.full_name AS author_full_name
         FROM questions q
         JOIN interaction_boards b ON b.board_id = q.board_id
         JOIN courses c ON c.course_code = b.course_code
+        LEFT JOIN course_sections s ON s.section_id = b.section_id
         JOIN users u ON u.user_id = q.student_id
     """.format(title_select=title_select, tags_select=tags_select)
 
@@ -1232,10 +1383,22 @@ def get_student_questions(
                 ON e.course_code = b.course_code
                 AND e.student_id = :student_id
         """
+        where_clauses.append(
+            """
+            (
+                (e.section_id IS NULL AND b.section_id IS NULL)
+                OR b.section_id = e.section_id
+            )
+            """
+        )
 
     if normalized_course_code:
         where_clauses.append("b.course_code = :course_code")
         params["course_code"] = normalized_course_code
+
+    if normalized_section_code:
+        where_clauses.append("s.section_code = :section_code")
+        params["section_code"] = normalized_section_code
 
     if normalized_status_filter in {"answered", "unanswered", "pending"}:
         where_clauses.append("q.status = :status")
@@ -1294,8 +1457,13 @@ def get_student_questions(
             "tags": serialize_tags(row["tags"]),
             "created_at": serialize_datetime(row["created_at"]),
             "updated_at": serialize_datetime(row["updated_at"]),
+            "section_id": str(row["section_id"]) if row["section_id"] else None,
+            "section_code": str(row["section_code"]) if row["section_code"] else None,
             "author_id": str(row["author_id"]),
             "author_name": str(row["author_name"]),
+            "author_full_name": str(
+                row["author_full_name"] or row["author_name"] or row["author_id"]
+            ),
             "replies": replies_map.get(str(row["question_id"]), []),
         }
         for row in rows
@@ -1475,21 +1643,37 @@ def create_student_question(
     enrollment = db.execute(
         text(
             """
-            SELECT 1
-            FROM enrollments
-            WHERE student_id = :student_id
-              AND course_code = :course_code
+            SELECT
+                e.section_id,
+                s.section_code
+            FROM enrollments e
+            LEFT JOIN course_sections s ON s.section_id = e.section_id
+            WHERE e.student_id = :student_id
+              AND e.course_code = :course_code
             """
         ),
         {
             "student_id": student_id,
             "course_code": normalized_course_code,
         },
-    ).first()
+    ).mappings().first()
     if enrollment is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Student is not enrolled in this course",
+        )
+
+    enrollment_section_id = str(enrollment["section_id"]) if enrollment["section_id"] else None
+    enrollment_section_code = (
+        str(enrollment["section_code"]).strip().upper()
+        if enrollment["section_code"]
+        else None
+    )
+
+    if payload.section_code and enrollment_section_code != payload.section_code.strip().upper():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student cannot post to a different section",
         )
 
     board = db.execute(
@@ -1498,12 +1682,19 @@ def create_student_question(
             SELECT board_id
             FROM interaction_boards
             WHERE course_code = :course_code
+              AND (
+                    (:section_id IS NULL AND section_id IS NULL)
+                 OR section_id = :section_id
+              )
               AND status = 'active'
             ORDER BY created_at DESC
             LIMIT 1
             """
         ),
-        {"course_code": normalized_course_code},
+        {
+            "course_code": normalized_course_code,
+            "section_id": enrollment_section_id,
+        },
     ).mappings().first()
 
     board_id = str(board["board_id"]) if board else f"board_{uuid4().hex[:10]}"
@@ -1511,13 +1702,14 @@ def create_student_question(
         db.execute(
             text(
                 """
-                INSERT INTO interaction_boards (board_id, course_code, status)
-                VALUES (:board_id, :course_code, 'active')
+                INSERT INTO interaction_boards (board_id, course_code, section_id, status)
+                VALUES (:board_id, :course_code, :section_id, 'active')
                 """
             ),
             {
                 "board_id": board_id,
                 "course_code": normalized_course_code,
+                "section_id": enrollment_section_id,
             },
         )
 
@@ -1604,6 +1796,8 @@ def create_student_question(
         "id": question_id,
         "course_code": normalized_course_code,
         "course_name": normalized_course_code,
+        "section_id": enrollment_section_id,
+        "section_code": enrollment_section_code,
         "title": normalized_title,
         "content": content,
         "reply_content": None,
@@ -1996,6 +2190,7 @@ def get_student_analytics(
 def get_professor_questions(
     professor_id: str,
     course_code: str | None = Query(default=None),
+    section_code: str | None = Query(default=None),
     status_filter: str = Query(default="all", alias="status"),
     search: str | None = Query(default=None),
     tag: str | None = Query(default=None),
@@ -2008,6 +2203,7 @@ def get_professor_questions(
         db=db,
         professor_id=professor_id,
         course_code=course_code,
+        section_code=section_code,
         status_filter=status_filter,
         search=search,
         tag=tag,
@@ -2050,11 +2246,29 @@ def get_course_question_feed(
 def create_professor_board_session(
     professor_id: str,
     course_code: str,
+    section_code: str | None = Query(default=None),
+    payload: CreateProfessorBoardRequest | None = None,
     db: Session = Depends(get_db),
-) -> dict[str, str]:
+) -> dict[str, str | None]:
     """Create a new board session for a professor's course."""
     require_professor(db=db, professor_id=professor_id)
     normalized_course_code = course_code.strip().upper()
+    payload_section_code = payload.section_code if payload and payload.section_code else None
+    resolved_section_code = payload_section_code or section_code
+    normalized_section_code = resolved_section_code.strip().upper() if resolved_section_code else None
+    board_title = (payload.board_title if payload else "").strip()
+    force_close_existing = bool(payload.force_close_existing) if payload else False
+
+    if not normalized_section_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please select a section before opening a board",
+        )
+    if not board_title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Board title is required",
+        )
 
     course = db.execute(
         text(
@@ -2077,29 +2291,93 @@ def create_professor_board_session(
             detail="Course not found for this professor",
         )
 
-    db.execute(
+    section_id: str | None = None
+    if normalized_section_code:
+        section = db.execute(
+            text(
+                """
+                SELECT section_id, section_code
+                FROM course_sections
+                WHERE course_code = :course_code
+                  AND section_code = :section_code
+                LIMIT 1
+                """
+            ),
+            {
+                "course_code": normalized_course_code,
+                "section_code": normalized_section_code,
+            },
+        ).mappings().first()
+        if section is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found for this course",
+            )
+        section_id = str(section["section_id"])
+
+    existing_active_board = db.execute(
         text(
             """
-            UPDATE interaction_boards
-            SET status = 'closed'
+            SELECT board_id, board_title
+            FROM interaction_boards
             WHERE course_code = :course_code
+              AND section_id = :section_id
               AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT 1
             """
         ),
-        {"course_code": normalized_course_code},
-    )
+        {
+            "course_code": normalized_course_code,
+            "section_id": section_id,
+        },
+    ).mappings().first()
+    if existing_active_board and not force_close_existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Section already has an active board ({existing_active_board['board_id']})",
+        )
+    if existing_active_board and force_close_existing:
+        db.execute(
+            text(
+                """
+                UPDATE interaction_boards
+                SET status = 'closed',
+                    closed_at = CURRENT_TIMESTAMP
+                WHERE board_id = :board_id
+                """
+            ),
+            {"board_id": str(existing_active_board["board_id"])},
+        )
 
     board_id = f"board_{uuid4().hex[:10]}"
     db.execute(
         text(
             """
-            INSERT INTO interaction_boards (board_id, course_code, status)
-            VALUES (:board_id, :course_code, 'active')
+            INSERT INTO interaction_boards (
+                board_id,
+                course_code,
+                section_id,
+                board_title,
+                opened_by,
+                status
+            )
+            VALUES (
+                :board_id,
+                :course_code,
+                :section_id,
+                :board_title,
+                :opened_by,
+                'active'
+            )
             """
         ),
         {
             "board_id": board_id,
             "course_code": normalized_course_code,
+            "section_id": section_id,
+            "board_title": board_title,
+            "opened_by": professor_id,
         },
     )
     db.commit()
@@ -2108,7 +2386,76 @@ def create_professor_board_session(
         "board_id": board_id,
         "course_code": normalized_course_code,
         "course_name": str(course["course_name"]),
+        "section_code": normalized_section_code,
+        "board_title": board_title,
         "status": "ACTIVE",
+    }
+
+
+@app.patch(
+    "/professors/{professor_id}/boards/{board_id}/close",
+    status_code=status.HTTP_200_OK,
+)
+def close_professor_board_session(
+    professor_id: str,
+    board_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, str | None]:
+    """Close an active board session owned by the professor."""
+    require_professor(db=db, professor_id=professor_id)
+    board = db.execute(
+        text(
+            """
+            SELECT
+                b.board_id,
+                b.course_code,
+                b.section_id,
+                s.section_code,
+                b.board_title,
+                b.status
+            FROM interaction_boards b
+            JOIN courses c ON c.course_code = b.course_code
+            LEFT JOIN course_sections s ON s.section_id = b.section_id
+            WHERE b.board_id = :board_id
+              AND c.professor_id = :professor_id
+            LIMIT 1
+            """
+        ),
+        {
+            "board_id": board_id,
+            "professor_id": professor_id,
+        },
+    ).mappings().first()
+    if board is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Board not found for this professor",
+        )
+    if str(board["status"]).lower() == "closed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Board is already closed",
+        )
+
+    db.execute(
+        text(
+            """
+            UPDATE interaction_boards
+            SET status = 'closed',
+                closed_at = CURRENT_TIMESTAMP
+            WHERE board_id = :board_id
+            """
+        ),
+        {"board_id": board_id},
+    )
+    db.commit()
+
+    return {
+        "board_id": str(board["board_id"]),
+        "course_code": str(board["course_code"]),
+        "section_code": str(board["section_code"]) if board["section_code"] else None,
+        "board_title": str(board["board_title"]) if board["board_title"] else None,
+        "status": "CLOSED",
     }
 
 
@@ -2238,6 +2585,7 @@ def create_professor_question_reply(
         "question_id": question_id,
         "author_id": professor.user_id,
         "author_name": professor.nickname,
+        "author_full_name": professor.full_name or professor.nickname or professor.user_id,
         "is_professor": True,
         "content": content,
         "created_at": created_at,

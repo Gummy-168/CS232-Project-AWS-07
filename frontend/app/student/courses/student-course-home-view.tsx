@@ -5,10 +5,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { BookOpen, Clock3, MessageSquareText, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import AskModal from "../../components/askmodal";
 import Header from "../../components/Header";
 import JoinCourse from "../../components/joincourse";
 import { useAuthSession } from "../../hooks/useAuthSession";
 import {
+  createStudentQuestion,
   type StudentCourse,
   type StudentCourseBoardData,
   type StudentQuestion,
@@ -31,8 +33,15 @@ function formatRelativeTime(value: string | null) {
   }
 }
 
-function QuestionCard({ question }: { question: StudentQuestion }) {
+function QuestionCard({
+  question,
+  professorName,
+}: {
+  question: StudentQuestion;
+  professorName?: string;
+}) {
   const isAnswered = question.status === "ANSWERED";
+  const resolvedProfessorName = professorName?.trim() || "Professor";
 
   return (
     <article
@@ -98,7 +107,11 @@ function QuestionCard({ question }: { question: StudentQuestion }) {
               className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3"
             >
               <div className="mb-1 flex items-center justify-between gap-3 text-sm text-slate-500">
-                <span className="font-medium text-slate-700">{reply.author_name}</span>
+                <span className="font-medium text-slate-700">
+                  {reply.is_professor
+                    ? reply.author_full_name?.trim() || resolvedProfessorName
+                    : reply.author_name}
+                </span>
                 <span>{formatRelativeTime(reply.created_at)}</span>
               </div>
               <p className="text-sm leading-6 text-slate-600">{reply.content}</p>
@@ -118,12 +131,21 @@ export default function StudentCourseHomeView() {
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const [isAskModalOpen, setIsAskModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [courseBoard, setCourseBoard] = useState<StudentCourseBoardData | null>(null);
   const [questions, setQuestions] = useState<StudentQuestion[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<QuestionFilter>("All");
+  const selectedCourse =
+    courses.find((course) => course.course_code.toUpperCase() === selectedCourseCode) ?? null;
+  const resolvedProfessorName =
+    selectedCourse?.professor_full_name?.trim() ||
+    courseBoard?.course.professor_full_name?.trim() ||
+    selectedCourse?.professor_name ||
+    courseBoard?.course.professor_name ||
+    "Professor";
 
   useEffect(() => {
     if (!session?.userId) {
@@ -167,6 +189,7 @@ export default function StudentCourseHomeView() {
       getStudentQuestions(session.userId, {
         scope: "all",
         courseCode: selectedCourseCode,
+        sectionCode: selectedCourse?.section_code || undefined,
       }),
     ])
       .then(([boardResponse, questionsResponse]) => {
@@ -182,7 +205,7 @@ export default function StudentCourseHomeView() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [selectedCourseCode, session?.userId]);
+  }, [selectedCourse?.section_code, selectedCourseCode, session?.userId]);
 
   const filteredQuestions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -203,13 +226,37 @@ export default function StudentCourseHomeView() {
     });
   }, [filter, questions, search]);
 
-  const selectedCourse =
-    courses.find((course) => course.course_code.toUpperCase() === selectedCourseCode) ?? null;
   const activeBoard = courseBoard?.active_board ?? null;
   const answeredCount = questions.filter((question) => question.status === "ANSWERED").length;
   const unansweredCount = questions.filter(
     (question) => question.status === "UNANSWERED",
   ).length;
+
+  const handleCreateQuestion = async (payload: {
+    title: string;
+    detail: string;
+    tags: string[];
+    anonymous: boolean;
+  }) => {
+    if (!session?.userId || !selectedCourse) {
+      return;
+    }
+
+    try {
+      const created = await createStudentQuestion(session.userId, {
+        course_code: selectedCourse.course_code,
+        section_code: selectedCourse.section_code ?? undefined,
+        title: payload.title,
+        detail: payload.detail,
+        tags: payload.tags,
+        is_anonymous: payload.anonymous,
+      });
+      setQuestions((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      setIsAskModalOpen(false);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Failed to post question");
+    }
+  };
 
   if (isLoading && !courseBoard && courses.length === 0) {
     return (
@@ -237,6 +284,18 @@ export default function StudentCourseHomeView() {
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
       />
+      <AskModal
+        isOpen={isAskModalOpen}
+        onClose={() => setIsAskModalOpen(false)}
+        onAdd={handleCreateQuestion}
+        courseTitle={
+          selectedCourse
+            ? `${selectedCourse.course_code}${
+                selectedCourse.section_code ? ` · SEC ${selectedCourse.section_code}` : ""
+              }`
+            : undefined
+        }
+      />
 
       <main className="pb-10 pt-40">
         <div className="mx-auto w-full max-w-[1360px] space-y-8 px-6 xl:px-8">
@@ -256,7 +315,7 @@ export default function StudentCourseHomeView() {
                     {selectedCourse.course_name}
                   </p>
                   <p className="mt-2 text-base text-slate-500">
-                    Instructor: {selectedCourse.professor_name}
+                    Instructor: {resolvedProfessorName}
                   </p>
 
                   <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -288,7 +347,7 @@ export default function StudentCourseHomeView() {
                         Current Board
                       </p>
                       <h3 className="mt-3 text-3xl font-semibold text-[#1B1B1B]">
-                        {activeBoard ? activeBoard.board_id : "No board open"}
+                        {activeBoard ? activeBoard.board_title || activeBoard.board_id : "No board open"}
                       </h3>
                     </div>
                     <span
@@ -404,7 +463,11 @@ export default function StudentCourseHomeView() {
                 <div className="space-y-5">
                   {filteredQuestions.length > 0 ? (
                     filteredQuestions.map((question) => (
-                      <QuestionCard key={question.id} question={question} />
+                      <QuestionCard
+                        key={question.id}
+                        question={question}
+                        professorName={resolvedProfessorName}
+                      />
                     ))
                   ) : (
                     <div className="rounded-[28px] border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">
@@ -442,7 +505,7 @@ export default function StudentCourseHomeView() {
                     <div className="rounded-[22px] bg-[#F3FAF7] p-5">
                       <p className="text-sm text-slate-500">Professor</p>
                       <p className="mt-2 text-xl font-semibold text-slate-700">
-                        {selectedCourse.professor_name}
+                        {resolvedProfessorName}
                       </p>
                     </div>
                   </div>
@@ -461,6 +524,17 @@ export default function StudentCourseHomeView() {
           )}
         </div>
       </main>
+      {selectedCourse ? (
+        <button
+          type="button"
+          onClick={() => setIsAskModalOpen(true)}
+          aria-label="Ask a question"
+          title="Ask a question"
+          className="fixed bottom-10 right-8 z-[120] inline-flex h-14 w-14 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br from-[#5B41FF] via-[#9A4FD4] to-[#F05CA8] text-white shadow-[0_16px_34px_rgba(120,73,210,0.45)] transition hover:scale-105 hover:shadow-[0_20px_40px_rgba(120,73,210,0.55)] active:scale-95"
+        >
+          <MessageSquareText size={22} />
+        </button>
+      ) : null}
     </div>
   );
 }

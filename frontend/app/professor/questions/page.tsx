@@ -40,6 +40,23 @@ type TimelineItem =
 const avatarFor = (seed: string) =>
   `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed)}`;
 
+function formatSectionLabel(sectionCode: string) {
+  const normalized = sectionCode.trim().toUpperCase();
+  if (normalized.startsWith("SEC")) {
+    return normalized;
+  }
+  return `SEC ${normalized}`;
+}
+
+function buildCourseQuery(courseCode: string, sectionCode?: string) {
+  const query = new URLSearchParams();
+  query.set("course_code", courseCode.trim().toUpperCase());
+  if (sectionCode?.trim()) {
+    query.set("sec", sectionCode.trim().toUpperCase());
+  }
+  return query.toString();
+}
+
 function formatRelativeTime(value: string | null) {
   if (!value) {
     return "";
@@ -88,6 +105,8 @@ export default function ProfessorQuestionsPage() {
   const [filter, setFilter] = useState<QuestionFilter>("all");
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
+  const selectedSectionCode =
+    searchParams.get("sec")?.trim().toUpperCase() || undefined;
   const [data, setData] = useState<ProfessorQuestionsData | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
   const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
@@ -101,7 +120,7 @@ export default function ProfessorQuestionsPage() {
       }
       setLoading(true);
       router.replace(
-        `${pathname}?course_code=${encodeURIComponent(
+        `${pathname}?${buildCourseQuery(
           createdCourse.course_code.trim().toUpperCase(),
         )}`,
       );
@@ -123,6 +142,7 @@ export default function ProfessorQuestionsPage() {
 
     getProfessorQuestions(session.userId, {
       courseCode: selectedCourseCode || undefined,
+      sectionCode: selectedSectionCode,
       status,
       search: search || undefined,
       tag: selectedTag === "all" ? undefined : selectedTag,
@@ -151,6 +171,7 @@ export default function ProfessorQuestionsPage() {
     router,
     session?.userId,
     selectedCourseCode,
+    selectedSectionCode,
     filter,
     search,
     selectedTag, 
@@ -206,11 +227,54 @@ export default function ProfessorQuestionsPage() {
     if (!session?.userId || !selectedCourseCode) {
       return;
     }
+    if (!selectedSectionCode) {
+      alert("Please select a section before opening a board.");
+      return;
+    }
+    const title = window.prompt("Board title (e.g. Week 6 - AWS Deployment)");
+    if (title === null) {
+      return;
+    }
+    const normalizedTitle = title.trim();
+    if (!normalizedTitle) {
+      alert("Please enter a board title.");
+      return;
+    }
     try {
-      await createProfessorBoard(session.userId, selectedCourseCode);
+      await createProfessorBoard(
+        session.userId,
+        selectedCourseCode,
+        selectedSectionCode,
+        { boardTitle: normalizedTitle },
+      );
       refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Create board failed");
+      const message = err instanceof Error ? err.message : "Create board failed";
+      if (message.toLowerCase().includes("active board")) {
+        const forceReplace = window.confirm(
+          `${message}\n\nDo you want to close the current board and open a new one?`,
+        );
+        if (!forceReplace) {
+          return;
+        }
+        try {
+          await createProfessorBoard(
+            session.userId,
+            selectedCourseCode,
+            selectedSectionCode,
+            {
+              boardTitle: normalizedTitle,
+              forceCloseExisting: true,
+            },
+          );
+          refresh();
+          return;
+        } catch (forceErr) {
+          alert(forceErr instanceof Error ? forceErr.message : "Create board failed");
+          return;
+        }
+      }
+      alert(message);
     }
   };
 
@@ -283,6 +347,11 @@ export default function ProfessorQuestionsPage() {
               ? `${data.course.code}: ${data.course.title}`
               : "No active course"}
           </h2>
+          {selectedSectionCode ? (
+            <p className="mb-5 text-sm font-semibold text-[#7B68E5]">
+              Filtering by {formatSectionLabel(selectedSectionCode)}
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <select
@@ -291,11 +360,7 @@ export default function ProfessorQuestionsPage() {
                 setLoading(true);
                 const nextCourseCode = event.target.value.trim().toUpperCase();
                 if (nextCourseCode) {
-                  router.replace(
-                    `${pathname}?course_code=${encodeURIComponent(
-                      nextCourseCode,
-                    )}`,
-                  );
+                  router.replace(`${pathname}?${buildCourseQuery(nextCourseCode)}`);
                 } else {
                   router.replace(pathname);
                 }
@@ -322,6 +387,11 @@ export default function ProfessorQuestionsPage() {
 
         <section className="max-w-5xl mx-auto">
           <h3 className="text-2xl text-[#1B1B1B] mb-4">ActivityTimeline</h3>
+          {selectedSectionCode ? (
+            <p className="mb-4 text-sm text-slate-500">
+              Showing activity for {formatSectionLabel(selectedSectionCode)} only.
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-3 mb-7">
             {[
@@ -352,11 +422,7 @@ export default function ProfessorQuestionsPage() {
                 setLoading(true);
                 const nextCourseCode = event.target.value.trim().toUpperCase();
                 if (nextCourseCode) {
-                  router.replace(
-                    `${pathname}?course_code=${encodeURIComponent(
-                      nextCourseCode,
-                    )}`,
-                  );
+                  router.replace(`${pathname}?${buildCourseQuery(nextCourseCode)}`);
                 } else {
                   router.replace(pathname);
                 }
@@ -472,6 +538,11 @@ function BoardActivityCard({ board }: { board: ProfessorBoardSession }) {
         <div className="flex-1 pr-20">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className="font-bold text-slate-800">{board.course_code} Course Bot</span>
+            {board.section_code ? (
+              <span className="rounded-full bg-[#FFF3E8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#D97706]">
+                {formatSectionLabel(board.section_code)}
+              </span>
+            ) : null}
             <span className="text-xs text-slate-400">
               {formatRelativeTime(board.created_at)}
             </span>
@@ -479,13 +550,17 @@ function BoardActivityCard({ board }: { board: ProfessorBoardSession }) {
 
           <div className="bg-[#F7F1FB] rounded-2xl p-5">
             <p className="text-[#513FDF] font-bold text-lg mb-1">
-              {board.board_id}: {board.course_code}
+              {board.board_title || board.board_id}
             </p>
             <p className="text-sm text-slate-500 mb-4">
               {board.total_questions} questions / {board.answered_questions} answered
             </p>
             <Link
-              href={`/professor/courses/boardreview?course_code=${board.course_code}&board_id=${board.board_id}`}
+              href={`/professor/courses/boardreview?course_code=${encodeURIComponent(
+                board.course_code,
+              )}&board_id=${encodeURIComponent(board.board_id)}${
+                board.section_code ? `&sec=${encodeURIComponent(board.section_code)}` : ""
+              }`}
               className="inline-flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all"
             >
               <Eye size={15} />
@@ -546,6 +621,11 @@ function QuestionActivityCard({
         <div className="flex-1 pr-20">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="font-bold text-slate-800">{question.student_name}</span>
+            {question.section_code ? (
+              <span className="rounded-full bg-[#FFF3E8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#D97706]">
+                {formatSectionLabel(question.section_code)}
+              </span>
+            ) : null}
             <span className="text-xs text-slate-400">
               {formatRelativeTime(question.created_at)}
             </span>

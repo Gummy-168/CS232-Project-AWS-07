@@ -76,13 +76,22 @@ CREATE TABLE IF NOT EXISTS course_sections (
 CREATE TABLE IF NOT EXISTS interaction_boards (
     board_id VARCHAR(50) PRIMARY KEY,
     course_code VARCHAR(50) NOT NULL,
+    section_id VARCHAR(50) NULL,
+    board_title VARCHAR(255) NULL,
+    opened_by VARCHAR(50) NULL,
     status ENUM('active', 'archived', 'closed') DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    closed_at DATETIME NULL,
     INDEX idx_interaction_boards_course_code (course_code),
+    INDEX idx_interaction_boards_section_id (section_id),
     CONSTRAINT fk_interaction_boards_course
         FOREIGN KEY (course_code) REFERENCES courses(course_code)
         ON UPDATE CASCADE
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_interaction_boards_section
+        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS course_join_codes (

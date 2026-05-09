@@ -1,31 +1,13 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import { User, Bell, Lock, Edit3, Activity, Camera } from "lucide-react";
+import { User, Bell, Lock, Camera } from "lucide-react";
 import Header from "../../components/Header";
 import CreateCourse from "../../components/createcourse";
-
-const fetchProfessorData = async () => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        professor: { name: "อาจารย์สะปุกนิก", id: "PRF000001" },
-        course: { title: "CS232: Intro to Cloud Computing", code: "7A3456" },
-      });
-    }, 600);
-  });
-};
+import { useAuthSession } from "../../hooks/useAuthSession";
+import { getProfessorQuestions, type ProfessorQuestionsData } from "../../lib/api";
 
 const ProfessorSettingsPage = () => {
-  // Mock Data
-  const professorInfo = {
-    fullName: "อาจารย์สะปุกนิก",
-    displayName: "อาจารย์สะปุกนิก",
-    email: "professor@example.com",
-    studentId: "6700000000",
-    semester: "2/2026",
-    enrolledCourses: 1,
-    profileImage: "https://api.dicebear.com/7.x/bottts/svg?seed=shiba",
-  };
+  const { session } = useAuthSession();
 
   const [notifications, setNotifications] = useState({
     answers: false,
@@ -48,13 +30,22 @@ const ProfessorSettingsPage = () => {
   };
 
   const [isEditing, setIsEditing] = useState(false);
-  const [displayName, setDisplayName] = useState(professorInfo.displayName);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<ProfessorQuestionsData | null>(null);
 
   useEffect(() => {
-    fetchProfessorData().then(setData);
-  }, []);
+    if (!session?.userId || session.role !== "professor") {
+      return;
+    }
+
+    getProfessorQuestions(session.userId)
+      .then((response) => {
+        setData(response);
+      })
+      .catch(() => {
+        setData(null);
+      });
+  }, [session?.role, session?.userId]);
   const [showSuccess, setShowSuccess] = useState(false);
   const handleSaveProfile = async () => {
     try {
@@ -67,13 +58,17 @@ const ProfessorSettingsPage = () => {
   };
   const handleCreateCourse = () => {};
 
+  const professorFullName =
+    data?.professor.full_name?.trim() || session?.fullName || "Professor";
+  const professorEmail = session?.email || "professor@example.com";
+
   return (
     <div className="h-full bg-[#FCF9F8] font-sans text-slate-700 overflow-y-auto">
       <Header
-        professorName={data?.professor?.name}
+        professorName={professorFullName}
         onJoinCourse={() => setIsModalOpen(true)}
-        courseTitle={data?.course?.title}
-        codeId={data?.course?.code}
+        courseTitle={data?.course.title}
+        codeId={data?.course.code}
         mode="settingsprof"
       />
       <CreateCourse
@@ -170,7 +165,7 @@ const ProfessorSettingsPage = () => {
                         </label>
                         <div className="flex items-center justify-between bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200">
                           <span className="text-slate-600">
-                            {professorInfo.fullName}
+                            {professorFullName}
                           </span>
                           <Lock size={16} className="text-slate-400" />
                         </div>
@@ -184,7 +179,7 @@ const ProfessorSettingsPage = () => {
                       </label>
                       <div className="flex items-center justify-between bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200">
                         <span className="text-slate-600">
-                          {professorInfo.email}
+                          {professorEmail}
                         </span>
                         <Lock size={16} className="text-slate-400" />
                       </div>

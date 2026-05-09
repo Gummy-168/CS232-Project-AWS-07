@@ -102,6 +102,7 @@ export interface StudentCourse {
   is_active: boolean;
   professor_id: string;
   professor_name: string;
+  professor_full_name?: string;
   section_id?: string | null;
   section_code?: string | null;
   join_date: string | null;
@@ -111,6 +112,8 @@ export interface StudentQuestion {
   id: string;
   course_code: string;
   course_name: string;
+  section_id?: string | null;
+  section_code?: string | null;
   title: string;
   content: string;
   reply_content: string | null;
@@ -129,6 +132,7 @@ export interface StudentQuestionReply {
   question_id: string;
   author_id: string;
   author_name: string;
+  author_full_name?: string;
   is_professor: boolean;
   content: string;
   created_at: string | null;
@@ -193,9 +197,15 @@ export interface StudentCourseBoardData {
     course_code: string;
     course_name: string;
     professor_name: string;
+    professor_full_name?: string;
+    section_id?: string | null;
+    section_code?: string | null;
   };
   active_board: {
     board_id: string;
+    board_title?: string | null;
+    section_id?: string | null;
+    section_code?: string | null;
     status: string;
     created_at: string | null;
     total_questions: number;
@@ -236,6 +246,7 @@ interface UpdateNicknameResponse {
 
 export interface CreateStudentQuestionPayload {
   course_code: string;
+  section_code?: string;
   title: string;
   detail?: string;
   tags?: string[];
@@ -277,6 +288,8 @@ export interface ProfessorStudentQuestion {
   student_name: string;
   course_code: string;
   course_name: string;
+  section_id?: string | null;
+  section_code?: string | null;
   board_id: string;
   created_at: string | null;
   updated_at: string | null;
@@ -287,8 +300,12 @@ export interface ProfessorBoardSession {
   board_id: string;
   course_code: string;
   course_name: string;
+  section_id?: string | null;
+  section_code?: string | null;
+  board_title?: string | null;
   status: string;
   created_at: string | null;
+  closed_at?: string | null;
   total_questions: number;
   answered_questions: number;
   unanswered_questions: number;
@@ -307,6 +324,12 @@ export interface ProfessorQuestionsData {
     title: string;
   };
   sections: ProfessorSectionResponse[];
+  enrolled_students: Array<{
+    student_id: string;
+    student_name: string;
+    section_id?: string | null;
+    section_code?: string | null;
+  }>;
   student_questions: ProfessorStudentQuestion[];
   board_sessions: ProfessorBoardSession[];
 }
@@ -393,6 +416,7 @@ export async function getStudentQuestions(
   params?: {
     scope?: "all" | "mine";
     courseCode?: string;
+    sectionCode?: string;
     status?: "all" | "answered" | "unanswered";
     search?: string;
     tag?: string;
@@ -404,6 +428,9 @@ export async function getStudentQuestions(
   }
   if (params?.courseCode?.trim()) {
     query.set("course_code", params.courseCode.trim().toUpperCase());
+  }
+  if (params?.sectionCode?.trim()) {
+    query.set("section_code", params.sectionCode.trim().toUpperCase());
   }
   if (params?.status?.trim() && params.status !== "all") {
     query.set("status", params.status.trim().toLowerCase());
@@ -531,6 +558,7 @@ export async function getProfessorQuestions(
   professorId: string,
   params?: {
     courseCode?: string;
+    sectionCode?: string;
     status?: "all" | "answered" | "unanswered";
     search?: string;
     tag?: string;
@@ -539,6 +567,9 @@ export async function getProfessorQuestions(
   const query = new URLSearchParams();
   if (params?.courseCode?.trim()) {
     query.set("course_code", params.courseCode.trim().toUpperCase());
+  }
+  if (params?.sectionCode?.trim()) {
+    query.set("section_code", params.sectionCode.trim().toUpperCase());
   }
   if (params?.status?.trim()) {
     query.set("status", params.status.trim().toLowerCase());
@@ -561,14 +592,38 @@ export async function getProfessorQuestions(
 export async function createProfessorBoard(
   professorId: string,
   courseCode: string,
+  sectionCode?: string,
+  payload?: { boardTitle?: string; forceCloseExisting?: boolean },
 ) {
   return apiRequest<{
     board_id: string;
     course_code: string;
     course_name: string;
+    section_code?: string | null;
+    board_title?: string | null;
     status: string;
   }>(`/professors/${professorId}/courses/${courseCode}/boards`, {
     method: "POST",
+    body: JSON.stringify({
+      section_code: sectionCode?.trim().toUpperCase(),
+      board_title: payload?.boardTitle ?? "",
+      force_close_existing: payload?.forceCloseExisting ?? false,
+    }),
+  });
+}
+
+export async function closeProfessorBoard(
+  professorId: string,
+  boardId: string,
+) {
+  return apiRequest<{
+    board_id: string;
+    course_code: string;
+    section_code?: string | null;
+    board_title?: string | null;
+    status: string;
+  }>(`/professors/${professorId}/boards/${boardId}/close`, {
+    method: "PATCH",
   });
 }
 

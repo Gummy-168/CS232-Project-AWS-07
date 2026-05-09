@@ -29,9 +29,16 @@ function formatRelativeTime(value: string | null) {
   }
 }
 
-function BoardQuestionCard({ question }: { question: StudentQuestion }) {
+function BoardQuestionCard({
+  question,
+  professorName,
+}: {
+  question: StudentQuestion;
+  professorName?: string;
+}) {
   const replies = question.replies ?? [];
   const isAnswered = question.status === "ANSWERED";
+  const resolvedProfessorName = professorName?.trim() || "Professor";
 
   return (
     <article className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
@@ -79,7 +86,11 @@ function BoardQuestionCard({ question }: { question: StudentQuestion }) {
               className="rounded-[20px] border border-slate-100 bg-slate-50 px-4 py-3"
             >
               <div className="mb-1 flex items-center justify-between gap-3 text-sm text-slate-500">
-                <span className="font-medium text-slate-700">{reply.author_name}</span>
+                <span className="font-medium text-slate-700">
+                  {reply.is_professor
+                    ? reply.author_full_name?.trim() || resolvedProfessorName
+                    : reply.author_name}
+                </span>
                 <span>{formatRelativeTime(reply.created_at)}</span>
               </div>
               <p className="text-sm leading-6 text-slate-600">{reply.content}</p>
@@ -168,6 +179,10 @@ export default function StudentCourseBoardView() {
   }
 
   const activeBoard = courseBoard?.active_board ?? null;
+  const resolvedProfessorName =
+    courseBoard?.course.professor_full_name?.trim() ||
+    courseBoard?.course.professor_name ||
+    "Professor";
   const courseTitle = courseBoard
     ? `${courseBoard.course.course_code}: ${courseBoard.course.course_name}`
     : "Course Board";
@@ -208,7 +223,7 @@ export default function StudentCourseBoardView() {
                   View Course Board
                 </p>
                 <h1 className="mt-2 text-4xl font-semibold text-[#1B1B1B]">
-                  {activeBoard ? activeBoard.board_id : "No active board"}
+                  {activeBoard ? activeBoard.board_title || activeBoard.board_id : "No active board"}
                 </h1>
                 <p className="mt-2 text-lg text-slate-500">
                   {courseBoard?.course.course_name || "Select a course"}
@@ -289,7 +304,11 @@ export default function StudentCourseBoardView() {
               <section className="space-y-5">
                 {filteredQuestions.length > 0 ? (
                   filteredQuestions.map((question) => (
-                    <BoardQuestionCard key={question.id} question={question} />
+                    <BoardQuestionCard
+                      key={question.id}
+                      question={question}
+                      professorName={resolvedProfessorName}
+                    />
                   ))
                 ) : (
                   <div className="rounded-[28px] border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">
