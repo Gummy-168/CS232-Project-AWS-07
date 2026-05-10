@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
 const BACKEND_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+  process.env.BACKEND_API_URL?.replace(/\/$/, "") ||
   "http://localhost:8000";
 
 const HOP_BY_HOP_HEADERS = new Set([
@@ -19,11 +18,13 @@ const HOP_BY_HOP_HEADERS = new Set([
 
 function buildUpstreamHeaders(request: Request) {
   const headers = new Headers();
+
   request.headers.forEach((value, key) => {
     if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) {
       headers.set(key, value);
     }
   });
+
   return headers;
 }
 
@@ -34,6 +35,7 @@ async function proxyToBackend(
   const joinedPath = (pathSegments || []).map(encodeURIComponent).join("/");
   const incomingUrl = new URL(request.url);
   const search = incomingUrl.search || "";
+
   const targetUrl = `${BACKEND_BASE_URL}/${joinedPath}${search}`;
 
   const method = request.method.toUpperCase();
