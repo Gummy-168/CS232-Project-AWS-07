@@ -9,11 +9,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://localhost:8000";
-
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ studentId: string }> },
@@ -90,8 +85,8 @@ export async function POST(
       }
     }
 
-    const response = await fetch(
-      `${API_BASE_URL}/students/${encodeURIComponent(studentId)}/questions`,
+    const response = await fetchBackend<unknown>(
+      `/students/${encodeURIComponent(studentId)}/questions`,
       {
         method: "POST",
         headers: buildForwardHeaders(request, true),
@@ -102,22 +97,10 @@ export async function POST(
           section_code: sectionCode || undefined,
         }),
       },
+      request,
     );
 
-    if (!response.ok) {
-      let message = "Failed to create question.";
-      try {
-        const errorPayload = (await response.json()) as {
-          detail?: string;
-          message?: string;
-        };
-        message = errorPayload.detail || errorPayload.message || message;
-      } catch {}
-
-      return NextResponse.json({ detail: message }, { status: response.status });
-    }
-
-    return NextResponse.json(await response.json());
+    return NextResponse.json(response);
   } catch (error: unknown) {
     if (error instanceof ServerApiError) {
       return NextResponse.json(
