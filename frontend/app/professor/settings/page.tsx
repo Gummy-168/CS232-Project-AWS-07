@@ -1,12 +1,17 @@
 "use client";
+export const dynamic = "force-dynamic";
 import React, { useEffect, useState } from "react";
+import { Suspense } from "react";
 import { User, Bell, Lock, Camera } from "lucide-react";
 import Header from "../../components/Header";
 import CreateCourse from "../../components/createcourse";
 import { useAuthSession } from "../../hooks/useAuthSession";
-import { getProfessorQuestions, type ProfessorQuestionsData } from "../../lib/api";
+import {
+  getProfessorQuestions,
+  type ProfessorQuestionsData,
+} from "../../lib/api";
 
-const ProfessorSettingsPage = () => {
+const ProfessorSettingsContent = () => {
   const { session } = useAuthSession();
 
   const [notifications, setNotifications] = useState({
@@ -64,13 +69,15 @@ const ProfessorSettingsPage = () => {
 
   return (
     <div className="h-full bg-[#FCF9F8] font-sans text-slate-700 overflow-y-auto">
-      <Header
-        professorName={professorFullName}
-        onJoinCourse={() => setIsModalOpen(true)}
-        courseTitle={data?.course.title}
-        codeId={data?.course.code}
-        mode="settingsprof"
-      />
+      <Suspense fallback={null}>
+        <Header
+          professorName={professorFullName}
+          onJoinCourse={() => setIsModalOpen(true)}
+          courseTitle={data?.course?.title}
+          codeId={data?.course?.code}
+          mode="settingsprof"
+        />
+      </Suspense>
       <CreateCourse
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -178,9 +185,7 @@ const ProfessorSettingsPage = () => {
                         Email
                       </label>
                       <div className="flex items-center justify-between bg-slate-100 px-4 py-3 rounded-2xl border border-slate-200">
-                        <span className="text-slate-600">
-                          {professorEmail}
-                        </span>
+                        <span className="text-slate-600">{professorEmail}</span>
                         <Lock size={16} className="text-slate-400" />
                       </div>
                     </div>
@@ -281,4 +286,10 @@ const ProfessorSettingsPage = () => {
   );
 };
 
-export default ProfessorSettingsPage;
+export default function ProfessorSettingsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ProfessorSettingsContent />
+    </Suspense>
+  );
+}

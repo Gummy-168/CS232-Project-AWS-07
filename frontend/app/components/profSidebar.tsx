@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter , useSearchParams} from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react"; 
 import {
   BarChart3,
   ChevronRight,
@@ -23,7 +23,7 @@ import {
   type ProfessorCourseResponse,
 } from "../lib/api";
 
-export default function ProfessorSidebar() {
+function ProfessorSidebarContent() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -255,5 +255,13 @@ export default function ProfessorSidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+export default function ProfessorSidebar() {
+  return (
+    <Suspense fallback={null}>
+      <ProfessorSidebarContent />
+    </Suspense>
   );
 }

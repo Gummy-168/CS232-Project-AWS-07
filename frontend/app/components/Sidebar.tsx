@@ -2,6 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Suspense } from "react";
 import { usePathname, useRouter,useSearchParams } from "next/navigation";
 import JoinCourse from "./joincourse";
 import { getStudentCourses, type StudentCourse } from "../lib/api";
@@ -25,7 +26,7 @@ import {
   User,
 } from "lucide-react";
 
-export default function Sidebar() {
+function SidebarContent() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -283,5 +284,12 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+export default function Sidebar() {
+  return (
+    <Suspense fallback={null}>
+      <SidebarContent />
+    </Suspense>
   );
 }

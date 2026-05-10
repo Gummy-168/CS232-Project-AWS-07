@@ -167,7 +167,7 @@ function QuestionTimelineCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <Avatar
-            seed={question.student_id ?? question.id}
+            seed={question.id ?? question.id}
             alt={`${question.author_name} avatar`}
           />
           <div>
@@ -313,7 +313,7 @@ export default function StudentCourseHomeView() {
 
   const currentCourseTitle =
     selectedCourse?.course_name ||
-    courseBoard?.course.title ||
+    courseBoard?.course.course_code ||
     selectedCourseCode ||
     "No course selected";
 
