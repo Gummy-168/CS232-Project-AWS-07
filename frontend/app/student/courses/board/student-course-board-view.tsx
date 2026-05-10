@@ -10,6 +10,7 @@ import AskModal from "../../../components/askmodal";
 import Header from "../../../components/Header";
 import JoinCourse from "../../../components/joincourse";
 import { useAuthSession } from "../../../hooks/useAuthSession";
+import { parseApiDate } from "../../../lib/date-time";
 import {
   createQuestion,
   getBoardQuestions,
@@ -42,7 +43,11 @@ function formatRelativeTime(value: string | null) {
   }
 
   try {
-    return formatDistanceToNow(new Date(value), { addSuffix: true });
+    const parsed = parseApiDate(value);
+    if (!parsed) {
+      return "just now";
+    }
+    return formatDistanceToNow(parsed, { addSuffix: true });
   } catch {
     return "just now";
   }

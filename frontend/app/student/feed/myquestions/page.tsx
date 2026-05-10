@@ -7,6 +7,7 @@ import Link from "next/link";
 import JoinCourse from "../../../components/joincourse";
 import Header from "../../../components/Header";
 import { createStudentQuestionReply, getStudentQuestions } from "../../../lib/api";
+import { parseApiDate } from "../../../lib/date-time";
 import { useAuthSession } from "../../../hooks/useAuthSession";
 import { buildCourseQueryString } from "../../../lib/section-code";
 
@@ -79,7 +80,7 @@ export default function Allquestions() {
                     user: reply.author_name,
                     avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author_id}`,
                     time: reply.created_at
-                      ? formatDistanceToNow(new Date(reply.created_at), {
+                      ? formatDistanceToNow(parseApiDate(reply.created_at) ?? new Date(), {
                           addSuffix: true,
                         })
                       : "just now",
@@ -126,7 +127,7 @@ export default function Allquestions() {
             questionKind: item.board_id ? "board" : "general",
             user: item.author_name,
             time: item.created_at
-              ? formatDistanceToNow(new Date(item.created_at), {
+              ? formatDistanceToNow(parseApiDate(item.created_at) ?? new Date(), {
                   addSuffix: true,
                 })
               : "just now",
@@ -139,7 +140,7 @@ export default function Allquestions() {
               user: reply.author_name,
               avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.author_id}`,
               time: reply.created_at
-                ? formatDistanceToNow(new Date(reply.created_at), {
+                ? formatDistanceToNow(parseApiDate(reply.created_at) ?? new Date(), {
                     addSuffix: true,
                   })
                 : "just now",
