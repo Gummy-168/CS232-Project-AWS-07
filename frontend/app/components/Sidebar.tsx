@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import JoinCourse from "./joincourse";
 import { getStudentCourses, type StudentCourse } from "../lib/api";
 import { clearStoredSession } from "../lib/auth";
@@ -28,7 +28,10 @@ import {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
   const { session } = useAuthSession();
   const [isFeedOpen, setIsFeedOpen] = useState(pathname.includes("/feed"));
   const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));

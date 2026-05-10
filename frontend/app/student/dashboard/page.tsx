@@ -179,7 +179,7 @@ export default function Dashboard() {
                   )}
                 </div>
 
-                <AskModal isOpen={open} onClose={() => setOpen(false)} />
+                <AskModal isOpen={open} onClose={() => setOpen(false)} onAdd={() => {}} />
               </section>
 
               {/* Stats */}
@@ -260,7 +260,15 @@ export default function Dashboard() {
   );
 }
 
-function StatBox({ value, label, textColor }) {
+function StatBox({
+  value,
+  label,
+  textColor,
+}: {
+  value: string | number;
+  label: string;
+  textColor: string;
+}) {
   return (
     <div className="bg-white p-5 rounded-4xl flex flex-col items-start">
       <p className={`text-2xl font-regular ${textColor}`}>{value}</p>

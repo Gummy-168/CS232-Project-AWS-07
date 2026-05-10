@@ -116,7 +116,7 @@ const ProfessorSettingsPage = () => {
                     <div
                       onClick={() => {
                         if (isEditing) {
-                          document.getElementById("avatarInput").click();
+                          document.getElementById("avatarInput")?.click();
                         }
                       }}
                       className={`relative w-32 h-32 rounded-full overflow-hidden border-4 ${

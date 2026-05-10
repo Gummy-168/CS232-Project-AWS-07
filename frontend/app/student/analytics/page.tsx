@@ -29,14 +29,6 @@ type AnalyticsViewData = StudentAnalyticsData & {
   };
 };
 
-interface TrendLabelProps {
-  x?: number;
-  y?: number;
-  width?: number;
-  value?: number | string;
-  index?: number;
-}
-
 const Dashboard = () => {
   const [data, setData] = useState<AnalyticsViewData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -106,7 +98,6 @@ const Dashboard = () => {
           <StatCard
             label="TOTAL QUESTIONS"
             value={data.stats.questions}
-            isActive
           />
           <StatCard label="ANSWERED QUESTIONS" value={data.stats.answered} />
           <StatCard
@@ -140,7 +131,7 @@ const Dashboard = () => {
                     <LabelList
                       dataKey="value"
                       position="top"
-                      content={(props: TrendLabelProps) => {
+                      content={(props) => {
                         const { x, y, width, value, index } = props;
 
                         if (index !== activeIndex) return null;

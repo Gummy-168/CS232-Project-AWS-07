@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   BarChart3,
@@ -26,7 +26,10 @@ import {
 export default function ProfessorSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
   const { session } = useAuthSession();
   const [isCourseOpen, setIsCourseOpen] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);

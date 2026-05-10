@@ -1,9 +1,11 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { buildSessionFromLogin, loginUser } from "../lib/api";
 import {
   clearStoredSession,
@@ -14,9 +16,12 @@ import {
 
 type LoginRole = UserRole;
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchParams =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<LoginRole>("student");
   const [email, setEmail] = useState("");
@@ -177,5 +182,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading login...</div>}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

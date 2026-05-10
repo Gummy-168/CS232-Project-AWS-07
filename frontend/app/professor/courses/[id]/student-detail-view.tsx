@@ -1,6 +1,5 @@
 "use client";
 
-import { use } from 'react';
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CheckCircle2,
@@ -279,8 +278,7 @@ export default function StudentDetailView({ params }: { params: { id: string } }
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuthSession();
-  const resolvedParams = use(params); 
-  const studentId = resolvedParams.id;
+  const studentId = params.id;
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
 
