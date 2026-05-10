@@ -13,6 +13,8 @@ from models.professor import Professor
 from models.user import User
 from schemas.course import (
     CourseCreate,
+    DeleteArchiveCourseResponse,
+    DeleteArchiveSectionResponse,
     CourseJoinCodeCreate,
     CourseJoinCodeResponse,
     CourseResponse,
@@ -53,6 +55,25 @@ app.add_middleware(
 
 Base.metadata.create_all(bind=engine)
 with engine.begin() as conn:
+    def ensure_index(table_name: str, index_name: str, ddl: str) -> None:
+        existing_index = conn.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = :table_name
+                  AND INDEX_NAME = :index_name
+                """
+            ),
+            {
+                "table_name": table_name,
+                "index_name": index_name,
+            },
+        ).scalar()
+        if not existing_index:
+            conn.execute(text(ddl))
+
     has_full_name_column = conn.execute(
         text(
             """
@@ -588,14 +609,16 @@ with engine.begin() as conn:
                 join_code_id VARCHAR(50) PRIMARY KEY,
                 code VARCHAR(20) NOT NULL UNIQUE,
                 course_code VARCHAR(50) NOT NULL,
-                section_id VARCHAR(50) NULL,
+                section_id VARCHAR(50) NOT NULL,
                 professor_id VARCHAR(50) NOT NULL,
                 expires_at DATETIME NOT NULL,
                 is_active BOOLEAN DEFAULT TRUE,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_course_join_codes_code (code),
+                INDEX idx_course_join_codes_code_is_active (code, is_active),
                 INDEX idx_course_join_codes_course_code (course_code),
                 INDEX idx_course_join_codes_section_id (section_id),
+                INDEX idx_course_join_codes_course_section_active (course_code, section_id, is_active),
                 INDEX idx_course_join_codes_professor_id (professor_id),
                 CONSTRAINT fk_course_join_codes_course
                     FOREIGN KEY (course_code) REFERENCES courses(course_code)
@@ -604,7 +627,7 @@ with engine.begin() as conn:
                 CONSTRAINT fk_course_join_codes_section
                     FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
                     ON UPDATE CASCADE
-                    ON DELETE SET NULL,
+                    ON DELETE CASCADE,
                 CONSTRAINT fk_course_join_codes_professor
                     FOREIGN KEY (professor_id) REFERENCES professors(professor_id)
                     ON UPDATE CASCADE
@@ -613,12 +636,70 @@ with engine.begin() as conn:
             """
         )
     )
+    ensure_index(
+        "enrollments",
+        "idx_enrollments_student_course_section",
+        "ALTER TABLE enrollments ADD INDEX idx_enrollments_student_course_section (student_id, course_code, section_id)",
+    )
+    ensure_index(
+        "questions",
+        "idx_questions_course_section_student_status_created",
+        "ALTER TABLE questions ADD INDEX idx_questions_course_section_student_status_created (course_code, section_id, student_id, status, created_at)",
+    )
+    ensure_index(
+        "interaction_boards",
+        "idx_interaction_boards_course_section_status_created",
+        "ALTER TABLE interaction_boards ADD INDEX idx_interaction_boards_course_section_status_created (course_code, section_id, status, created_at)",
+    )
+    ensure_index(
+        "course_join_codes",
+        "idx_course_join_codes_code_is_active",
+        "ALTER TABLE course_join_codes ADD INDEX idx_course_join_codes_code_is_active (code, is_active)",
+    )
+    ensure_index(
+        "course_join_codes",
+        "idx_course_join_codes_course_section_active",
+        "ALTER TABLE course_join_codes ADD INDEX idx_course_join_codes_course_section_active (course_code, section_id, is_active)",
+    )
+
+    enrollment_null_sections = conn.execute(
+        text("SELECT COUNT(*) FROM enrollments WHERE section_id IS NULL")
+    ).scalar()
+    if enrollment_null_sections:
+        print(
+            f"[Schema Warning] enrollments.section_id has {int(enrollment_null_sections)} NULL rows. Backfill before enforcing NOT NULL in a live database."
+        )
+
+    join_code_null_sections = conn.execute(
+        text("SELECT COUNT(*) FROM course_join_codes WHERE section_id IS NULL")
+    ).scalar()
+    if join_code_null_sections:
+        print(
+            f"[Schema Warning] course_join_codes.section_id has {int(join_code_null_sections)} NULL rows. Invalidate or backfill them before enforcing NOT NULL in a live database."
+        )
+
+    board_null_sections = conn.execute(
+        text("SELECT COUNT(*) FROM interaction_boards WHERE section_id IS NULL")
+    ).scalar()
+    if board_null_sections:
+        print(
+            f"[Schema Warning] interaction_boards.section_id has {int(board_null_sections)} NULL rows. Migrate these boards to a section before enforcing NOT NULL."
+        )
+
+    question_null_sections = conn.execute(
+        text("SELECT COUNT(*) FROM questions WHERE section_id IS NULL")
+    ).scalar()
+    if question_null_sections:
+        print(
+            f"[Schema Warning] questions.section_id has {int(question_null_sections)} NULL rows. Backfill them before enforcing NOT NULL in a live database."
+        )
 
 
 class CreateQuestionRequest(BaseModel):
     """Request schema for creating a student question."""
 
     course_code: str = Field(min_length=1, max_length=50)
+    board_id: str | None = Field(default=None, min_length=1, max_length=50)
     section_code: str | None = Field(default=None, min_length=1, max_length=50)
     title: str = Field(min_length=1, max_length=255)
     detail: str | None = None
@@ -1013,6 +1094,58 @@ def create_course_section(
         is_active=section.is_active,
         created_at=section.created_at,
     )
+
+
+@app.delete(
+    "/professors/{professor_id}/courses/{course_code}/sections/{section_code}",
+    response_model=DeleteArchiveSectionResponse,
+)
+def delete_professor_course_section(
+    professor_id: str,
+    course_code: str,
+    section_code: str,
+    db: Session = Depends(get_db),
+) -> DeleteArchiveSectionResponse:
+    """Delete an unused section or archive it when history already exists."""
+    professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
+    if professor is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    result = CourseManager.delete_or_archive_section(
+        db=db,
+        professor=professor,
+        course_code=course_code,
+        section_code=section_code,
+    )
+    return DeleteArchiveSectionResponse(**result)
+
+
+@app.delete(
+    "/professors/{professor_id}/courses/{course_code}",
+    response_model=DeleteArchiveCourseResponse,
+)
+def delete_professor_course(
+    professor_id: str,
+    course_code: str,
+    db: Session = Depends(get_db),
+) -> DeleteArchiveCourseResponse:
+    """Delete an unused course or archive it when history already exists."""
+    professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
+    if professor is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A valid professor_id is required",
+        )
+
+    result = CourseManager.delete_or_archive_course(
+        db=db,
+        professor=professor,
+        course_code=course_code,
+    )
+    return DeleteArchiveCourseResponse(**result)
 
 
 @app.get(
@@ -1501,6 +1634,7 @@ def join_student_course(
         section_id=enrollment.section_id,
         section_code=str(course_row["section_code"]) if course_row and course_row["section_code"] else None,
         course_name=str(course_row["course_name"]) if course_row and course_row["course_name"] else None,
+        message="Joined course section successfully",
         join_date=enrollment.join_date,
     )
 
@@ -1533,6 +1667,8 @@ def get_student_questions(
     base_query = """
         SELECT
             q.question_id,
+            b.board_id,
+            b.board_title,
             COALESCE(b.course_code, q.course_code) AS course_code,
             c.course_name,
             {title_select},
@@ -1628,6 +1764,8 @@ def get_student_questions(
     questions = [
         {
             "id": str(row["question_id"]),
+            "board_id": str(row["board_id"]) if row["board_id"] else None,
+            "board_title": str(row["board_title"]) if row["board_title"] else None,
             "course_code": str(row["course_code"]),
             "course_name": str(row["course_name"]),
             "title": str(row["title"]),
@@ -1803,10 +1941,14 @@ def create_student_question(
     payload: CreateQuestionRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
-    """Create a new question inside an active course board."""
+    """Create a new student question for the enrolled course section."""
     student = require_student(db=db, student_id=student_id)
     supports_title = has_table_column(db=db, table_name="questions", column_name="title")
     normalized_course_code = payload.course_code.strip().upper()
+    normalized_board_id = payload.board_id.strip() if payload.board_id else None
+    normalized_section_code = (
+        payload.section_code.strip().upper() if payload.section_code else None
+    )
     normalized_title = payload.title.strip()
     normalized_detail = (payload.detail or "").strip()
     content = normalized_detail or normalized_title
@@ -1855,34 +1997,57 @@ def create_student_question(
 
     enrollment_section_id = enrollment["section_id"]
 
-    if payload.section_code and enrollment_section_code != payload.section_code.strip().upper():
+    if normalized_section_code and enrollment_section_code != normalized_section_code:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Student cannot post to a different section",
         )
-    
-    board = db.execute(
-        text(
-            """
-            SELECT board_id
-            FROM interaction_boards
-            WHERE course_code = :course_code
-              AND (
-                    (:section_id IS NULL AND section_id IS NULL)
-                 OR section_id = :section_id
-              )
-              AND status = 'active'
-            ORDER BY created_at DESC
-            LIMIT 1
-            """
-        ),
-        {
-            "course_code": normalized_course_code,
-            "section_id": enrollment_section_id,
-        },
-    ).mappings().first()
 
-    board_id = str(board["board_id"]) if board else None
+    board_id = None
+    if normalized_board_id:
+        board = db.execute(
+            text(
+                """
+                SELECT
+                    board_id,
+                    course_code,
+                    section_id,
+                    status
+                FROM interaction_boards
+                WHERE board_id = :board_id
+                LIMIT 1
+                """
+            ),
+            {"board_id": normalized_board_id},
+        ).mappings().first()
+
+        if board is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Board not found",
+            )
+
+        if str(board["course_code"]).strip().upper() != normalized_course_code:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Board belongs to a different course",
+            )
+
+        board_section_id = board["section_id"]
+        if board_section_id != enrollment_section_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Board belongs to a different section",
+            )
+
+        if str(board["status"]).strip().lower() != "active":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Board is closed and cannot accept new questions",
+            )
+
+        board_id = str(board["board_id"])
+
     question_id = f"q_{uuid4().hex[:12]}"
     created_at = datetime.utcnow().isoformat()
     if supports_title:
@@ -1976,6 +2141,7 @@ def create_student_question(
 
     return {
         "id": question_id,
+        "board_id": board_id,
         "course_code": normalized_course_code,
         "course_name": normalized_course_code,
         "section_id": enrollment_section_id,
@@ -2205,6 +2371,7 @@ def get_student_dashboard(
                 COALESCE(p.nickname, c.professor_id) AS professor_name,
                 b.board_id,
                 b.board_title,
+                s.section_code,
                 b.created_at
             FROM interaction_boards b
             JOIN enrollments e
@@ -2215,6 +2382,7 @@ def get_student_dashboard(
              )
             JOIN courses c ON c.course_code = e.course_code
             LEFT JOIN professors p ON p.professor_id = c.professor_id
+            LEFT JOIN course_sections s ON s.section_id = b.section_id
             WHERE e.student_id = :student_id
               AND b.status = 'active'
             ORDER BY b.created_at DESC
@@ -2282,6 +2450,9 @@ def get_student_dashboard(
                 if active_session
                 else ""
             ),
+            "section_code": (
+                str(active_session["section_code"]) if active_session and active_session["section_code"] else None
+            ),
             "has_active_board": active_session is not None,
         },
         "stats": {
@@ -2326,55 +2497,60 @@ def get_student_analytics(
             SELECT
                 e.course_code AS course_code,
                 c.course_name AS course_name,
+                e.section_id AS section_id,
+                s.section_code AS section_code,
                 COALESCE(q.total_questions, 0) AS total_questions,
                 COALESCE(q.answered_questions, 0) AS answered_questions,
-                COALESCE(bs.board_sessions_joined, 0) AS board_sessions_joined,
-                COALESCE(r.total_replies, 0) AS total_replies,
+                COALESCE(q.unanswered_questions, 0) AS unanswered_questions,
+                COALESCE(q.general_questions, 0) AS general_questions,
+                COALESCE(q.board_questions, 0) AS board_questions,
+                COALESCE(q.boards_joined, 0) AS boards_joined,
+                COALESCE(r.replies_count, 0) AS replies_count,
                 (
                     COALESCE(q.total_questions, 0) +
-                    COALESCE(r.total_replies, 0)
-                ) AS total_interactions
+                    COALESCE(r.replies_count, 0)
+                ) AS interaction_count
             FROM enrollments e
             JOIN courses c
               ON c.course_code = e.course_code
+            LEFT JOIN course_sections s
+              ON s.section_id = e.section_id
             LEFT JOIN (
                 SELECT
-                    COALESCE(b.course_code, q.course_code) AS course_code,
+                    q.course_code AS course_code,
+                    q.section_id AS section_id,
                     COUNT(*) AS total_questions,
-                    SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions
+                    SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
+                    SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions,
+                    SUM(CASE WHEN q.board_id IS NULL THEN 1 ELSE 0 END) AS general_questions,
+                    SUM(CASE WHEN q.board_id IS NOT NULL THEN 1 ELSE 0 END) AS board_questions,
+                    COUNT(DISTINCT CASE WHEN q.board_id IS NOT NULL THEN q.board_id END) AS boards_joined
                 FROM questions q
-                LEFT JOIN interaction_boards b
-                  ON b.board_id = q.board_id
                 WHERE q.student_id = :student_id
                   AND q.status <> 'deleted'
-                GROUP BY COALESCE(b.course_code, q.course_code)
+                GROUP BY q.course_code, q.section_id
             ) q
               ON q.course_code = e.course_code
+             AND (
+                    (q.section_id IS NULL AND e.section_id IS NULL)
+                 OR q.section_id = e.section_id
+             )
             LEFT JOIN (
                 SELECT
-                    COALESCE(b.course_code, q.course_code) AS course_code,
-                    COUNT(DISTINCT CASE WHEN q.board_id IS NOT NULL THEN q.board_id END) AS board_sessions_joined
-                FROM questions q
-                LEFT JOIN interaction_boards b
-                  ON b.board_id = q.board_id
-                WHERE q.student_id = :student_id
-                  AND q.status <> 'deleted'
-                GROUP BY COALESCE(b.course_code, q.course_code)
-            ) bs
-              ON bs.course_code = e.course_code
-            LEFT JOIN (
-                SELECT
-                    COALESCE(b.course_code, q.course_code) AS course_code,
-                    COUNT(*) AS total_replies
+                    q.course_code AS course_code,
+                    q.section_id AS section_id,
+                    COUNT(*) AS replies_count
                 FROM question_replies r
                 JOIN questions q
                   ON q.question_id = r.question_id
-                LEFT JOIN interaction_boards b
-                  ON b.board_id = q.board_id
                 WHERE r.user_id = :student_id
-                GROUP BY COALESCE(b.course_code, q.course_code)
+                GROUP BY q.course_code, q.section_id
             ) r
               ON r.course_code = e.course_code
+             AND (
+                    (r.section_id IS NULL AND e.section_id IS NULL)
+                 OR r.section_id = e.section_id
+             )
             WHERE e.student_id = :student_id
             ORDER BY e.join_date DESC, e.course_code ASC
             """
@@ -2439,12 +2615,20 @@ def get_student_analytics(
             {
                 "course_code": str(row["course_code"] or ""),
                 "course_name": str(row["course_name"] or ""),
+                "section_id": str(row["section_id"]) if row["section_id"] else None,
+                "section_code": str(row["section_code"]) if row["section_code"] else None,
                 "title": f"{row['course_code']}: {row['course_name']}",
                 "total_questions": int(row["total_questions"] or 0),
                 "answered_questions": int(row["answered_questions"] or 0),
-                "board_sessions_joined": int(row["board_sessions_joined"] or 0),
-                "total_replies": int(row["total_replies"] or 0),
-                "total_interactions": int(row["total_interactions"] or 0),
+                "unanswered_questions": int(row["unanswered_questions"] or 0),
+                "general_questions": int(row["general_questions"] or 0),
+                "board_questions": int(row["board_questions"] or 0),
+                "boards_joined": int(row["boards_joined"] or 0),
+                "board_sessions_joined": int(row["boards_joined"] or 0),
+                "replies_count": int(row["replies_count"] or 0),
+                "total_replies": int(row["replies_count"] or 0),
+                "interaction_count": int(row["interaction_count"] or 0),
+                "total_interactions": int(row["interaction_count"] or 0),
             }
             for row in course_activity_rows
         ],
@@ -2702,16 +2886,18 @@ def close_professor_board_session(
             detail="Board is already closed",
         )
 
+    closed_at = datetime.utcnow()
+
     db.execute(
         text(
             """
             UPDATE interaction_boards
             SET status = 'closed',
-                closed_at = CURRENT_TIMESTAMP
+                closed_at = :closed_at
             WHERE board_id = :board_id
             """
         ),
-        {"board_id": board_id},
+        {"board_id": board_id, "closed_at": closed_at},
     )
     db.commit()
 
@@ -2721,6 +2907,7 @@ def close_professor_board_session(
         "section_code": str(board["section_code"]) if board["section_code"] else None,
         "board_title": str(board["board_title"]) if board["board_title"] else None,
         "status": "CLOSED",
+        "closed_at": serialize_datetime(closed_at),
     }
 
 

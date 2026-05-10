@@ -88,6 +88,32 @@ export interface ProfessorSectionResponse {
   created_at: string;
 }
 
+export interface DeleteArchiveSectionResponse {
+  action: "deleted" | "archived";
+  course_code: string;
+  section_code: string;
+  reason: string;
+  counts: {
+    enrollments: number;
+    boards: number;
+    questions: number;
+    active_join_codes: number;
+  };
+}
+
+export interface DeleteArchiveCourseResponse {
+  action: "deleted" | "archived";
+  course_code: string;
+  reason: string;
+  counts: {
+    sections: number;
+    enrollments: number;
+    boards: number;
+    questions: number;
+    active_join_codes: number;
+  };
+}
+
 export interface StudentProfile {
   user_id: string;
   full_name: string;
@@ -114,6 +140,7 @@ export interface StudentQuestion {
   course_code: string;
   course_name: string;
   board_id?: string | null;
+  board_title?: string | null;
   section_id?: string | null;
   section_code?: string | null;
   title: string;
@@ -194,6 +221,7 @@ export interface StudentDashboardData {
     instructor: string;
     board_id?: string;
     board_title?: string;
+    section_code?: string | null;
     has_active_board?: boolean;
   };
   stats: {
@@ -231,11 +259,19 @@ export interface StudentAnalyticsData {
   course_activity: Array<{
     course_code: string;
     course_name: string;
+    section_id?: string | null;
+    section_code?: string | null;
     title: string;
     total_questions: number;
     answered_questions: number;
+    unanswered_questions?: number;
+    general_questions?: number;
+    board_questions?: number;
+    boards_joined?: number;
     board_sessions_joined: number;
+    replies_count?: number;
     total_replies: number;
+    interaction_count?: number;
     total_interactions: number;
   }>;
 }
@@ -303,7 +339,7 @@ interface UpdateNicknameResponse {
 
 export interface CreateStudentQuestionPayload {
   course_code: string;
-  board_id?: string;
+  board_id?: string | null;
   section_code?: string;
   title: string;
   detail?: string;
@@ -344,11 +380,13 @@ export interface ProfessorStudentQuestion {
   tags?: string[];
   student_id: string;
   student_name: string;
+  is_anonymous?: boolean;
   course_code: string;
   course_name: string;
   section_id?: string | null;
   section_code?: string | null;
-  board_id: string;
+  board_id?: string | null;
+  board_title?: string | null;
   created_at: string | null;
   updated_at: string | null;
   replies: ProfessorQuestionReply[];
@@ -790,10 +828,22 @@ export async function deleteProfessorSection(
   sectionCode: string,
 ) {
   const normalizedSectionCode = normalizeSectionCode(sectionCode);
-  return apiRequest<{ message?: string; section_code?: string; course_code?: string }>(
+  return apiRequest<DeleteArchiveSectionResponse>(
     `/professors/${professorId}/courses/${courseCode.trim().toUpperCase()}/sections/${encodeURIComponent(
       normalizedSectionCode || sectionCode.trim().toUpperCase(),
     )}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
+
+export async function deleteProfessorCourse(
+  professorId: string,
+  courseCode: string,
+) {
+  return apiRequest<DeleteArchiveCourseResponse>(
+    `/professors/${professorId}/courses/${courseCode.trim().toUpperCase()}`,
     {
       method: "DELETE",
     },
@@ -984,6 +1034,7 @@ export async function closeProfessorBoard(
     section_code?: string | null;
     board_title?: string | null;
     status: string;
+    closed_at?: string | null;
   }>(`/professors/${professorId}/boards/${boardId}/close`, {
     method: "PATCH",
   });
@@ -1083,7 +1134,7 @@ export async function createQuestion(
     tags: string[];
     is_anonymous: boolean;
     course_code: string;
-    board_id: string;
+    board_id?: string | null;
     section_code?: string;
   },
   token: string,

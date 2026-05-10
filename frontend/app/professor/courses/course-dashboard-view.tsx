@@ -256,7 +256,12 @@ export default function ProfessorCourseDashboardView() {
   ]);
 
   useEffect(() => {
-    if (!session?.userId || session.role !== "professor" || !selectedCourseCode) {
+    if (
+      !session?.userId ||
+      session.role !== "professor" ||
+      !selectedCourseCode ||
+      !selectedSectionCode
+    ) {
       setJoinCode(null);
       setJoinCodeError("");
       return;
@@ -660,7 +665,7 @@ export default function ProfessorCourseDashboardView() {
     setIsDeletingSection(true);
     setDeleteSectionError("");
     try {
-      await deleteProfessorSection(
+      const result = await deleteProfessorSection(
         session.userId,
         selectedCourseCode,
         selectedSectionCode,
@@ -669,6 +674,20 @@ export default function ProfessorCourseDashboardView() {
       setDeleteSectionConfirmation("");
       router.replace(`${pathname}?course_code=${encodeURIComponent(selectedCourseCode)}`);
       refresh();
+      setActionNotice({
+        tone: result.action === "deleted" ? "success" : "warning",
+        badge: result.action === "deleted" ? "Section Deleted" : "Section Archived",
+        title:
+          result.action === "deleted"
+            ? `${formatSectionLabel(result.section_code)} deleted`
+            : `${formatSectionLabel(result.section_code)} archived`,
+        description:
+          result.action === "deleted"
+            ? `${result.reason} No board or question history was removed.`
+            : `${result.reason} Existing classroom history remains available for reviews, analytics, and timelines.`,
+        confirmLabel: "Close",
+        hideCancel: true,
+      });
     } catch (err) {
       setDeleteSectionError(
         err instanceof Error ? err.message : "Delete section failed",
@@ -960,11 +979,11 @@ export default function ProfessorCourseDashboardView() {
           <button
             type="button"
             onClick={() => setIsJoinCodeModalOpen(true)}
-            disabled={!selectedCourseCode}
+            disabled={!selectedCourseCode || !selectedSectionCode}
             className="inline-flex items-center gap-2 rounded-full border border-[#E6DFFD] bg-white px-4 py-2 text-sm font-semibold text-[#6C56EC] transition hover:border-[#CBBEFF] hover:bg-[#FBF9FF]"
           >
             <Eye size={16} />
-            {selectedSectionCode ? "Generate Sec Code" : "Generate Course Code"}
+            Generate Sec Code
           </button>
         </section>
 
@@ -1360,6 +1379,10 @@ export default function ProfessorCourseDashboardView() {
 
                     const question = item.question;
                     const isAnswered = question.status === "ANSWERED";
+                    const isBoardQuestion = Boolean(question.board_id);
+                    const questionKindLabel = isBoardQuestion
+                      ? "Board Question"
+                      : "General Question";
                     const repliesOpen =
                       openReplies[question.id] ?? question.replies.length > 0;
 
@@ -1390,6 +1413,20 @@ export default function ProfessorCourseDashboardView() {
                                 {question.section_code ? (
                                   <span className="rounded-full bg-[#FFF3E8] px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] text-[#D97706]">
                                     {formatSectionLabel(question.section_code)}
+                                  </span>
+                                ) : null}
+                                <span
+                                  className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${
+                                    isBoardQuestion
+                                      ? "bg-violet-50 text-violet-600"
+                                      : "bg-sky-50 text-sky-600"
+                                  }`}
+                                >
+                                  {questionKindLabel}
+                                </span>
+                                {isBoardQuestion && question.board_title ? (
+                                  <span className="rounded-full bg-[#F6F3FF] px-3 py-1 text-xs font-bold text-[#6F5CC6]">
+                                    {question.board_title}
                                   </span>
                                 ) : null}
                                 <span className="text-base font-bold text-[#2A2340]">
@@ -1447,6 +1484,17 @@ export default function ProfessorCourseDashboardView() {
                             >
                               Delete
                             </button>
+                            {isBoardQuestion && question.board_id ? (
+                              <Link
+                                href={`/professor/courses/boardreview?${buildCourseQuery(
+                                  question.course_code,
+                                  question.section_code || undefined,
+                                )}&board_id=${encodeURIComponent(question.board_id)}`}
+                                className="rounded-full border border-[#D7CDF9] px-4 py-2 text-sm font-semibold text-[#6B57E9] transition hover:border-[#B8A6F6] hover:text-[#4E36DB]"
+                              >
+                                View Board
+                              </Link>
+                            ) : null}
                           </div>
                         </div>
 

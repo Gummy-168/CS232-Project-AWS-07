@@ -11,6 +11,7 @@ import {
   getStudentDashboard,
   type StudentDashboardData,
 } from "../../lib/api";
+import { buildCourseQueryString } from "../../lib/section-code";
 
 type DashboardViewData = StudentDashboardData & {
   recentQuestion: string;
@@ -73,6 +74,17 @@ export default function Dashboard() {
   }, []);
 
   const hasActiveBoard = Boolean(data?.session?.has_active_board);
+  const boardHref =
+    hasActiveBoard && data?.session?.course_code
+      ? `/student/courses/board?${buildCourseQueryString(
+          data.session.course_code,
+          data.session.section_code,
+        )}${
+          data.session.board_id
+            ? `&board_id=${encodeURIComponent(data.session.board_id)}`
+            : ""
+        }`
+      : "";
 
   return (
     <div className="h-screen bg-[#FCF9F8] overflow-hidden">
@@ -150,15 +162,7 @@ export default function Dashboard() {
                   {hasActiveBoard ? (
                     <>
                       <Link
-                        href={`/student/courses/board${
-                          data.session.course_code
-                            ? `?course_code=${encodeURIComponent(data.session.course_code)}${
-                                data.session.board_id
-                                  ? `&board_id=${encodeURIComponent(data.session.board_id)}`
-                                  : ""
-                              }`
-                            : ""
-                        }`}
+                        href={boardHref}
                         className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-12 py-3 rounded-full text-lg shadow-xl shadow-purple-100 hover:scale-105 active:scale-95 transition-all"
                       >
                         Ask Now

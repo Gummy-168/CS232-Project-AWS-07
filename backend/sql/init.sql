@@ -40,12 +40,13 @@ CREATE TABLE IF NOT EXISTS enrollments (
     enrollment_id INT AUTO_INCREMENT PRIMARY KEY,
     student_id VARCHAR(50) NOT NULL,
     course_code VARCHAR(50) NOT NULL,
-    section_id VARCHAR(50) NULL,
+    section_id VARCHAR(50) NOT NULL,
     join_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_enrollments_student_course (student_id, course_code),
     INDEX idx_enrollments_student_id (student_id),
     INDEX idx_enrollments_course_code (course_code),
     INDEX idx_enrollments_section_id (section_id),
+    INDEX idx_enrollments_student_course_section (student_id, course_code, section_id),
     CONSTRAINT fk_enrollments_student
         FOREIGN KEY (student_id) REFERENCES users(user_id)
         ON UPDATE CASCADE
@@ -53,7 +54,11 @@ CREATE TABLE IF NOT EXISTS enrollments (
     CONSTRAINT fk_enrollments_course
         FOREIGN KEY (course_code) REFERENCES courses(course_code)
         ON UPDATE CASCADE
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_enrollments_section
+        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS course_sections (
@@ -76,7 +81,7 @@ CREATE TABLE IF NOT EXISTS course_sections (
 CREATE TABLE IF NOT EXISTS interaction_boards (
     board_id VARCHAR(50) PRIMARY KEY,
     course_code VARCHAR(50) NOT NULL,
-    section_id VARCHAR(50) NULL,
+    section_id VARCHAR(50) NOT NULL,
     board_title VARCHAR(255) NULL,
     opened_by VARCHAR(50) NULL,
     status ENUM('active', 'archived', 'closed') DEFAULT 'active',
@@ -84,6 +89,7 @@ CREATE TABLE IF NOT EXISTS interaction_boards (
     closed_at DATETIME NULL,
     INDEX idx_interaction_boards_course_code (course_code),
     INDEX idx_interaction_boards_section_id (section_id),
+    INDEX idx_interaction_boards_course_section_status_created (course_code, section_id, status, created_at),
     CONSTRAINT fk_interaction_boards_course
         FOREIGN KEY (course_code) REFERENCES courses(course_code)
         ON UPDATE CASCADE
@@ -91,21 +97,23 @@ CREATE TABLE IF NOT EXISTS interaction_boards (
     CONSTRAINT fk_interaction_boards_section
         FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
         ON UPDATE CASCADE
-        ON DELETE SET NULL
+        ON DELETE RESTRICT
 );
 
 CREATE TABLE IF NOT EXISTS course_join_codes (
     join_code_id VARCHAR(50) PRIMARY KEY,
     code VARCHAR(20) NOT NULL UNIQUE,
     course_code VARCHAR(50) NOT NULL,
-    section_id VARCHAR(50) NULL,
+    section_id VARCHAR(50) NOT NULL,
     professor_id VARCHAR(50) NOT NULL,
     expires_at DATETIME NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_course_join_codes_code (code),
+    INDEX idx_course_join_codes_code_is_active (code, is_active),
     INDEX idx_course_join_codes_course_code (course_code),
     INDEX idx_course_join_codes_section_id (section_id),
+    INDEX idx_course_join_codes_course_section_active (course_code, section_id, is_active),
     INDEX idx_course_join_codes_professor_id (professor_id),
     CONSTRAINT fk_course_join_codes_course
         FOREIGN KEY (course_code) REFERENCES courses(course_code)
@@ -114,7 +122,7 @@ CREATE TABLE IF NOT EXISTS course_join_codes (
     CONSTRAINT fk_course_join_codes_section
         FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
         ON UPDATE CASCADE
-        ON DELETE SET NULL,
+        ON DELETE CASCADE,
     CONSTRAINT fk_course_join_codes_professor
         FOREIGN KEY (professor_id) REFERENCES professors(professor_id)
         ON UPDATE CASCADE
@@ -125,7 +133,7 @@ CREATE TABLE IF NOT EXISTS questions (
     question_id VARCHAR(50) PRIMARY KEY,
     board_id VARCHAR(50) NULL,
     course_code VARCHAR(50) NOT NULL,
-    section_id VARCHAR(50) NULL,
+    section_id VARCHAR(50) NOT NULL,
     student_id VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
@@ -140,6 +148,7 @@ CREATE TABLE IF NOT EXISTS questions (
     INDEX idx_questions_course_code (course_code),
     INDEX idx_questions_section_id (section_id),
     INDEX idx_questions_student_id (student_id),
+    INDEX idx_questions_course_section_student_status_created (course_code, section_id, student_id, status, created_at),
     CONSTRAINT fk_questions_board
         FOREIGN KEY (board_id) REFERENCES interaction_boards(board_id)
         ON UPDATE CASCADE
@@ -151,7 +160,7 @@ CREATE TABLE IF NOT EXISTS questions (
     CONSTRAINT fk_questions_section
         FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
         ON UPDATE CASCADE
-        ON DELETE SET NULL,
+        ON DELETE RESTRICT,
     CONSTRAINT fk_questions_student
         FOREIGN KEY (student_id) REFERENCES users(user_id)
         ON UPDATE CASCADE
@@ -303,6 +312,6 @@ VALUES
     ('stu001', 'CS232', 'sec-cs232-100001'),
     ('stu002', 'CS232', 'sec-cs232-100002');
 
-INSERT IGNORE INTO interaction_boards (board_id, course_code, status)
+INSERT IGNORE INTO interaction_boards (board_id, course_code, section_id, status)
 VALUES
-    ('board001', 'CS232', 'active');
+    ('board001', 'CS232', 'sec-cs232-100001', 'active');

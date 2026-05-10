@@ -73,3 +73,41 @@ class CourseJoinCodeResponse(BaseModel):
     expires_at: datetime
     is_active: bool
     created_at: datetime
+
+
+class DeleteArchiveSectionCounts(BaseModel):
+    """Usage counts that drive section delete-or-archive decisions."""
+
+    enrollments: int
+    boards: int
+    questions: int
+    active_join_codes: int
+
+
+class DeleteArchiveSectionResponse(BaseModel):
+    """Response payload for a section delete-or-archive action."""
+
+    action: str
+    course_code: str
+    section_code: str
+    reason: str
+    counts: DeleteArchiveSectionCounts
+
+
+class DeleteArchiveCourseCounts(BaseModel):
+    """Usage counts that drive course delete-or-archive decisions."""
+
+    sections: int
+    enrollments: int
+    boards: int
+    questions: int
+    active_join_codes: int
+
+
+class DeleteArchiveCourseResponse(BaseModel):
+    """Response payload for a course delete-or-archive action."""
+
+    action: str
+    course_code: str
+    reason: str
+    counts: DeleteArchiveCourseCounts

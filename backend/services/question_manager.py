@@ -261,10 +261,12 @@ class QuestionManager:
                     q.content,
                     q.tags,
                     q.status,
+                    q.is_anonymous,
                     q.created_at,
                     q.updated_at,
                     q.student_id,
                     b.board_id,
+                    b.board_title,
                     COALESCE(b.course_code, q.course_code) AS course_code,
                     COALESCE(b.section_id, q.section_id) AS section_id,
                     s.section_code,
@@ -676,12 +678,18 @@ class QuestionManager:
                 "tags": serialize_tags(row.get("tags")),
                 "status": status_map.get(str(row["status"]).lower(), "UNANSWERED"),
                 "student_id": str(row["student_id"]),
-                "student_name": str(row["student_name"]),
+                "student_name": (
+                    "Anonymous"
+                    if bool(row.get("is_anonymous"))
+                    else str(row["student_name"])
+                ),
+                "is_anonymous": bool(row.get("is_anonymous")),
                 "course_code": str(row["course_code"]),
                 "section_id": str(row["section_id"]) if row["section_id"] else None,
                 "section_code": str(row["section_code"]) if row["section_code"] else None,
                 "course_name": str(row["course_name"]),
-                "board_id": str(row["board_id"]),
+                "board_id": str(row["board_id"]) if row["board_id"] else None,
+                "board_title": str(row["board_title"]) if row["board_title"] else None,
                 "created_at": cls._serialize_datetime(row["created_at"]),
                 "updated_at": cls._serialize_datetime(row["updated_at"]),
                 "replies": replies_map.get(str(row["question_id"]), []),

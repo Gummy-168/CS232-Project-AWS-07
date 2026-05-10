@@ -270,6 +270,8 @@ export default function ProfessorAnalyticsPage() {
 
     getProfessorQuestions(session.userId, {
       courseCode: selectedCourseCode || undefined,
+      sectionCode:
+        selectedSectionCode === "ALL" ? undefined : selectedSectionCode,
       status: "all",
     })
       .then((response) => {
@@ -295,6 +297,7 @@ export default function ProfessorAnalyticsPage() {
     pathname,
     router,
     selectedCourseCode,
+    selectedSectionCode,
     selectedDateRange,
     selectedStatus,
     session?.role,
@@ -371,7 +374,7 @@ export default function ProfessorAnalyticsPage() {
   }, [filteredQuestionsByScope]);
 
   const totalStudents = enrolledStudents.length;
-  const totalQuestions = displayedQuestions.length;
+  const totalQuestions = filteredQuestionsByScope.length;
   const answeredQuestions = filteredQuestionsByScope.filter(
     (question) => question.status === "ANSWERED",
   ).length;
@@ -401,7 +404,12 @@ export default function ProfessorAnalyticsPage() {
   );
 
   const sectionComparison = useMemo<SectionSummary[]>(() => {
-    const sections = data?.sections || [];
+    const sections = (data?.sections || []).filter((section) => {
+      if (selectedSectionCode === "ALL") {
+        return true;
+      }
+      return section.section_code.trim().toUpperCase() === selectedSectionCode;
+    });
     const students = data?.enrolled_students || [];
     const questions = filteredQuestionsByScope;
     const boards = filteredBoards;
@@ -439,7 +447,13 @@ export default function ProfessorAnalyticsPage() {
             : 0,
       };
     });
-  }, [data?.enrolled_students, data?.sections, filteredBoards, filteredQuestionsByScope]);
+  }, [
+    data?.enrolled_students,
+    data?.sections,
+    filteredBoards,
+    filteredQuestionsByScope,
+    selectedSectionCode,
+  ]);
 
   const boardAnalytics = useMemo(() => {
     return filteredBoards.map((board) => {
@@ -469,7 +483,11 @@ export default function ProfessorAnalyticsPage() {
         const studentQuestions = filteredQuestionsByScope.filter(
           (question) => question.student_id === student.student_id,
         );
-        const boardsJoined = new Set(studentQuestions.map((question) => question.board_id));
+        const boardsJoined = new Set(
+          studentQuestions
+            .map((question) => question.board_id)
+            .filter((boardId): boardId is string => Boolean(boardId)),
+        );
         const participation =
           filteredBoards.length > 0
             ? Math.round((boardsJoined.size / filteredBoards.length) * 100)

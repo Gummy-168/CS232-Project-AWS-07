@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { BookOpen, Clock3, MessageSquareText, Search, UserRound } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ActionNoticeModal from "../../components/action-notice-modal";
 import AskModal from "../../components/askmodal";
 import Header from "../../components/Header";
@@ -58,6 +58,7 @@ function QuestionCard({
 }) {
   const isAnswered = question.status === "ANSWERED";
   const resolvedProfessorName = professorName?.trim() || "Professor";
+  const questionScope = question.board_id ? "Board Question" : "General Question";
 
   return (
     <article
@@ -72,6 +73,9 @@ function QuestionCard({
           <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span className="rounded-full bg-white/80 px-3 py-1 font-medium text-[#6F63A8]">
               {question.course_code}
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">
+              {questionScope}
             </span>
             {formatSectionLabel(question.section_code) ? (
               <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-medium text-[#C97316]">
@@ -280,6 +284,51 @@ export default function StudentCourseHomeView() {
     courseBoard?.course.professor_name ||
     "Professor";
 
+  const loadCourseData = useCallback(async (showLoading = true) => {
+    if (!session?.userId || !selectedCourseCode) {
+      return;
+    }
+
+    if (showLoading) {
+      setIsLoading(true);
+    }
+
+    try {
+      const [boardResponse, timelineResponse] = await Promise.all([
+        getStudentCourseBoard(
+          session.userId,
+          selectedCourseCode,
+          selectedCourse?.section_code || selectedSectionCode || undefined,
+        ),
+        getStudentActivityTimeline(session.userId, selectedCourseCode, {
+          sectionCode: resolvedSectionCode,
+          token: session.accessToken,
+          role: session.role,
+        }),
+      ]);
+
+      setCourseBoard(boardResponse);
+      setTimeline(timelineResponse);
+    } catch {
+      if (showLoading) {
+        setCourseBoard(null);
+        setTimeline(null);
+      }
+    } finally {
+      if (showLoading) {
+        setIsLoading(false);
+      }
+    }
+  }, [
+    resolvedSectionCode,
+    selectedCourse?.section_code,
+    selectedCourseCode,
+    selectedSectionCode,
+    session?.accessToken,
+    session?.role,
+    session?.userId,
+  ]);
+
   useEffect(() => {
     if (!session?.userId) {
       return;
@@ -344,30 +393,9 @@ export default function StudentCourseHomeView() {
       return;
     }
 
-    Promise.all([
-      getStudentCourseBoard(
-        session.userId,
-        selectedCourseCode,
-        selectedCourse?.section_code || selectedSectionCode || undefined,
-      ),
-      getStudentActivityTimeline(session.userId, selectedCourseCode, {
-        sectionCode: resolvedSectionCode,
-        token: session.accessToken,
-        role: session.role,
-      }),
-    ])
-      .then(([boardResponse, timelineResponse]) => {
-        setCourseBoard(boardResponse);
-        setTimeline(timelineResponse);
-      })
-      .catch(() => {
-        setCourseBoard(null);
-        setTimeline(null);
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
+    void loadCourseData();
   }, [
+    loadCourseData,
     resolvedSectionCode,
     selectedCourse?.section_code,
     selectedCourseCode,
@@ -480,29 +508,16 @@ export default function StudentCourseHomeView() {
     }
 
     try {
-      const created = await createStudentQuestion(session.userId, {
+      await createStudentQuestion(session.userId, {
         course_code: selectedCourse.course_code,
+        board_id: null,
         section_code: normalizeSectionCode(selectedCourse.section_code) || undefined,
         title: payload.title,
         detail: payload.detail,
         tags: payload.tags,
         is_anonymous: payload.anonymous,
       }, session.accessToken, session.role);
-      setTimeline((prev) => ({
-        course_code: prev?.course_code || selectedCourse.course_code,
-        section_code:
-          prev?.section_code || normalizeSectionCode(selectedCourse.section_code) || null,
-        items: [
-          {
-            type: "question",
-            created_at: created.created_at,
-            question: created,
-          },
-          ...(prev?.items ?? []).filter(
-            (item) => item.type !== "question" || item.question.id !== created.id,
-          ),
-        ],
-      }));
+      await loadCourseData(false);
       setIsAskModalOpen(false);
     } catch (err) {
       showQuestionErrorNotice(

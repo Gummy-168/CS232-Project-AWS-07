@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronLeft, Clock3, MessageCircleMore, Plus, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import ActionNoticeModal from "../../../components/action-notice-modal";
 import AskModal from "../../../components/askmodal";
 import Header from "../../../components/Header";
@@ -58,6 +58,7 @@ function BoardQuestionCard({
   const replies = question.replies ?? [];
   const isAnswered = question.status === "ANSWERED";
   const resolvedProfessorName = professorName?.trim() || "Professor";
+  const questionScope = question.board_id ? "Board Question" : "General Question";
 
   return (
     <article className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm">
@@ -66,6 +67,9 @@ function BoardQuestionCard({
           <div className="mb-3 flex flex-wrap items-center gap-3 text-sm text-slate-500">
             <span className="rounded-full bg-[#F4F0FF] px-3 py-1 font-medium text-[#6F63A8]">
               {question.is_anonymous ? "Anonymous" : question.author_name}
+            </span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-600">
+              {questionScope}
             </span>
             <span>{formatRelativeTime(question.created_at)}</span>
           </div>
@@ -144,35 +148,38 @@ export default function StudentCourseBoardView() {
   const [boardSessions, setBoardSessions] = useState<StudentBoardSession[]>([]);
   const [notice, setNotice] = useState<NoticeState>(null);
 
-  useEffect(() => {
+  const loadBoardData = useCallback(async (showLoading = true) => {
     if (!session?.userId || !selectedCourseCode || !selectedBoardId) {
       return;
     }
 
-    const loadBoard = async () => {
+    if (showLoading) {
       setIsLoading(true);
+    }
+
+    try {
       const [boardResult, boardSessionsResult, boardQuestionsResult, questionResult] =
         await Promise.allSettled([
-        getStudentCourseBoard(
-          session.userId,
-          selectedCourseCode,
-          selectedSectionCode || undefined,
-        ),
-        getStudentCourseBoards(
-          session.userId,
-          selectedCourseCode,
-          selectedSectionCode || undefined,
-        ),
-        getBoardQuestions(selectedBoardId, session.accessToken, session.role, {
-          studentId: session.userId,
-          courseCode: selectedCourseCode,
-          sectionCode: selectedSectionCode || undefined,
-        }),
-        getStudentQuestions(session.userId, {
-          scope: "all",
-          courseCode: selectedCourseCode,
-          boardId: selectedBoardId,
-        }),
+          getStudentCourseBoard(
+            session.userId,
+            selectedCourseCode,
+            selectedSectionCode || undefined,
+          ),
+          getStudentCourseBoards(
+            session.userId,
+            selectedCourseCode,
+            selectedSectionCode || undefined,
+          ),
+          getBoardQuestions(selectedBoardId, session.accessToken, session.role, {
+            studentId: session.userId,
+            courseCode: selectedCourseCode,
+            sectionCode: selectedSectionCode || undefined,
+          }),
+          getStudentQuestions(session.userId, {
+            scope: "all",
+            courseCode: selectedCourseCode,
+            boardId: selectedBoardId,
+          }),
         ]);
 
       const boardResponse =
@@ -212,11 +219,28 @@ export default function StudentCourseBoardView() {
       } else {
         setError("");
       }
-      setIsLoading(false);
-    };
-
-    void loadBoard();
+    } finally {
+      if (showLoading) {
+        setIsLoading(false);
+      }
+    }
   }, [
+    selectedBoardId,
+    selectedCourseCode,
+    selectedSectionCode,
+    session?.accessToken,
+    session?.role,
+    session?.userId,
+  ]);
+
+  useEffect(() => {
+    if (!session?.userId || !selectedCourseCode || !selectedBoardId) {
+      return;
+    }
+
+    void loadBoardData();
+  }, [
+    loadBoardData,
     selectedBoardId,
     selectedCourseCode,
     selectedSectionCode,
@@ -300,7 +324,7 @@ export default function StudentCourseBoardView() {
     }
 
     try {
-      const created = await createQuestion(
+      await createQuestion(
         {
           title: payload.title,
           content: payload.detail || payload.title,
@@ -314,22 +338,7 @@ export default function StudentCourseBoardView() {
         studentId,
         session.role,
       );
-      setQuestions((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
-      setCourseBoard((prev) =>
-        prev && prev.active_board
-          ? {
-              ...prev,
-              active_board:
-                prev.active_board.board_id === selectedBoardId
-                  ? {
-                      ...prev.active_board,
-                      total_questions: prev.active_board.total_questions + 1,
-                      unanswered_questions: prev.active_board.unanswered_questions + 1,
-                    }
-                  : prev.active_board,
-            }
-          : prev,
-      );
+      await loadBoardData(false);
       setIsAskModalOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to post question";

@@ -80,8 +80,8 @@ const Dashboard = () => {
   const pieData = [
     { name: "Answered", value: data.stats.answered, color: "#4F46E5" },
     { name: "Unanswered", value: data.stats.unanswered, color: "#C7D2FE" },
-    { name: "Board", value: data.stats.board, color: "#EC4899" },
   ];
+  const totalQuestionStatus = data.stats.answered + data.stats.unanswered;
 
   return (
     <div className="min-h-screen bg-[#F9F9F9] p-8 font-sans text-slate-700">
@@ -101,7 +101,7 @@ const Dashboard = () => {
           <StatCard
             label="ON-CLASS PARTICIPATION RATE"
             value={`${data.stats.participation}%`}
-            subValue={`${participatedBoards}/${openedBoards} classes`}
+            subValue={`${participatedBoards}/${openedBoards} joined scopes`}
           />
           <StatCard
             label="TOTAL QUESTIONS"
@@ -109,7 +109,11 @@ const Dashboard = () => {
             isActive
           />
           <StatCard label="ANSWERED QUESTIONS" value={data.stats.answered} />
-          <StatCard label="ACTIVE COURSES" value={data.stats.active_courses} />
+          <StatCard
+            label="ACTIVE COURSES"
+            value={data.stats.active_courses}
+            subValue="Counted from enrollments"
+          />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -210,11 +214,7 @@ const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold">
-                  {data.stats.unanswered +
-                    data.stats.answered +
-                    data.stats.board}
-                </span>
+                <span className="text-3xl font-bold">{totalQuestionStatus}</span>
                 <span className="text-xs text-slate-400 uppercase">Total</span>
               </div>
             </div>
@@ -249,10 +249,37 @@ const Dashboard = () => {
               {courseActivity.map(
                 (course: {
                   course_code: string;
+                  course_name?: string;
+                  section_code?: string | null;
                   title: string;
+                  total_questions?: number;
+                  answered_questions?: number;
+                  unanswered_questions?: number;
+                  general_questions?: number;
+                  board_questions?: number;
+                  boards_joined?: number;
+                  board_sessions_joined?: number;
+                  replies_count?: number;
+                  total_replies?: number;
+                  interaction_count?: number;
                   total_interactions: number;
                 }) => {
-                  const interactions = Number(course.total_interactions ?? 0);
+                  const interactions = Number(
+                    course.interaction_count ?? course.total_interactions ?? 0,
+                  );
+                  const totalQuestions = Number(course.total_questions ?? 0);
+                  const answeredQuestions = Number(course.answered_questions ?? 0);
+                  const unansweredQuestions = Number(
+                    course.unanswered_questions ?? Math.max(totalQuestions - answeredQuestions, 0),
+                  );
+                  const generalQuestions = Number(course.general_questions ?? 0);
+                  const boardQuestions = Number(course.board_questions ?? 0);
+                  const boardSessionsJoined = Number(
+                    course.boards_joined ?? course.board_sessions_joined ?? 0,
+                  );
+                  const totalReplies = Number(
+                    course.replies_count ?? course.total_replies ?? 0,
+                  );
                   const widthPercent =
                     maxInteractions > 0
                       ? (interactions / maxInteractions) * 100
@@ -263,9 +290,39 @@ const Dashboard = () => {
                   return (
                     <div key={course.course_code} className="flex flex-col gap-2">
                       <div className="flex justify-between items-center text-sm mb-1">
-                        <span className="font-medium">{course.title}</span>
+                        <div>
+                          <span className="font-medium">{course.title}</span>
+                          <p className="text-xs text-slate-400">
+                            {course.section_code
+                              ? `${course.course_name || course.course_code} • ${course.section_code}`
+                              : course.course_name || course.course_code}
+                          </p>
+                        </div>
                         <span className="text-indigo-600 font-semibold text-xs">
                           {interactions} interactions
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                        <span className="rounded-full bg-slate-100 px-3 py-1">
+                          {totalQuestions} questions
+                        </span>
+                        <span className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-600">
+                          {answeredQuestions} answered
+                        </span>
+                        <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-600">
+                          {unansweredQuestions} pending
+                        </span>
+                        <span className="rounded-full bg-sky-50 px-3 py-1 text-sky-600">
+                          {generalQuestions} general
+                        </span>
+                        <span className="rounded-full bg-violet-50 px-3 py-1 text-violet-600">
+                          {boardQuestions} board
+                        </span>
+                        <span className="rounded-full bg-pink-50 px-3 py-1 text-pink-600">
+                          {boardSessionsJoined} boards joined
+                        </span>
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-600">
+                          {totalReplies} replies
                         </span>
                       </div>
                       <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden">

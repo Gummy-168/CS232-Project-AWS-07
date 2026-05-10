@@ -405,11 +405,20 @@ export default function ProfessorQuestionsPage() {
 }
 
 function BoardActivityCard({ board }: { board: ProfessorBoardSession }) {
+  const isActive = board.status.trim().toUpperCase() === "ACTIVE";
   return (
     <article className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
-      <div className="absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-red-50 text-red-400">
-        <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
-        BOARD
+      <div
+        className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${
+          isActive ? "bg-violet-50 text-violet-600" : "bg-slate-100 text-slate-500"
+        }`}
+      >
+        <span
+          className={`w-2 h-2 rounded-full inline-block ${
+            isActive ? "bg-violet-500" : "bg-slate-400"
+          }`}
+        />
+        {isActive ? "BOARD SESSION · ACTIVE" : "BOARD SESSION · CLOSED"}
       </div>
 
       <div className="flex gap-4">
@@ -459,6 +468,8 @@ function QuestionActivityCard({
 }) {
   const isAnswered = question.status === "ANSWERED";
   const repliesCount = question.replies.length;
+  const isBoardQuestion = Boolean(question.board_id);
+  const questionKindLabel = isBoardQuestion ? "Board Question" : "General Question";
 
   return (
     <article className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
@@ -484,9 +495,17 @@ function QuestionActivityCard({
             <span className="rounded-full bg-[#F1ECFF] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#6F5CE5]">
               {question.course_code}
             </span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              {questionKindLabel}
+            </span>
             {question.section_code ? (
               <span className="rounded-full bg-[#FFF3E8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#D97706]">
                 {formatSectionLabel(question.section_code)}
+              </span>
+            ) : null}
+            {question.board_title ? (
+              <span className="rounded-full bg-[#F7F1FB] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#513FDF]">
+                {question.board_title}
               </span>
             ) : null}
             <span className="text-xs text-slate-400">
@@ -512,15 +531,28 @@ function QuestionActivityCard({
 
           <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 text-[13px] text-slate-500">
             <span>{repliesCount} replies in this thread</span>
-            <Link
-              href={`/professor/courses?${buildCourseQuery(
-                question.course_code,
-                question.section_code || undefined,
-              )}`}
-              className="inline-flex items-center gap-2 rounded-full border border-[#E7E0FC] px-4 py-1.5 text-[#5B41FF] hover:bg-[#F8F6FF] transition-all"
-            >
-              View Course Activity
-            </Link>
+            <div className="flex items-center gap-3">
+              {isBoardQuestion && question.board_id ? (
+                <Link
+                  href={`/professor/courses/boardreview?${buildCourseQuery(
+                    question.course_code,
+                    question.section_code || undefined,
+                  )}&board_id=${encodeURIComponent(question.board_id)}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-[#E7E0FC] px-4 py-1.5 text-[#5B41FF] hover:bg-[#F8F6FF] transition-all"
+                >
+                  View Board
+                </Link>
+              ) : null}
+              <Link
+                href={`/professor/courses?${buildCourseQuery(
+                  question.course_code,
+                  question.section_code || undefined,
+                )}`}
+                className="inline-flex items-center gap-2 rounded-full border border-[#E7E0FC] px-4 py-1.5 text-[#5B41FF] hover:bg-[#F8F6FF] transition-all"
+              >
+                View Course Activity
+              </Link>
+            </div>
           </div>
         </div>
       </div>

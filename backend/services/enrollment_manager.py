@@ -44,15 +44,25 @@ class EnrollmentManager:
             .first()
         )
         if existing_enrollment is not None:
+            existing_section_id = (
+                existing_enrollment.section_id.strip()
+                if existing_enrollment.section_id
+                else None
+            )
+            requested_section_id = section.section_id if section else None
+            if existing_section_id == requested_section_id:
+                detail = "Student already joined this course section"
+            else:
+                detail = "Student already joined this course in another section"
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Student already joined this course",
+                detail=detail,
             )
 
         enrollment = Enrollment(
             student_id=student.user_id,
             course_code=normalized_course_code,
-            section_id=section.section_id if section else None,
+            section_id=section.section_id,
         )
         enrollment.normalize_state()
 

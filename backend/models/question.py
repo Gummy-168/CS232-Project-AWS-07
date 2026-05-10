@@ -23,10 +23,10 @@ class Question(Base):
     question_id: Mapped[str] = mapped_column(String(50), primary_key=True)
     board_id: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     course_code: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
-    section_id: Mapped[str | None] = mapped_column(
+    section_id: Mapped[str] = mapped_column(
         String(50),
-        ForeignKey("course_sections.section_id", onupdate="CASCADE", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("course_sections.section_id", onupdate="CASCADE", ondelete="RESTRICT"),
+        nullable=False,
         index=True,
     )
     student_id: Mapped[str] = mapped_column(
@@ -65,7 +65,7 @@ class Question(Base):
         question_id: str,
         board_id: int | str | None,
         course_code: str,
-        section_id: str | None,
+        section_id: str,
         student_id: str,
         title: str,
         content: str,
@@ -83,7 +83,7 @@ class Question(Base):
         self.question_id = question_id
         self.board_id = str(board_id).strip() if board_id is not None else None
         self.course_code = course_code.strip()
-        self.section_id = section_id
+        self.section_id = section_id.strip()
         self.student_id = student_id.strip()
         self.title = self._clean_title(title)
         self.content = self._clean_content(content)

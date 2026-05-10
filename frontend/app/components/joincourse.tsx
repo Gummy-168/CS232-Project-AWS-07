@@ -1,5 +1,6 @@
 "use client";
 import React, { useState } from 'react';
+import { useRouter } from "next/navigation";
 import { X } from 'lucide-react';
 import { joinStudentCourse } from "../lib/api";
 import { useAuthSession } from "../hooks/useAuthSession";
@@ -7,7 +8,7 @@ import { useAuthSession } from "../hooks/useAuthSession";
 interface JoinCourseProps {
   isOpen: boolean;
   onClose: () => void;
-  onJoined?: (courseCode: string) => void;
+  onJoined?: (payload: { courseCode: string; sectionCode?: string | null }) => void;
 }
 
 const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
@@ -17,6 +18,7 @@ const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
   const [errorMsg, setErrorMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const { session } = useAuthSession();
+  const router = useRouter();
 
   if (!isOpen) return null;
 
@@ -32,12 +34,19 @@ const JoinCourse = ({ isOpen, onClose, onJoined }: JoinCourseProps) => {
           ? `${response.course_code} (${response.section_code})`
           : response.course_code;
         setJoinedCourses((prev) => [...prev, joinedLabel]);
-        setSuccessMsg(`เข้าร่วมคอร์ส ${joinedLabel} สำเร็จ!`);
+        setSuccessMsg(response.message || `เข้าร่วมคอร์ส ${joinedLabel} สำเร็จ!`);
         setCode("");
-        onJoined?.(response.course_code);
+        const courseHref = response.section_code
+          ? `/student/courses?course_code=${encodeURIComponent(response.course_code)}&sec=${encodeURIComponent(response.section_code)}`
+          : `/student/courses?course_code=${encodeURIComponent(response.course_code)}`;
+        onJoined?.({
+          courseCode: response.course_code,
+          sectionCode: response.section_code,
+        });
         setTimeout(() => {
           setSuccessMsg('');
           onClose();
+          router.push(courseHref);
         }, 1200);
       })
       .catch((error) => {

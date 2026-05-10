@@ -23,10 +23,10 @@ class CourseJoinCode(Base):
         nullable=False,
         index=True,
     )
-    section_id: Mapped[str | None] = mapped_column(
+    section_id: Mapped[str] = mapped_column(
         String(50),
-        ForeignKey("course_sections.section_id", onupdate="CASCADE", ondelete="SET NULL"),
-        nullable=True,
+        ForeignKey("course_sections.section_id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
         index=True,
     )
     professor_id: Mapped[str] = mapped_column(
@@ -48,6 +48,5 @@ class CourseJoinCode(Base):
         self.join_code_id = self.join_code_id.strip()
         self.code = self.code.strip().upper()
         self.course_code = self.course_code.strip().upper()
-        if self.section_id is not None:
-            self.section_id = self.section_id.strip()
+        self.section_id = self.section_id.strip()
         self.professor_id = self.professor_id.strip()

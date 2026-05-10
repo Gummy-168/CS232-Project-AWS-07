@@ -3,11 +3,14 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Search } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 import JoinCourse from "../../../components/joincourse";
 import Header from "../../../components/Header";
-import Link from "next/link";
 import { createStudentQuestionReply, getStudentQuestions } from "../../../lib/api";
 import { useAuthSession } from "../../../hooks/useAuthSession";
+import { buildCourseQueryString } from "../../../lib/section-code";
+
+type FeedFilter = "All" | "Answered" | "Unanswered" | "Board Questions" | "General Questions";
 
 type Reply = {
   user: string;
@@ -21,9 +24,13 @@ type Activity = {
   id: string;
   subject: string;
   section: string;
+  boardId?: string | null;
+  boardTitle?: string | null;
+  questionKind: "board" | "general";
   user: string;
   time: string;
   content: string;
+  title?: string;
   tags: string[];
   status: "UNANSWERED" | "ANSWERED" | "DELETED";
   type: "question";
@@ -40,7 +47,7 @@ export default function Allquestions() {
   const { session } = useAuthSession();
   const [activities, setActivities] = useState<Activity[]>([]);
   const [activitySearch, setActivitySearch] = useState("");
-  const [filter, setFilter] = useState("All");
+  const [filter, setFilter] = useState<FeedFilter>("All");
   const [selectedSubject, setSelectedSubject] = useState("All Subjects");
   const [selectedTag, setSelectedTag] = useState("All Tags");
   const [subjects, setSubjects] = useState<string[]>(["All Subjects"]);
@@ -114,13 +121,17 @@ export default function Allquestions() {
           .map((item) => ({
             id: item.id,
             subject: item.course_code,
-            section: "",
+            section: item.section_code ? `SEC ${item.section_code}` : "",
+            boardId: item.board_id ?? null,
+            boardTitle: item.board_title ?? null,
+            questionKind: item.board_id ? "board" : "general",
             user: item.is_anonymous ? "Anonymous" : item.author_name,
             time: item.created_at
               ? formatDistanceToNow(new Date(item.created_at), {
                   addSuffix: true,
                 })
               : "just now",
+            title: item.title,
             content: item.content,
             tags: item.tags ?? [],
             status: item.status,
@@ -160,21 +171,22 @@ export default function Allquestions() {
 
   const filteredActivities = useMemo(() => {
     return activities.filter((item) => {
-      // 1. ตรวจสอบ Filter ตามสถานะ (All, Answered, Unanswered, Board)
       const status = item.status?.toUpperCase().trim();
       const matchesFilter =
         filter === "All" ||
-        (filter === "Board" && status === "BOARD") ||
+        (filter === "Board Questions" && item.questionKind === "board") ||
+        (filter === "General Questions" && item.questionKind === "general") ||
         (filter === "Answered" && status === "ANSWERED") ||
         (filter === "Unanswered" && status === "UNANSWERED");
       const matchesSubject =
         selectedSubject === "All Subjects" || item.subject === selectedSubject;
 
-      // 2. ตรวจสอบ Search Query (ค้นหาจากชื่อผู้ใช้ หรือ เนื้อหา)
       const searchLower = activitySearch.toLowerCase().trim();
       const matchesSearch =
         item.user.toLowerCase().includes(searchLower) ||
+        (item.title && item.title.toLowerCase().includes(searchLower)) ||
         item.content.toLowerCase().includes(searchLower) ||
+        (item.boardTitle && item.boardTitle.toLowerCase().includes(searchLower)) ||
         (item.subContent &&
           item.subContent.toLowerCase().includes(searchLower));
 
@@ -210,10 +222,10 @@ export default function Allquestions() {
           <div className="fixed top-[120px] left-64 right-0 z-10 bg-[#FCF9F8] pt-2 pb-4 px-8">
             <div className="flex flex-wrap items-center gap-3 mb-4">
               <div className="flex items-center gap-2">
-                {["All", "Answered", "Unanswered", "Board"].map((btnLabel) => (
+                {["All", "Answered", "Unanswered", "Board Questions", "General Questions"].map((btnLabel) => (
                   <button
                     key={btnLabel}
-                    onClick={() => setFilter(btnLabel)}
+                    onClick={() => setFilter(btnLabel as FeedFilter)}
                     className={`px-5 py-1.5 rounded-full text-sm font-regular transition-all border ${
                       filter === btnLabel
                         ? "bg-[#5B41FF] text-white border-[#5B41FF]"
@@ -299,8 +311,8 @@ function StudentActivityCard({
   onPostReply: (id: string, text: string) => void;
 }) {
   const [draft, setDraft] = useState("");
-  const isBoard = data.status?.toUpperCase().trim() === "BOARD";
   const isAnswered = data.status?.toUpperCase().trim() === "ANSWERED";
+  const isBoardQuestion = data.questionKind === "board";
 
   const handleSend = () => {
     onPostReply(data.id, draft);
@@ -314,7 +326,7 @@ function StudentActivityCard({
         className={`absolute top-5 right-5 flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-regular ${
           isAnswered
             ? "bg-emerald-50 text-emerald-500"
-            : isBoard
+            : isBoardQuestion
               ? "bg-red-50 text-red-400"
               : "bg-orange-50 text-orange-400"
         }`}
@@ -329,7 +341,7 @@ function StudentActivityCard({
               strokeLinecap="round"
             />
           </svg>
-        ) : isBoard ? (
+        ) : isBoardQuestion ? (
           <span className="w-2 h-2 rounded-full bg-red-400 inline-block" />
         ) : (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -356,31 +368,22 @@ function StudentActivityCard({
                 {[data.subject, data.section].filter(Boolean).join(" | ")}
               </span>
             )}
+            <span className="text-[11px] font-medium bg-[#F4F0FF] text-[#6F63A8] px-2.5 py-1 rounded-lg tracking-wide uppercase">
+              {isBoardQuestion ? "Board Question" : "General Question"}
+            </span>
+            {data.boardTitle ? (
+              <span className="text-[11px] font-medium bg-[#FFF6EC] text-[#D97706] px-2.5 py-1 rounded-lg tracking-wide uppercase">
+                {data.boardTitle}
+              </span>
+            ) : null}
             <span className="font-bold text-slate-800">{data.user}</span>
             <span className="text-xs text-slate-400">{data.time}</span>
           </div>
 
-          {isBoard ? (
-            <div className="mt-1">
-              <div className="bg-[#F0EEFF] rounded-2xl p-4 mt-2">
-                <p className="text-[#513FDF] font-bold text-lg mb-1">
-                  {data.content}
-                </p>
-                {data.subContent && (
-                  <p className="text-sm text-slate-500 mb-4">
-                    {data.subContent}
-                  </p>
-                )}
-                <Link
-                  href="/student/courses/boardreview"
-                  className="flex items-center gap-2 bg-[#513FDF] text-white px-5 py-2 rounded-full text-sm hover:scale-105 active:scale-95 transition-all w-fit"
-                >
-                  <span>👁</span> Review Session
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div>
+          <div>
+              {data.title && data.title !== data.content ? (
+                <h3 className="mb-2 text-lg font-semibold text-slate-800">{data.title}</h3>
+              ) : null}
               <p className="text-slate-700 mb-3">{data.content}</p>
 
               {data.tags?.length ? (
@@ -442,6 +445,17 @@ function StudentActivityCard({
                     : ""}{" "}
                   {data.showReplies ? "ซ่อน replies" : "reply"}
                 </button>
+                {isBoardQuestion && data.boardId ? (
+                  <Link
+                    href={`/student/courses/board?${buildCourseQueryString(
+                      data.subject,
+                      data.section,
+                    )}&board_id=${encodeURIComponent(data.boardId)}`}
+                    className="text-[#5B41FF] hover:text-[#4338CA] font-medium transition-colors"
+                  >
+                    View Board
+                  </Link>
+                ) : null}
               </div>
 
               {/* Student replies*/}
@@ -501,7 +515,6 @@ function StudentActivityCard({
                 </div>
               )}
             </div>
-          )}
         </div>
       </div>
     </div>

@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import secrets
 
 from fastapi import HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -179,6 +180,306 @@ class CourseManager:
         )
 
     @classmethod
+    def _require_professor_course(
+        cls,
+        db: Session,
+        professor: Professor,
+        course_code: str,
+    ) -> Course:
+        """Return one course only when it belongs to the professor."""
+        course = cls.get_course_by_code(db=db, course_code=course_code)
+        if course is None or course.professor_id != professor.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Course not found for this professor",
+            )
+        return course
+
+    @classmethod
+    def _require_course_section(
+        cls,
+        db: Session,
+        professor: Professor,
+        course_code: str,
+        section_code: str,
+    ) -> tuple[Course, CourseSection]:
+        """Return one professor-owned course and section pair."""
+        course = cls._require_professor_course(
+            db=db,
+            professor=professor,
+            course_code=course_code,
+        )
+        section = cls.get_section_by_code(
+            db=db,
+            course_code=course.course_code,
+            section_code=section_code,
+        )
+        if section is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found for this course",
+            )
+        return course, section
+
+    @classmethod
+    def get_section_usage_counts(
+        cls,
+        db: Session,
+        section_id: str,
+    ) -> dict[str, int]:
+        """Return counts used to decide whether a section can be deleted."""
+        counts_row = db.execute(
+            text(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM enrollments WHERE section_id = :section_id) AS enrollments,
+                    (SELECT COUNT(*) FROM interaction_boards WHERE section_id = :section_id) AS boards,
+                    (SELECT COUNT(*) FROM questions WHERE section_id = :section_id) AS questions,
+                    (
+                        SELECT COUNT(*)
+                        FROM course_join_codes
+                        WHERE section_id = :section_id
+                          AND is_active = TRUE
+                    ) AS active_join_codes
+                """
+            ),
+            {"section_id": section_id},
+        ).mappings().one()
+        return {
+            "enrollments": int(counts_row["enrollments"] or 0),
+            "boards": int(counts_row["boards"] or 0),
+            "questions": int(counts_row["questions"] or 0),
+            "active_join_codes": int(counts_row["active_join_codes"] or 0),
+        }
+
+    @classmethod
+    def can_hard_delete_section(
+        cls,
+        counts: dict[str, int],
+    ) -> bool:
+        """Return whether a section is still empty enough to hard delete."""
+        return (
+            counts["enrollments"] == 0
+            and counts["boards"] == 0
+            and counts["questions"] == 0
+        )
+
+    @classmethod
+    def deactivate_join_codes_for_section(
+        cls,
+        db: Session,
+        course_code: str,
+        section_id: str,
+    ) -> int:
+        """Deactivate every active join code for one section."""
+        result = db.execute(
+            text(
+                """
+                UPDATE course_join_codes
+                SET is_active = FALSE
+                WHERE course_code = :course_code
+                  AND section_id = :section_id
+                  AND is_active = TRUE
+                """
+            ),
+            {
+                "course_code": course_code.strip().upper(),
+                "section_id": section_id,
+            },
+        )
+        return int(result.rowcount or 0)
+
+    @classmethod
+    def delete_or_archive_section(
+        cls,
+        db: Session,
+        professor: Professor,
+        course_code: str,
+        section_code: str,
+    ) -> dict[str, object]:
+        """Hard-delete empty sections, otherwise archive them safely."""
+        course, section = cls._require_course_section(
+            db=db,
+            professor=professor,
+            course_code=course_code,
+            section_code=section_code,
+        )
+        counts = cls.get_section_usage_counts(db=db, section_id=section.section_id)
+        deactivated_join_codes = cls.deactivate_join_codes_for_section(
+            db=db,
+            course_code=course.course_code,
+            section_id=section.section_id,
+        )
+
+        if cls.can_hard_delete_section(counts=counts):
+            db.delete(section)
+            db.commit()
+            return {
+                "action": "deleted",
+                "course_code": course.course_code,
+                "section_code": section.section_code,
+                "reason": (
+                    "Section deleted because it has no enrollments, boards, or questions. "
+                    f"{deactivated_join_codes} active join code(s) were deactivated first."
+                ),
+                "counts": {
+                    "enrollments": counts["enrollments"],
+                    "boards": counts["boards"],
+                    "questions": counts["questions"],
+                    "active_join_codes": counts["active_join_codes"],
+                },
+            }
+
+        if section.is_active:
+            section.is_active = False
+        db.commit()
+        db.refresh(section)
+        return {
+            "action": "archived",
+            "course_code": course.course_code,
+            "section_code": section.section_code,
+            "reason": (
+                "Section archived because it already has classroom history. "
+                "Enrollments, boards, questions, replies, and analytics-related records were preserved."
+            ),
+            "counts": {
+                "enrollments": counts["enrollments"],
+                "boards": counts["boards"],
+                "questions": counts["questions"],
+                "active_join_codes": counts["active_join_codes"],
+            },
+        }
+
+    @classmethod
+    def get_course_usage_counts(
+        cls,
+        db: Session,
+        course_code: str,
+    ) -> dict[str, int]:
+        """Return counts used to decide whether a course can be deleted."""
+        normalized_course_code = course_code.strip().upper()
+        counts_row = db.execute(
+            text(
+                """
+                SELECT
+                    (SELECT COUNT(*) FROM course_sections WHERE course_code = :course_code) AS sections,
+                    (SELECT COUNT(*) FROM enrollments WHERE course_code = :course_code) AS enrollments,
+                    (SELECT COUNT(*) FROM interaction_boards WHERE course_code = :course_code) AS boards,
+                    (SELECT COUNT(*) FROM questions WHERE course_code = :course_code) AS questions,
+                    (
+                        SELECT COUNT(*)
+                        FROM course_join_codes
+                        WHERE course_code = :course_code
+                          AND is_active = TRUE
+                    ) AS active_join_codes
+                """
+            ),
+            {"course_code": normalized_course_code},
+        ).mappings().one()
+        return {
+            "sections": int(counts_row["sections"] or 0),
+            "enrollments": int(counts_row["enrollments"] or 0),
+            "boards": int(counts_row["boards"] or 0),
+            "questions": int(counts_row["questions"] or 0),
+            "active_join_codes": int(counts_row["active_join_codes"] or 0),
+        }
+
+    @classmethod
+    def can_hard_delete_course(
+        cls,
+        counts: dict[str, int],
+    ) -> bool:
+        """Return whether a course is still empty enough to hard delete."""
+        return (
+            counts["enrollments"] == 0
+            and counts["boards"] == 0
+            and counts["questions"] == 0
+        )
+
+    @classmethod
+    def deactivate_join_codes_for_course(
+        cls,
+        db: Session,
+        course_code: str,
+    ) -> int:
+        """Deactivate every active join code for one course."""
+        result = db.execute(
+            text(
+                """
+                UPDATE course_join_codes
+                SET is_active = FALSE
+                WHERE course_code = :course_code
+                  AND is_active = TRUE
+                """
+            ),
+            {"course_code": course_code.strip().upper()},
+        )
+        return int(result.rowcount or 0)
+
+    @classmethod
+    def delete_or_archive_course(
+        cls,
+        db: Session,
+        professor: Professor,
+        course_code: str,
+    ) -> dict[str, object]:
+        """Hard-delete empty courses, otherwise archive them safely."""
+        course = cls._require_professor_course(
+            db=db,
+            professor=professor,
+            course_code=course_code,
+        )
+        counts = cls.get_course_usage_counts(db=db, course_code=course.course_code)
+        deactivated_join_codes = cls.deactivate_join_codes_for_course(
+            db=db,
+            course_code=course.course_code,
+        )
+
+        if cls.can_hard_delete_course(counts=counts):
+            db.delete(course)
+            db.commit()
+            return {
+                "action": "deleted",
+                "course_code": course.course_code,
+                "reason": (
+                    "Course deleted because it has no enrollments, boards, or questions. "
+                    f"{deactivated_join_codes} active join code(s) were deactivated first."
+                ),
+                "counts": {
+                    "sections": counts["sections"],
+                    "enrollments": counts["enrollments"],
+                    "boards": counts["boards"],
+                    "questions": counts["questions"],
+                    "active_join_codes": counts["active_join_codes"],
+                },
+            }
+
+        if course.is_active:
+            course.is_active = False
+        (
+            db.query(CourseSection)
+            .filter(CourseSection.course_code == course.course_code)
+            .update({CourseSection.is_active: False}, synchronize_session=False)
+        )
+        db.commit()
+        db.refresh(course)
+        return {
+            "action": "archived",
+            "course_code": course.course_code,
+            "reason": (
+                "Course archived because it already has classroom history. "
+                "Sections were marked inactive and join codes were deactivated while historical data was preserved."
+            ),
+            "counts": {
+                "sections": counts["sections"],
+                "enrollments": counts["enrollments"],
+                "boards": counts["boards"],
+                "questions": counts["questions"],
+                "active_join_codes": counts["active_join_codes"],
+            },
+        }
+
+    @classmethod
     def _generate_unique_code(cls, db: Session) -> str:
         """Generate a short unique join code."""
         while True:
@@ -215,17 +516,32 @@ class CourseManager:
             )
 
         section: CourseSection | None = None
-        if section_code:
-            section = cls.get_section_by_code(
-                db=db,
-                course_code=normalized_course_code,
-                section_code=section_code,
+        if not section_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please select a section before generating a join code",
             )
-            if section is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Section not found for this course",
-                )
+
+        section = cls.get_section_by_code(
+            db=db,
+            course_code=normalized_course_code,
+            section_code=section_code,
+        )
+        if section is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Section not found for this course",
+            )
+        if not course.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot generate a join code for an inactive course",
+            )
+        if not section.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot generate a join code for an inactive section",
+            )
 
         target_section_id = section.section_id if section else None
 
@@ -338,13 +654,42 @@ class CourseManager:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Course not found for this join code",
             )
+        if not course.is_active:
+            join_code.is_active = False
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This join code belongs to an inactive course",
+            )
 
         section = None
+        if not join_code.section_id:
+            join_code.is_active = False
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This join code is not linked to a section",
+            )
+
         if join_code.section_id:
             section = (
                 db.query(CourseSection)
                 .filter(CourseSection.section_id == join_code.section_id)
                 .first()
             )
+            if section is None:
+                join_code.is_active = False
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Section not found for this join code",
+                )
+            if not section.is_active:
+                join_code.is_active = False
+                db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This join code belongs to an inactive section",
+                )
 
         return course, section, join_code
