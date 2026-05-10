@@ -6,10 +6,19 @@ import Header from "../../components/Header";
 import { Contact, Clock } from "lucide-react";
 import Link from "next/link";
 import { useAuthSession } from "../../hooks/useAuthSession";
-import { getStudentAnalytics, getStudentDashboard } from "../../lib/api";
+import {
+  getStudentAnalytics,
+  getStudentDashboard,
+  type StudentDashboardData,
+} from "../../lib/api";
+
+type DashboardViewData = StudentDashboardData & {
+  recentQuestion: string;
+  tag: "RECENT" | "EMPTY";
+};
 
 export default function Dashboard() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<DashboardViewData | null>(null);
   const [chart, setChart] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
   const [open, setOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
@@ -25,10 +34,11 @@ export default function Dashboard() {
       getStudentAnalytics(session.userId),
     ])
       .then(([dashboard, analytics]) => {
+        const recentQuestionExists = Boolean(dashboard.recent_question?.trim());
         setData({
           ...dashboard,
           recentQuestion: dashboard.recent_question || "No recent question",
-          tag: "BOARD",
+          tag: recentQuestionExists ? "RECENT" : "EMPTY",
         });
         const byDay = analytics.chart.reduce(
           (acc, row) => {
@@ -62,6 +72,8 @@ export default function Dashboard() {
     };
   }, []);
 
+  const hasActiveBoard = Boolean(data?.session?.has_active_board);
+
   return (
     <div className="h-screen bg-[#FCF9F8] overflow-hidden">
       <Header
@@ -86,16 +98,22 @@ export default function Dashboard() {
               <section className="col-span-2 bg-white rounded-[30px] p-6 shadow border border-slate-50 overflow-hidden relative text-left">
                 <div className="flex items-center gap-2 mb-4 text-[#D1388D] text-xs font-semibold tracking-wider uppercase">
                   <span className="text-[10px]">(( ))</span>
-                  CURRENTLY IN SESSION
+                  {hasActiveBoard ? "CURRENTLY IN SESSION" : "NO ACTIVE SESSION"}
                 </div>
 
                 <h2 className="text-2xl mb-6">
-                  <span className="text-[#1B1B1B]">
-                    {data.session.title.split(":")[0]}:{" "}
-                  </span>
-                  <span className="text-[#513FDF]">
-                    Join and ask your questions now!
-                  </span>
+                  {hasActiveBoard ? (
+                    <>
+                      <span className="text-[#1B1B1B]">
+                        {data.session.title.split(":")[0]}:{" "}
+                      </span>
+                      <span className="text-[#513FDF]">
+                        Join and ask your questions now!
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[#1B1B1B]">No board is open right now</span>
+                  )}
                 </h2>
 
                 <div className="grid grid-cols-2 gap-6 mb-8">
@@ -108,7 +126,7 @@ export default function Dashboard() {
                         Time Remaining
                       </p>
                       <p className="text-lg text-slate-800">
-                        {data.session.time}
+                        {hasActiveBoard ? data.session.time : "-"}
                       </p>
                     </div>
                   </div>
@@ -129,16 +147,32 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex items-center gap-6">
-                  <Link
-                    href="/student/courses/board"
-                    className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-12 py-3 rounded-full text-lg shadow-xl shadow-purple-100 hover:scale-105 active:scale-95 transition-all"
-                  >
-                    Ask Now
-                  </Link>
-                  <p className="text-sm text-slate-500 font-medium">
-                    <span className="text-slate-700">12</span> students are
-                    currently asking questions.
-                  </p>
+                  {hasActiveBoard ? (
+                    <>
+                      <Link
+                        href={`/student/courses/board${
+                          data.session.course_code
+                            ? `?course_code=${encodeURIComponent(data.session.course_code)}${
+                                data.session.board_id
+                                  ? `&board_id=${encodeURIComponent(data.session.board_id)}`
+                                  : ""
+                              }`
+                            : ""
+                        }`}
+                        className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-12 py-3 rounded-full text-lg shadow-xl shadow-purple-100 hover:scale-105 active:scale-95 transition-all"
+                      >
+                        Ask Now
+                      </Link>
+                      <p className="text-sm text-slate-500 font-medium">
+                        <span className="text-slate-700">{data.stats.questions}</span>{" "}
+                        questions asked so far.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="rounded-full bg-[#FBFAFF] px-5 py-3 text-sm font-medium text-[#9388BB]">
+                      Wait for your professor to open a board for this class.
+                    </p>
+                  )}
                 </div>
 
                 <AskModal isOpen={open} onClose={() => setOpen(false)} />

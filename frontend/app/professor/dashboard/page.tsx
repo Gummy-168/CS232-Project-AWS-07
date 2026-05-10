@@ -1,3 +1,3 @@
 "use client";
 
-export { default } from "../questions/page";
+export { default } from "./professor-dashboard-home-view";

@@ -2,26 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CornerDownLeft, Eye, Search } from "lucide-react";
+import { Eye, Search } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/app/components/Header";
-import CreateCourse from "../../components/createcourse";
 import { useAuthSession } from "../../hooks/useAuthSession";
 import {
-  createProfessorBoard,
-  createProfessorQuestionReply,
-  deleteProfessorQuestion,
   getProfessorQuestions,
   type ProfessorBoardSession,
   type ProfessorCourseResponse,
-  type ProfessorQuestionReply,
   type ProfessorQuestionsData,
   type ProfessorStudentQuestion,
-  updateProfessorQuestionStatus,
 } from "../../lib/api";
 
 type QuestionFilter = "all" | "answered" | "unanswered" | "board";
-type ReplyDrafts = Record<string, string>;
 
 type TimelineItem =
   | {
@@ -46,6 +39,18 @@ function formatSectionLabel(sectionCode: string) {
     return normalized;
   }
   return `SEC ${normalized}`;
+}
+
+function initialsFromSeed(seed: string) {
+  const normalized = seed.trim();
+  if (!normalized) {
+    return "?";
+  }
+  const chunks = normalized.split(/[\s\-_]+/).filter(Boolean);
+  if (chunks.length >= 2) {
+    return `${chunks[0][0] ?? ""}${chunks[1][0] ?? ""}`.toUpperCase();
+  }
+  return normalized.slice(0, 2).toUpperCase();
 }
 
 function buildCourseQuery(courseCode: string, sectionCode?: string) {
@@ -92,16 +97,36 @@ function sortTimeline(items: TimelineItem[]) {
   });
 }
 
+function Avatar({ seed, alt }: { seed: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#6A5BFF] to-[#E34BA9] text-white font-semibold flex items-center justify-center text-xs">
+        {initialsFromSeed(seed)}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={avatarFor(seed)}
+      alt={alt}
+      className="w-12 h-12 rounded-full bg-slate-100 object-cover"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 export default function ProfessorQuestionsPage() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuthSession();
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [selectedTag, setSelectedTag] = useState("all");
   const [filter, setFilter] = useState<QuestionFilter>("all");
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
@@ -109,8 +134,6 @@ export default function ProfessorQuestionsPage() {
     searchParams.get("sec")?.trim().toUpperCase() || undefined;
   const [data, setData] = useState<ProfessorQuestionsData | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
-  const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
-  const [replyDrafts, setReplyDrafts] = useState<ReplyDrafts>({});
 
   useEffect(() => {
     const handleCourseCreated = (event: Event) => {
@@ -145,7 +168,6 @@ export default function ProfessorQuestionsPage() {
       sectionCode: selectedSectionCode,
       status,
       search: search || undefined,
-      tag: selectedTag === "all" ? undefined : selectedTag,
     })
       .then((response) => {
         setError("");
@@ -174,21 +196,8 @@ export default function ProfessorQuestionsPage() {
     selectedSectionCode,
     filter,
     search,
-    selectedTag, 
     refreshToken,
   ]);
-
-  const availableTags = useMemo(() => {
-    const tags = new Set<string>();
-    data?.student_questions.forEach((question) => {
-      question.tags?.forEach((tag) => {
-        if (tag.trim()) {
-          tags.add(tag.trim());
-        }
-      });
-    });
-    return ["all", ...Array.from(tags)];
-  }, [data]);
 
   const timelineItems = useMemo(() => {
     if (!data) {
@@ -218,142 +227,38 @@ export default function ProfessorQuestionsPage() {
     return sortTimeline([...questions, ...boards]);
   }, [data, filter]);
 
-  const refresh = () => {
-    setLoading(true);
-    setRefreshToken((prev) => prev + 1);
-  };
-
-  const handleCreateBoard = async () => {
-    if (!session?.userId || !selectedCourseCode) {
-      return;
-    }
-    if (!selectedSectionCode) {
-      alert("Please select a section before opening a board.");
-      return;
-    }
-    const title = window.prompt("Board title (e.g. Week 6 - AWS Deployment)");
-    if (title === null) {
-      return;
-    }
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) {
-      alert("Please enter a board title.");
-      return;
-    }
-    try {
-      await createProfessorBoard(
-        session.userId,
-        selectedCourseCode,
-        selectedSectionCode,
-        { boardTitle: normalizedTitle },
-      );
-      refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Create board failed";
-      if (message.toLowerCase().includes("active board")) {
-        const forceReplace = window.confirm(
-          `${message}\n\nDo you want to close the current board and open a new one?`,
-        );
-        if (!forceReplace) {
-          return;
-        }
-        try {
-          await createProfessorBoard(
-            session.userId,
-            selectedCourseCode,
-            selectedSectionCode,
-            {
-              boardTitle: normalizedTitle,
-              forceCloseExisting: true,
-            },
-          );
-          refresh();
-          return;
-        } catch (forceErr) {
-          alert(forceErr instanceof Error ? forceErr.message : "Create board failed");
-          return;
-        }
-      }
-      alert(message);
-    }
-  };
-
-  const handleMarkAnswered = async (questionId: string, isAnswered: boolean) => {
-    if (!session?.userId) {
-      return;
-    }
-    try {
-      await updateProfessorQuestionStatus(
-        session.userId,
-        questionId,
-        isAnswered ? "unanswered" : "answered",
-      );
-      refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Update status failed");
-    }
-  };
-
-  const handleDelete = async (questionId: string) => {
-    if (!session?.userId) {
-      return;
-    }
-    if (!window.confirm("Delete this question?")) {
-      return;
-    }
-    try {
-      await deleteProfessorQuestion(session.userId, questionId);
-      refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Delete failed");
-    }
-  };
-
-  const handleReply = async (questionId: string) => {
-    if (!session?.userId) {
-      return;
-    }
-    const content = replyDrafts[questionId]?.trim();
-    if (!content) {
-      return;
-    }
-    try {
-      await createProfessorQuestionReply(session.userId, questionId, { content });
-      setReplyDrafts((prev) => ({ ...prev, [questionId]: "" }));
-      setOpenReplies((prev) => ({ ...prev, [questionId]: true }));
-      refresh();
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Reply failed");
-    }
-  };
-
   return (
     <div className="h-full bg-[#FCF9F8] font-sans text-slate-700 overflow-y-auto">
       <Header
         professorName={session?.nickname || data?.professor?.name}
         codeId={data?.course?.code}
-        onJoinCourse={() => setIsModalOpen(true)}
+        onJoinCourse={() => {
+          const suffix = selectedCourseCode
+            ? `?${buildCourseQuery(selectedCourseCode, selectedSectionCode)}`
+            : "";
+          router.push(`/professor/analytics${suffix}`);
+        }}
+        buttonLabel="Open Analytics"
         mode="questions"
-      />
-      <CreateCourse
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
       />
 
       <main className="px-6 pt-[126px] pb-12 w-full">
-        <section className="bg-white rounded-[28px] shadow-sm border border-slate-100 mb-8 p-8 max-w-5xl mx-auto text-center">
-          <h2 className="text-2xl text-[#1B1B1B] mb-5">
-            {data?.course
-              ? `${data.course.code}: ${data.course.title}`
-              : "No active course"}
-          </h2>
-          {selectedSectionCode ? (
-            <p className="mb-5 text-sm font-semibold text-[#7B68E5]">
-              Filtering by {formatSectionLabel(selectedSectionCode)}
+        <section className="bg-white rounded-[28px] shadow-sm border border-slate-100 mb-8 p-8 max-w-5xl mx-auto">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#D1388D]">
+              Professor Feed
             </p>
-          ) : null}
+            <h2 className="mt-3 text-3xl text-[#1B1B1B]">
+              Overall activity timeline for your courses
+            </h2>
+            <p className="mt-3 text-sm leading-7 text-slate-500">
+              This page is read-only and only shows timeline activity from courses
+              assigned to you. Use it to monitor board openings and student
+              questions across your classes.
+            </p>
+          </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <select
               value={selectedCourseCode}
               onChange={(event) => {
@@ -375,18 +280,35 @@ export default function ProfessorQuestionsPage() {
               ))}
             </select>
 
-            <button
-              onClick={handleCreateBoard}
+            <select
+              value={selectedSectionCode || ""}
+              onChange={(event) => {
+                setLoading(true);
+                const nextSectionCode = event.target.value.trim().toUpperCase();
+                if (selectedCourseCode) {
+                  router.replace(
+                    `${pathname}?${buildCourseQuery(
+                      selectedCourseCode,
+                      nextSectionCode || undefined,
+                    )}`,
+                  );
+                }
+              }}
               disabled={!selectedCourseCode}
-              className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-10 py-3 rounded-full text-sm shadow-md hover:shadow-lg active:scale-95 transition-all disabled:opacity-40"
+              className="min-w-[220px] max-w-full px-4 py-2.5 rounded-full border border-slate-200 bg-white text-sm text-slate-700 focus:outline-none disabled:opacity-40"
             >
-              Create Board
-            </button>
+              <option value="">All Sections</option>
+              {data?.sections.map((section) => (
+                <option key={section.section_id} value={section.section_code}>
+                  {formatSectionLabel(section.section_code)}
+                </option>
+              ))}
+            </select>
           </div>
         </section>
 
         <section className="max-w-5xl mx-auto">
-          <h3 className="text-2xl text-[#1B1B1B] mb-4">ActivityTimeline</h3>
+          <h3 className="text-2xl text-[#1B1B1B] mb-4">Activity Timeline</h3>
           {selectedSectionCode ? (
             <p className="mb-4 text-sm text-slate-500">
               Showing activity for {formatSectionLabel(selectedSectionCode)} only.
@@ -403,7 +325,6 @@ export default function ProfessorQuestionsPage() {
               <button
                 key={item.value}
                 onClick={() => {
-                  setLoading(true);
                   setFilter(item.value as QuestionFilter);
                 }}
                 className={`px-5 py-1.5 rounded-full text-sm font-medium transition-all border ${
@@ -437,34 +358,15 @@ export default function ProfessorQuestionsPage() {
               ))}
             </select>
 
-            <select
-              value={selectedTag}
-              onChange={(event) => {
-                setLoading(true);
-                setSelectedTag(event.target.value);
-              }}
-              className="h-9 rounded-full border border-slate-200 bg-white px-4 pr-8 text-sm text-slate-500 focus:outline-none"
-            >
-              <option value="all">All Tags</option>
-              {availableTags
-                .filter((tag) => tag !== "all")
-                .map((tag) => (
-                  <option key={tag} value={tag}>
-                    {tag}
-                  </option>
-                ))}
-            </select>
-
             <div className="relative flex-1 min-w-[230px] max-w-sm ml-auto">
               <Search className="absolute left-3 top-2.5 text-slate-400" size={15} />
               <input
                 type="text"
                 value={search}
                 onChange={(event) => {
-                  setLoading(true);
                   setSearch(event.target.value);
                 }}
-                placeholder="Search my questions..."
+                placeholder="Search activity timeline..."
                 className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
               />
             </div>
@@ -491,25 +393,6 @@ export default function ProfessorQuestionsPage() {
                   <QuestionActivityCard
                     key={`question-${item.id}`}
                     question={item.question}
-                    isOpen={Boolean(openReplies[item.id])}
-                    replyDraft={replyDrafts[item.id] || ""}
-                    onToggleReplies={() =>
-                      setOpenReplies((prev) => ({
-                        ...prev,
-                        [item.id]: !prev[item.id],
-                      }))
-                    }
-                    onReplyDraftChange={(value) =>
-                      setReplyDrafts((prev) => ({ ...prev, [item.id]: value }))
-                    }
-                    onPostReply={() => handleReply(item.id)}
-                    onMarkAnswered={() =>
-                      handleMarkAnswered(
-                        item.id,
-                        item.question.status === "ANSWERED",
-                      )
-                    }
-                    onDelete={() => handleDelete(item.id)}
                   />
                 ),
               )}
@@ -530,11 +413,7 @@ function BoardActivityCard({ board }: { board: ProfessorBoardSession }) {
       </div>
 
       <div className="flex gap-4">
-        <img
-          src={avatarFor(board.board_id)}
-          alt=""
-          className="w-12 h-12 rounded-full bg-slate-100"
-        />
+        <Avatar seed={board.board_id} alt={`${board.course_code} board avatar`} />
         <div className="flex-1 pr-20">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className="font-bold text-slate-800">{board.course_code} Course Bot</span>
@@ -575,26 +454,11 @@ function BoardActivityCard({ board }: { board: ProfessorBoardSession }) {
 
 function QuestionActivityCard({
   question,
-  isOpen,
-  replyDraft,
-  onToggleReplies,
-  onReplyDraftChange,
-  onPostReply,
-  onMarkAnswered,
-  onDelete,
 }: {
   question: ProfessorStudentQuestion;
-  isOpen: boolean;
-  replyDraft: string;
-  onToggleReplies: () => void;
-  onReplyDraftChange: (value: string) => void;
-  onPostReply: () => void;
-  onMarkAnswered: () => void;
-  onDelete: () => void;
 }) {
   const isAnswered = question.status === "ANSWERED";
-  const professorReplies = question.replies.filter((reply) => reply.is_professor);
-  const discussionReplies = question.replies.filter((reply) => !reply.is_professor);
+  const repliesCount = question.replies.length;
 
   return (
     <article className="bg-white rounded-2xl p-5 shadow-sm border border-slate-50 relative">
@@ -612,15 +476,14 @@ function QuestionActivityCard({
       </div>
 
       <div className="flex gap-4">
-        <img
-          src={avatarFor(question.student_id)}
-          alt=""
-          className="w-12 h-12 rounded-full bg-slate-100"
-        />
+        <Avatar seed={question.student_id} alt={`${question.student_name} avatar`} />
 
         <div className="flex-1 pr-20">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
             <span className="font-bold text-slate-800">{question.student_name}</span>
+            <span className="rounded-full bg-[#F1ECFF] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#6F5CE5]">
+              {question.course_code}
+            </span>
             {question.section_code ? (
               <span className="rounded-full bg-[#FFF3E8] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#D97706]">
                 {formatSectionLabel(question.section_code)}
@@ -647,122 +510,20 @@ function QuestionActivityCard({
             </div>
           ) : null}
 
-          {professorReplies.length > 0 && (
-            <div className="space-y-2 mb-3">
-              {professorReplies.map((reply) => (
-                <ProfessorReply key={reply.id} reply={reply} />
-              ))}
-            </div>
-          )}
-
-          <div className="flex items-center justify-between text-[13px] mb-2">
-            <button
-              onClick={onToggleReplies}
-              className="text-slate-400 hover:text-[#5B41FF] flex items-center gap-1 transition-colors"
+          <div className="flex items-center justify-between gap-4 border-t border-slate-100 pt-3 text-[13px] text-slate-500">
+            <span>{repliesCount} replies in this thread</span>
+            <Link
+              href={`/professor/courses?${buildCourseQuery(
+                question.course_code,
+                question.section_code || undefined,
+              )}`}
+              className="inline-flex items-center gap-2 rounded-full border border-[#E7E0FC] px-4 py-1.5 text-[#5B41FF] hover:bg-[#F8F6FF] transition-all"
             >
-              <CornerDownLeft size={14} />
-              {discussionReplies.length} {isOpen ? "hide replies" : "Reply"}
-            </button>
-
-            <div className="flex gap-2">
-              <button
-                onClick={onMarkAnswered}
-                className={`px-3 py-1 rounded-md transition-colors ${
-                  isAnswered
-                    ? "text-orange-500 border border-orange-100 bg-orange-50 hover:bg-orange-100"
-                    : "text-emerald-500 border border-emerald-100 hover:bg-emerald-50"
-                }`}
-              >
-                {isAnswered ? "Unmarked" : "Mark Answered"}
-              </button>
-              <button
-                onClick={onDelete}
-                className="text-rose-400 border border-rose-100 px-3 py-1 rounded-md hover:bg-rose-50 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
+              View Course Activity
+            </Link>
           </div>
-
-          {isOpen && (
-            <div className="pt-3 border-t border-slate-100 space-y-3 mb-3">
-              {discussionReplies.map((reply) => (
-                <DiscussionReply key={reply.id} reply={reply} />
-              ))}
-
-              <div className="mt-2 bg-[#F8F9FE] rounded-xl p-4 border border-slate-100">
-                <textarea
-                  value={replyDraft}
-                  onChange={(event) => onReplyDraftChange(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault();
-                      onPostReply();
-                    }
-                  }}
-                  placeholder="Reply as Instructor..."
-                  rows={2}
-                  className="w-full bg-transparent border-none resize-none text-sm focus:outline-none text-slate-600"
-                />
-                <div className="flex justify-end gap-2 mt-2">
-                  <button
-                    onClick={onToggleReplies}
-                    className="text-slate-400 border border-slate-200 px-4 py-1.5 rounded-xl text-[13px] hover:bg-slate-50 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={onPostReply}
-                    disabled={!replyDraft.trim()}
-                    className="bg-[#5B41FF] disabled:opacity-40 text-white px-6 py-1.5 rounded-xl text-[13px] hover:shadow-md transition-all active:scale-95"
-                  >
-                    Post Reply
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </article>
-  );
-}
-
-function ProfessorReply({ reply }: { reply: ProfessorQuestionReply }) {
-  return (
-    <div className="flex gap-3">
-      <img
-        src={avatarFor(reply.author_id)}
-        alt=""
-        className="w-8 h-8 rounded-full flex-shrink-0"
-      />
-      <div className="flex-1 border border-emerald-100 rounded-xl p-3 bg-[#F0FDF4]">
-        <span className="bg-emerald-400 text-white text-[10px] px-2 py-0.5 rounded uppercase">
-          Professor Reply
-        </span>
-        <p className="text-sm text-slate-700 mt-1">{reply.content}</p>
-      </div>
-    </div>
-  );
-}
-
-function DiscussionReply({ reply }: { reply: ProfessorQuestionReply }) {
-  return (
-    <div className="flex gap-3">
-      <img
-        src={avatarFor(reply.author_id)}
-        alt=""
-        className="w-8 h-8 rounded-full flex-shrink-0"
-      />
-      <div className="bg-slate-50 rounded-xl px-3 py-2 flex-1">
-        <span className="text-sm font-semibold text-slate-700">
-          {reply.author_name}
-        </span>
-        <span className="text-xs text-slate-400 ml-2">
-          {formatRelativeTime(reply.created_at)}
-        </span>
-        <p className="text-sm text-slate-600 mt-0.5">{reply.content}</p>
-      </div>
-    </div>
   );
 }

@@ -15,7 +15,10 @@ import {
   Users,
 } from "lucide-react";
 import Header from "@/app/components/Header";
+import ActionNoticeModal from "@/app/components/action-notice-modal";
 import ConfirmCloseBoardModal from "@/app/components/confirm-close-board-modal";
+import CreateBoardModal from "@/app/components/create-board-modal";
+import SelectSectionModal from "@/app/components/select-section-modal";
 import CreateCourse from "../../components/createcourse";
 import CreateSection from "../../components/createsection";
 import GenerateJoinCode from "../../components/generatejoincode";
@@ -40,6 +43,17 @@ import {
 type TimelineFilter = "all" | "answered" | "unanswered" | "board";
 type ReplyDrafts = Record<string, string>;
 type SectionOption = { id: string; label: string };
+type NoticeTone = "info" | "warning" | "danger" | "success";
+type ActionNoticeState = {
+  tone: NoticeTone;
+  badge: string;
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  hideCancel?: boolean;
+  onConfirm?: () => void;
+} | null;
 
 type TimelineItem =
   | {
@@ -164,6 +178,10 @@ export default function ProfessorCourseDashboardView() {
   const [boardToClose, setBoardToClose] = useState<ProfessorBoardSession | null>(null);
   const [closeBoardError, setCloseBoardError] = useState("");
   const [isClosingBoard, setIsClosingBoard] = useState(false);
+  const [actionNotice, setActionNotice] = useState<ActionNoticeState>(null);
+  const [isSelectSectionModalOpen, setIsSelectSectionModalOpen] = useState(false);
+  const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
+  const [isCreatingBoard, setIsCreatingBoard] = useState(false);
 
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
@@ -263,6 +281,20 @@ export default function ProfessorCourseDashboardView() {
   }, [data]);
 
   const latestBoard = sortedBoards[0] ?? null;
+  const activeBoard =
+    sortedBoards.find((board) => board.status.trim().toUpperCase() === "ACTIVE") ?? null;
+  const reviewBoard = activeBoard ?? latestBoard;
+  const boardCardTitle = activeBoard
+    ? activeBoard.board_title || activeBoard.board_id || "Active board"
+    : "No active board";
+  const boardCardSubtitle = !activeBoard && latestBoard
+    ? `Latest session: ${latestBoard.board_title || latestBoard.board_id || "Untitled board"}`
+    : selectedSectionCode
+      ? `Open a new board for ${formatSectionLabel(selectedSectionCode)} when class starts.`
+      : "Select a section to open a board for that class.";
+  const boardCardPending = reviewBoard?.unanswered_questions ?? 0;
+  const boardCardQuestions = reviewBoard?.total_questions ?? 0;
+  const boardCardStatus = activeBoard ? activeBoard.status : "closed";
 
   const filteredQuestions = useMemo(() => {
     if (!data) {
@@ -344,6 +376,10 @@ export default function ProfessorCourseDashboardView() {
       })),
     ];
   }, [data]);
+  const selectableSections = useMemo(
+    () => sectionOptions.filter((section) => section.id !== "ALL"),
+    [sectionOptions],
+  );
 
   const studentSummaries = useMemo(() => {
     if (!studentSearch.trim()) {
@@ -439,25 +475,43 @@ export default function ProfessorCourseDashboardView() {
     setRefreshToken((prev) => prev + 1);
   };
 
-  const handleCreateBoard = async () => {
+  const handleOpenSectionPicker = () => {
+    if (selectableSections.length > 0) {
+      setIsSelectSectionModalOpen(true);
+      return;
+    }
+    setIsSectionModalOpen(true);
+  };
+
+  const handleCreateBoard = () => {
     if (!session?.userId || !selectedCourseCode) {
       return;
     }
     if (!selectedSectionCode) {
-      window.alert("Please select a section before opening a board.");
+      setActionNotice({
+        tone: "warning",
+        badge: "Section Required",
+        title: "Choose a section before opening a board",
+        description:
+          "Boards are opened per section so students join the right classroom stream. Pick a section first, then try opening the board again.",
+        confirmLabel: "Choose Section",
+        cancelLabel: selectableSections.length > 0 ? "Not now" : "Create later",
+        onConfirm: () => {
+          setActionNotice(null);
+          handleOpenSectionPicker();
+        },
+      });
+      return;
+    }
+    setIsCreateBoardModalOpen(true);
+  };
+
+  const handleSubmitCreateBoard = async (normalizedTitle: string) => {
+    if (!session?.userId || !selectedCourseCode || !selectedSectionCode) {
       return;
     }
 
-    const title = window.prompt("Board title (e.g. Week 6 - AWS Deployment)");
-    if (title === null) {
-      return;
-    }
-    const normalizedTitle = title.trim();
-    if (!normalizedTitle) {
-      window.alert("Please enter a board title.");
-      return;
-    }
-
+    setIsCreatingBoard(true);
     try {
       await createProfessorBoard(
         session.userId,
@@ -465,36 +519,58 @@ export default function ProfessorCourseDashboardView() {
         selectedSectionCode,
         { boardTitle: normalizedTitle },
       );
+      setIsCreateBoardModalOpen(false);
       refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Create board failed";
       if (message.toLowerCase().includes("active board")) {
-        const forceReplace = window.confirm(
-          `${message}\n\nDo you want to close the current board and open a new one?`,
-        );
-        if (!forceReplace) {
-          return;
-        }
-        try {
-          await createProfessorBoard(
-            session.userId,
-            selectedCourseCode,
-            selectedSectionCode,
-            {
-              boardTitle: normalizedTitle,
-              forceCloseExisting: true,
-            },
-          );
-          refresh();
-          return;
-        } catch (forceErr) {
-          window.alert(
-            forceErr instanceof Error ? forceErr.message : "Create board failed",
-          );
-          return;
-        }
+        setIsCreateBoardModalOpen(false);
+        setActionNotice({
+          tone: "warning",
+          badge: "Board Already Active",
+          title: "Replace the current active board?",
+          description:
+            "There is already an active board in this section. If you continue, AskAdemy will close the current one and open a new board for this class session.",
+          confirmLabel: "Replace Board",
+          cancelLabel: "Keep Current Board",
+          onConfirm: async () => {
+            setActionNotice(null);
+            try {
+              await createProfessorBoard(
+                session.userId,
+                selectedCourseCode,
+                selectedSectionCode,
+                {
+                  boardTitle: normalizedTitle,
+                  forceCloseExisting: true,
+                },
+              );
+              refresh();
+            } catch (forceErr) {
+              setActionNotice({
+                tone: "danger",
+                badge: "Create Board Failed",
+                title: "We could not open the new board",
+                description:
+                  forceErr instanceof Error ? forceErr.message : "Create board failed",
+                confirmLabel: "Close",
+                hideCancel: true,
+              });
+            }
+          },
+        });
+      } else {
+        setActionNotice({
+          tone: "danger",
+          badge: "Create Board Failed",
+          title: "We could not open this board",
+          description: message,
+          confirmLabel: "Close",
+          hideCancel: true,
+        });
       }
-      window.alert(message);
+    } finally {
+      setIsCreatingBoard(false);
     }
   };
 
@@ -558,16 +634,31 @@ export default function ProfessorCourseDashboardView() {
       return;
     }
 
-    if (!window.confirm("Delete this question?")) {
-      return;
-    }
-
-    try {
-      await deleteProfessorQuestion(session.userId, questionId);
-      refresh();
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Delete failed");
-    }
+    setActionNotice({
+      tone: "danger",
+      badge: "Delete Question",
+      title: "Delete this question permanently?",
+      description:
+        "This action removes the question from the course activity timeline. Existing replies and the classroom context for this thread may also be lost.",
+      confirmLabel: "Delete Question",
+      cancelLabel: "Keep Question",
+      onConfirm: async () => {
+        setActionNotice(null);
+        try {
+          await deleteProfessorQuestion(session.userId, questionId);
+          refresh();
+        } catch (err) {
+          setActionNotice({
+            tone: "danger",
+            badge: "Delete Failed",
+            title: "We could not delete this question",
+            description: err instanceof Error ? err.message : "Delete failed",
+            confirmLabel: "Close",
+            hideCancel: true,
+          });
+        }
+      },
+    });
   };
 
   const handleToggleAnswered = async (
@@ -586,7 +677,15 @@ export default function ProfessorCourseDashboardView() {
       );
       refresh();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Update status failed");
+      setActionNotice({
+        tone: "danger",
+        badge: "Update Failed",
+        title: "We could not update the question status",
+        description:
+          err instanceof Error ? err.message : "Update status failed",
+        confirmLabel: "Close",
+        hideCancel: true,
+      });
     }
   };
 
@@ -606,7 +705,14 @@ export default function ProfessorCourseDashboardView() {
       setOpenReplies((prev) => ({ ...prev, [questionId]: true }));
       refresh();
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Reply failed");
+      setActionNotice({
+        tone: "danger",
+        badge: "Reply Failed",
+        title: "We could not post your reply",
+        description: err instanceof Error ? err.message : "Reply failed",
+        confirmLabel: "Close",
+        hideCancel: true,
+      });
     }
   };
 
@@ -645,6 +751,32 @@ export default function ProfessorCourseDashboardView() {
         onClose={() => setIsSectionModalOpen(false)}
         onSectionCreated={handleSectionCreated}
       />
+      <SelectSectionModal
+        isOpen={isSelectSectionModalOpen}
+        courseCode={selectedCourseCode}
+        sections={selectableSections}
+        onClose={() => setIsSelectSectionModalOpen(false)}
+        onSelect={(sectionId) => {
+          setIsSelectSectionModalOpen(false);
+          router.replace(
+            `${pathname}?${buildCourseQuery(data?.selected_course_code || selectedCourseCode, sectionId)}`,
+          );
+        }}
+      />
+      <CreateBoardModal
+        key={`${selectedCourseCode}-${selectedSectionCode || "all"}-${isCreateBoardModalOpen ? "open" : "closed"}`}
+        isOpen={isCreateBoardModalOpen}
+        courseCode={selectedCourseCode}
+        sectionCode={selectedSectionCode}
+        isSubmitting={isCreatingBoard}
+        onClose={() => {
+          if (isCreatingBoard) {
+            return;
+          }
+          setIsCreateBoardModalOpen(false);
+        }}
+        onSubmit={handleSubmitCreateBoard}
+      />
       <GenerateJoinCode
         isOpen={isJoinCodeModalOpen}
         courseCode={selectedCourseCode}
@@ -673,6 +805,18 @@ export default function ProfessorCourseDashboardView() {
           }
           void handleCloseBoard(boardToClose.board_id);
         }}
+      />
+      <ActionNoticeModal
+        isOpen={!!actionNotice}
+        tone={actionNotice?.tone}
+        badge={actionNotice?.badge}
+        title={actionNotice?.title || "Notice"}
+        description={actionNotice?.description || ""}
+        confirmLabel={actionNotice?.confirmLabel}
+        cancelLabel={actionNotice?.cancelLabel}
+        hideCancel={actionNotice?.hideCancel}
+        onClose={() => setActionNotice(null)}
+        onConfirm={actionNotice?.onConfirm}
       />
 
       <main className="pb-16 pt-44 xl:pt-32">
@@ -795,22 +939,25 @@ export default function ProfessorCourseDashboardView() {
                             Latest Board
                           </p>
                           <p className="mt-2 text-lg font-bold text-[#2A2340]">
-                            {latestBoard?.board_title || latestBoard?.board_id || "No active board"}
+                            {boardCardTitle}
+                          </p>
+                          <p className="mt-2 text-sm leading-6 text-[#8C82B4]">
+                            {boardCardSubtitle}
                           </p>
                         </div>
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${boardStatusPillClasses(
-                            latestBoard?.status || "closed",
+                            boardCardStatus,
                           )}`}
                         >
-                          {latestBoard?.status || "closed"}
+                          {boardCardStatus}
                         </span>
                       </div>
 
                       <div className="mt-4 grid grid-cols-2 gap-3">
                         <div className="rounded-2xl bg-[#EEF0FF] px-4 py-3">
                           <p className="text-2xl font-bold text-[#5B41FF]">
-                            {latestBoard?.unanswered_questions ?? pendingCount}
+                            {boardCardPending}
                           </p>
                           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#7E73B6]">
                             Pending
@@ -818,7 +965,7 @@ export default function ProfessorCourseDashboardView() {
                         </div>
                         <div className="rounded-2xl bg-[#FFF3E8] px-4 py-3">
                           <p className="text-2xl font-bold text-[#D46B16]">
-                            {latestBoard?.total_questions ?? totalQuestions}
+                            {boardCardQuestions}
                           </p>
                           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#AA8A63]">
                             Questions
@@ -826,14 +973,14 @@ export default function ProfessorCourseDashboardView() {
                         </div>
                       </div>
 
-                      <div className="mt-4 flex gap-3">
-                        {latestBoard ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        {activeBoard ? (
                           <Link
                             href={`/professor/courses/boardreview?course_code=${encodeURIComponent(
                               data.selected_course_code,
-                            )}&board_id=${encodeURIComponent(latestBoard.board_id)}${
-                              latestBoard.section_code
-                                ? `&sec=${encodeURIComponent(latestBoard.section_code)}`
+                            )}&board_id=${encodeURIComponent(activeBoard.board_id)}${
+                              activeBoard.section_code
+                                ? `&sec=${encodeURIComponent(activeBoard.section_code)}`
                                 : ""
                             }`}
                             className="flex-1 rounded-2xl bg-gradient-to-r from-[#5B41FF] to-[#D94FA2] px-4 py-3 text-center text-sm font-semibold text-white shadow-lg shadow-violet-100"
@@ -849,24 +996,29 @@ export default function ProfessorCourseDashboardView() {
                             Open Board
                           </button>
                         )}
-                        {latestBoard?.status === "ACTIVE" ? (
+                        {!activeBoard && reviewBoard ? (
+                          <Link
+                            href={`/professor/courses/boardreview?course_code=${encodeURIComponent(
+                              data.selected_course_code,
+                            )}&board_id=${encodeURIComponent(reviewBoard.board_id)}${
+                              reviewBoard.section_code
+                                ? `&sec=${encodeURIComponent(reviewBoard.section_code)}`
+                                : ""
+                            }`}
+                            className="inline-flex items-center justify-center rounded-2xl border border-[#E1DAFA] px-4 py-3 text-sm font-semibold text-[#6B5AD8] transition hover:bg-[#FBF9FF]"
+                          >
+                            Review Session
+                          </Link>
+                        ) : null}
+                        {activeBoard ? (
                           <button
                             type="button"
-                            onClick={() => handleRequestCloseBoard(latestBoard)}
+                            onClick={() => handleRequestCloseBoard(activeBoard)}
                             className="inline-flex items-center justify-center rounded-2xl border border-rose-200 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
                           >
                             Close Board
                           </button>
                         ) : null}
-                        <Link
-                          href={`/professor/questions?${buildCourseQuery(
-                            data.selected_course_code,
-                            selectedSectionCode,
-                          )}`}
-                          className="inline-flex items-center justify-center rounded-2xl border border-[#E1DAFA] px-4 py-3 text-sm font-semibold text-[#6B5AD8] transition hover:bg-[#FBF9FF]"
-                        >
-                          Open Feed
-                        </Link>
                       </div>
                     </div>
                   </div>

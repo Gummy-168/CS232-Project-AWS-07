@@ -2078,18 +2078,28 @@ def get_student_dashboard(
     """Return student dashboard summary from the database."""
     student = require_student(db=db, student_id=student_id)
 
-    current_course = db.execute(
+    active_session = db.execute(
         text(
             """
             SELECT
                 c.course_code,
                 c.course_name,
-                COALESCE(p.nickname, c.professor_id) AS professor_name
-            FROM enrollments e
+                COALESCE(p.nickname, c.professor_id) AS professor_name,
+                b.board_id,
+                b.board_title,
+                b.created_at
+            FROM interaction_boards b
+            JOIN enrollments e
+              ON e.course_code = b.course_code
+             AND (
+                    (e.section_id IS NULL AND b.section_id IS NULL)
+                 OR e.section_id = b.section_id
+             )
             JOIN courses c ON c.course_code = e.course_code
             LEFT JOIN professors p ON p.professor_id = c.professor_id
             WHERE e.student_id = :student_id
-            ORDER BY e.join_date DESC
+              AND b.status = 'active'
+            ORDER BY b.created_at DESC
             LIMIT 1
             """
         ),
@@ -2140,14 +2150,21 @@ def get_student_dashboard(
             "name": student.nickname,
         },
         "session": {
-            "course_code": str(current_course["course_code"]) if current_course else "",
+            "course_code": str(active_session["course_code"]) if active_session else "",
             "title": (
-                f"{current_course['course_code']}: {current_course['course_name']}"
-                if current_course
-                else "No active course"
+                f"{active_session['course_code']}: {active_session['course_name']}"
+                if active_session
+                else "No active board right now"
             ),
             "time": "-",
-            "instructor": str(current_course["professor_name"]) if current_course else "-",
+            "instructor": str(active_session["professor_name"]) if active_session else "-",
+            "board_id": str(active_session["board_id"]) if active_session else "",
+            "board_title": (
+                str(active_session["board_title"] or active_session["board_id"])
+                if active_session
+                else ""
+            ),
+            "has_active_board": active_session is not None,
         },
         "stats": {
             "participation": on_class_participation,

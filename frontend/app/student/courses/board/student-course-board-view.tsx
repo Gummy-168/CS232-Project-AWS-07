@@ -111,7 +111,18 @@ export default function StudentCourseBoardView() {
   const { session } = useAuthSession();
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
+  const selectedSectionCode =
+    searchParams.get("sec")?.trim().toUpperCase() ?? "";
   const selectedBoardId = searchParams.get("board_id")?.trim() ?? "";
+
+  const buildCourseQuery = (courseCode: string, sectionCode?: string | null) => {
+    const query = new URLSearchParams();
+    query.set("course_code", courseCode.trim().toUpperCase());
+    if (sectionCode?.trim()) {
+      query.set("sec", sectionCode.trim().toUpperCase());
+    }
+    return query.toString();
+  };
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isAskModalOpen, setIsAskModalOpen] = useState(false);
@@ -124,20 +135,26 @@ export default function StudentCourseBoardView() {
 
   useEffect(() => {
     if (!session?.userId || !selectedCourseCode || !selectedBoardId) {
-      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    Promise.allSettled([
-      getStudentCourseBoard(session.userId, selectedCourseCode),
-      getBoardQuestions(selectedBoardId, session.accessToken, session.role),
-      getStudentQuestions(session.userId, {
-        scope: "all",
-        courseCode: selectedCourseCode,
-        boardId: selectedBoardId,
-      }),
-    ]).then(([boardResult, boardQuestionsResult, questionResult]) => {
+    const loadBoard = async () => {
+      setIsLoading(true);
+      const [boardResult, boardQuestionsResult, questionResult] = await Promise.allSettled([
+        getStudentCourseBoard(
+          session.userId,
+          selectedCourseCode,
+          selectedSectionCode || undefined,
+        ),
+        getBoardQuestions(selectedBoardId, session.accessToken, session.role),
+        getStudentQuestions(session.userId, {
+          scope: "all",
+          courseCode: selectedCourseCode,
+          boardId: selectedBoardId,
+          sectionCode: selectedSectionCode || undefined,
+        }),
+      ]);
+
       const boardResponse =
         boardResult.status === "fulfilled" ? boardResult.value : null;
       const boardQuestions =
@@ -170,8 +187,17 @@ export default function StudentCourseBoardView() {
         setError("");
       }
       setIsLoading(false);
-    });
-  }, [selectedBoardId, selectedCourseCode, session?.accessToken, session?.role, session?.userId]);
+    };
+
+    void loadBoard();
+  }, [
+    selectedBoardId,
+    selectedCourseCode,
+    selectedSectionCode,
+    session?.accessToken,
+    session?.role,
+    session?.userId,
+  ]);
 
   const filteredQuestions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -254,18 +280,18 @@ export default function StudentCourseBoardView() {
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-[#FCF9F8] text-lg text-slate-500">
-        Loading board...
-      </div>
-    );
-  }
-
   if (!selectedBoardId) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#FCF9F8] text-lg text-slate-500">
         Missing board_id in the URL.
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#FCF9F8] text-lg text-slate-500">
+        Loading board...
       </div>
     );
   }
@@ -300,7 +326,7 @@ export default function StudentCourseBoardView() {
           activeBoard
             ? `${courseBoard?.course.course_code || selectedCourseCode} · ${
                 activeBoard.board_title || activeBoard.board_id
-              }`
+              }${selectedSectionCode ? ` · SEC ${selectedSectionCode}` : ""}`
             : selectedCourseCode
         }
       />
@@ -312,7 +338,10 @@ export default function StudentCourseBoardView() {
               <button
                 onClick={() =>
                   router.push(
-                    `/student/courses?course_code=${encodeURIComponent(selectedCourseCode)}`,
+                    `/student/courses?${buildCourseQuery(
+                      selectedCourseCode,
+                      selectedSectionCode,
+                    )}`,
                   )
                 }
                 className="rounded-full border border-slate-200 bg-white p-3 text-slate-600 transition hover:bg-slate-50"
@@ -329,6 +358,7 @@ export default function StudentCourseBoardView() {
                 </h1>
                 <p className="mt-2 text-lg text-slate-500">
                   {courseBoard?.course.course_name || "Select a course"}
+                  {selectedSectionCode ? ` · SEC ${selectedSectionCode}` : ""}
                 </p>
               </div>
             </div>
@@ -453,7 +483,10 @@ export default function StudentCourseBoardView() {
                 หากอาจารย์ยังไม่ได้เปิด board ระบบจะแสดงสถานะนี้ และนักศึกษายังสามารถกลับไปหน้า course home ได้
               </p>
               <Link
-                href={`/student/courses?course_code=${encodeURIComponent(selectedCourseCode)}`}
+                href={`/student/courses?${buildCourseQuery(
+                  selectedCourseCode,
+                  selectedSectionCode,
+                )}`}
                 className="mt-8 inline-flex items-center gap-2 rounded-full border border-[#C4B5FD] bg-[#FAF5FF] px-6 py-3 text-base font-semibold text-[#513FDF] transition hover:bg-[#F3EEFF]"
               >
                 Back to Course Home

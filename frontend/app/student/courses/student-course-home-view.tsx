@@ -57,6 +57,11 @@ function QuestionCard({
             <span className="rounded-full bg-white/80 px-3 py-1 font-medium text-[#6F63A8]">
               {question.course_code}
             </span>
+            {question.section_code ? (
+              <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-medium text-[#C97316]">
+                SEC {question.section_code}
+              </span>
+            ) : null}
             <span>{formatRelativeTime(question.created_at)}</span>
             {question.is_anonymous && (
               <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">
@@ -129,6 +134,17 @@ export default function StudentCourseHomeView() {
   const { session } = useAuthSession();
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
+  const selectedSectionCode =
+    searchParams.get("sec")?.trim().toUpperCase() ?? "";
+
+  const buildCourseQuery = (courseCode: string, sectionCode?: string | null) => {
+    const query = new URLSearchParams();
+    query.set("course_code", courseCode.trim().toUpperCase());
+    if (sectionCode?.trim()) {
+      query.set("sec", sectionCode.trim().toUpperCase());
+    }
+    return query.toString();
+  };
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isAskModalOpen, setIsAskModalOpen] = useState(false);
@@ -139,7 +155,14 @@ export default function StudentCourseHomeView() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<QuestionFilter>("All");
   const selectedCourse =
-    courses.find((course) => course.course_code.toUpperCase() === selectedCourseCode) ?? null;
+    courses.find((course) => {
+      const matchesCourse =
+        course.course_code.trim().toUpperCase() === selectedCourseCode;
+      const matchesSection =
+        selectedSectionCode.length === 0 ||
+        (course.section_code?.trim().toUpperCase() || "") === selectedSectionCode;
+      return matchesCourse && matchesSection;
+    }) ?? null;
   const resolvedProfessorName =
     selectedCourse?.professor_full_name?.trim() ||
     courseBoard?.course.professor_full_name?.trim() ||
@@ -161,14 +184,42 @@ export default function StudentCourseHomeView() {
           return;
         }
 
-        const courseExists = response.courses.some(
-          (course) => course.course_code.toUpperCase() === selectedCourseCode,
+        const matchingCourses = response.courses.filter(
+          (course) => course.course_code.trim().toUpperCase() === selectedCourseCode,
+        );
+        const exactCourse = matchingCourses.find(
+          (course) =>
+            (course.section_code?.trim().toUpperCase() || "") === selectedSectionCode,
         );
 
-        if (!selectedCourseCode || !courseExists) {
+        if (!selectedCourseCode) {
           router.replace(
-            `/student/courses?course_code=${encodeURIComponent(
+            `/student/courses?${buildCourseQuery(
               response.courses[0].course_code,
+              response.courses[0].section_code,
+            )}`,
+          );
+          return;
+        }
+
+        if (matchingCourses.length === 0) {
+          router.replace(
+            `/student/courses?${buildCourseQuery(
+              response.courses[0].course_code,
+              response.courses[0].section_code,
+            )}`,
+          );
+          return;
+        }
+
+        if (
+          (!selectedSectionCode && Boolean(matchingCourses[0].section_code?.trim())) ||
+          (selectedSectionCode && !exactCourse)
+        ) {
+          router.replace(
+            `/student/courses?${buildCourseQuery(
+              matchingCourses[0].course_code,
+              matchingCourses[0].section_code,
             )}`,
           );
         }
@@ -177,7 +228,7 @@ export default function StudentCourseHomeView() {
         setCourses([]);
         setIsLoading(false);
       });
-  }, [router, selectedCourseCode, session?.userId]);
+  }, [router, selectedCourseCode, selectedSectionCode, session?.userId]);
 
   useEffect(() => {
     if (!session?.userId || !selectedCourseCode) {
@@ -185,7 +236,11 @@ export default function StudentCourseHomeView() {
     }
 
     Promise.all([
-      getStudentCourseBoard(session.userId, selectedCourseCode),
+      getStudentCourseBoard(
+        session.userId,
+        selectedCourseCode,
+        selectedCourse?.section_code || selectedSectionCode || undefined,
+      ),
       getStudentQuestions(session.userId, {
         scope: "all",
         courseCode: selectedCourseCode,
@@ -205,7 +260,7 @@ export default function StudentCourseHomeView() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [selectedCourse?.section_code, selectedCourseCode, session?.userId]);
+  }, [selectedCourse?.section_code, selectedCourseCode, selectedSectionCode, session?.userId]);
 
   const filteredQuestions = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -314,6 +369,11 @@ export default function StudentCourseHomeView() {
                   <p className="mt-2 max-w-3xl text-2xl text-[#6F63A8]">
                     {selectedCourse.course_name}
                   </p>
+                  <p className="mt-3 inline-flex rounded-full bg-[#F4F0FF] px-4 py-2 text-sm font-semibold text-[#5B41FF]">
+                    {selectedCourse.section_code
+                      ? `Enrolled in SEC ${selectedCourse.section_code}`
+                      : "Section not assigned"}
+                  </p>
                   <p className="mt-2 text-base text-slate-500">
                     Instructor: {resolvedProfessorName}
                   </p>
@@ -323,6 +383,11 @@ export default function StudentCourseHomeView() {
                       <p className="text-sm font-medium text-slate-500">Active Board</p>
                       <p className="mt-2 text-2xl font-semibold text-[#513FDF]">
                         {activeBoard ? activeBoard.board_title || activeBoard.board_id : "None"}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {selectedCourse.section_code
+                          ? `SEC ${selectedCourse.section_code}`
+                          : "No section"}
                       </p>
                     </div>
                     <div className="rounded-[24px] bg-[#FFF6EC] p-5">
@@ -390,8 +455,9 @@ export default function StudentCourseHomeView() {
                       </div>
 
                       <Link
-                        href={`/student/courses/board?course_code=${encodeURIComponent(
+                        href={`/student/courses/board?${buildCourseQuery(
                           selectedCourse.course_code,
+                          selectedCourse.section_code,
                         )}&board_id=${encodeURIComponent(activeBoard.board_id)}`}
                         className="mt-8 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] px-7 py-3 text-base font-semibold text-white shadow-lg shadow-purple-200 transition-all hover:scale-[1.02]"
                       >
@@ -420,6 +486,7 @@ export default function StudentCourseHomeView() {
                     </h3>
                     <p className="mt-2 text-xl text-[#8A80B9]">
                       ติดตามกิจกรรมและคำถามในรายวิชา {selectedCourse.course_code}
+                      {selectedCourse.section_code ? ` · SEC ${selectedCourse.section_code}` : ""}
                     </p>
                   </div>
 
@@ -485,6 +552,11 @@ export default function StudentCourseHomeView() {
                       <h4 className="mt-3 text-2xl font-semibold text-[#1B1B1B]">
                         {selectedCourse.course_code}
                       </h4>
+                      <p className="mt-2 text-sm font-semibold text-[#6F63A8]">
+                        {selectedCourse.section_code
+                          ? `SEC ${selectedCourse.section_code}`
+                          : "No section"}
+                      </p>
                     </div>
                     <UserRound className="text-[#8B5CF6]" size={24} />
                   </div>

@@ -150,6 +150,9 @@ export interface StudentDashboardData {
     title: string;
     time: string;
     instructor: string;
+    board_id?: string;
+    board_title?: string;
+    has_active_board?: boolean;
   };
   stats: {
     participation: number;
@@ -444,9 +447,18 @@ export async function getStudentCourses(studentId: string) {
   });
 }
 
-export async function getStudentCourseBoard(studentId: string, courseCode: string) {
+export async function getStudentCourseBoard(
+  studentId: string,
+  courseCode: string,
+  sectionCode?: string,
+) {
+  const query = new URLSearchParams();
+  if (sectionCode?.trim()) {
+    query.set("section_code", sectionCode.trim().toUpperCase());
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
   return apiRequest<StudentCourseBoardData>(
-    `/students/${studentId}/courses/${courseCode.trim().toUpperCase()}/board`,
+    `/students/${studentId}/courses/${courseCode.trim().toUpperCase()}/board${suffix}`,
     {
       method: "GET",
     },
