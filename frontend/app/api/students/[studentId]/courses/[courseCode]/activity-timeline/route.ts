@@ -22,7 +22,9 @@ export async function GET(
     await ensureStudentEnrollment(request, studentId, courseCode, sectionCode);
 
     const questionParams = new URLSearchParams();
-    questionParams.set("scope", "mine");
+    // Course activity timeline should show the course-wide stream for the
+    // enrolled section, not only the current student's own questions.
+    questionParams.set("scope", "all");
     questionParams.set("course_code", courseCode.trim().toUpperCase());
     if (sectionCode) {
       questionParams.set("section_code", sectionCode);

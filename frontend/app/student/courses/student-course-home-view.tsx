@@ -405,6 +405,29 @@ export default function StudentCourseHomeView() {
     session?.userId,
   ]);
 
+  useEffect(() => {
+    if (!session?.userId || !selectedCourseCode) {
+      return;
+    }
+
+    const refreshTimeline = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void loadCourseData(false);
+    };
+
+    const intervalId = window.setInterval(refreshTimeline, 10000);
+    window.addEventListener("focus", refreshTimeline);
+    document.addEventListener("visibilitychange", refreshTimeline);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", refreshTimeline);
+      document.removeEventListener("visibilitychange", refreshTimeline);
+    };
+  }, [loadCourseData, selectedCourseCode, session?.userId]);
+
   const timelineItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     const sourceItems = timeline?.items ?? [];
