@@ -53,6 +53,21 @@ function LoginPageContent() {
     }
   }, [searchParams]);
 
+  function handleCognitoLogin() {
+    const domain = "https://us-east-1ilsyn1c5l.auth.us-east-1.amazoncognito.com";
+
+    const params = new URLSearchParams({
+      client_id: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "",
+      response_type: "code",
+      scope: "email openid phone",
+      redirect_uri:
+        process.env.NEXT_PUBLIC_COGNITO_REDIRECT_URI ||
+        "https://cs-232-project-aws-07.vercel.app",
+    });
+
+    window.location.href = `${domain}/login?${params.toString()}`;
+  }
+
   useEffect(() => {
     const token = oidc.user?.access_token || oidc.user?.id_token;
     if (!oidc.isAuthenticated || !token || readStoredSession()) {
@@ -262,7 +277,7 @@ function LoginPageContent() {
 
         <button
           type="button"
-          onClick={() => oidc.signinRedirect({ state: { selectedRole } })}
+          onClick={handleCognitoLogin}
           disabled={!isCognitoConfigured || oidc.isLoading || isCognitoSyncing}
           className="w-full py-3.5 rounded-full border border-[#513FDF] text-[#513FDF] font-semibold text-base hover:bg-[#F5F3FF] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-70"
         >
