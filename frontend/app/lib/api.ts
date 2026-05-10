@@ -1,7 +1,9 @@
 import type { AuthSession, UserRole } from "./auth";
+import { getAuthorizationHeaderValue } from "./cognito-auth";
 import { normalizeSectionCode } from "./section-code";
 
 const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
   "http://localhost:8000";
 
@@ -453,10 +455,12 @@ async function apiRequest<TResponse>(
   path: string,
   init: RequestInit,
 ): Promise<TResponse> {
+  const authHeader = getAuthorizationHeaderValue();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(authHeader ? { Authorization: authHeader } : {}),
       ...init.headers,
     },
   });
@@ -478,10 +482,12 @@ async function apiRequest<TResponse>(
 }
 
 async function appApiRequest<TResponse>(path: string, init: RequestInit) {
+  const authHeader = getAuthorizationHeaderValue();
   const response = await fetch(path, {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...(authHeader ? { Authorization: authHeader } : {}),
       ...init.headers,
     },
   });
@@ -509,7 +515,13 @@ function buildRoleHeaders(token?: string, role?: UserRole) {
   };
 
   if (token?.trim()) {
-    headers.Authorization = `Bearer ${token}`;
+    headers.Authorization = `Bearer ${token.trim()}`;
+    return headers;
+  }
+
+  const authHeader = getAuthorizationHeaderValue();
+  if (authHeader) {
+    headers.Authorization = authHeader;
   }
 
   return headers;

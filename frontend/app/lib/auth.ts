@@ -88,6 +88,10 @@ export function clearStoredSession() {
   }
 
   window.localStorage.removeItem(AUTH_STORAGE_KEY);
+  // Best-effort cleanup for optional Cognito login state in browser memory.
+  import("./cognito-auth")
+    .then((mod) => mod.clearCognitoAccessToken())
+    .catch(() => undefined);
   notifySessionChange();
 }
 

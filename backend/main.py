@@ -36,6 +36,7 @@ from services.course_manager import CourseManager
 from services.enrollment_manager import EnrollmentManager
 from services.question_manager import QuestionManager
 from services.user_manager import UserManager
+from services import cognito_auth
 
 import models.course
 import models.course_join_code
@@ -826,6 +827,13 @@ class CreateProfessorBoardRequest(BaseModel):
     force_close_existing: bool = False
 
 
+class CognitoSyncRequest(BaseModel):
+    """Optional request body for syncing Cognito user into local users table."""
+
+    role: str = Field(default="student")
+    nickname: str | None = None
+
+
 def get_db() -> Session:
     """Provide a database session for request handling."""
     db: Session = SessionLocal()
@@ -860,6 +868,44 @@ def get_current_user(
 ) -> User:
     """Resolve the currently authenticated user."""
     return UserManager.get_current_user(db=db, token=token)
+
+
+def get_current_cognito_claims(
+    token: str = Depends(get_bearer_token),
+) -> dict:
+    """Validate and decode Cognito bearer token claims."""
+    try:
+        return cognito_auth.verify_cognito_token(token)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+        ) from exc
+
+
+def _extract_cognito_identity(claims: dict) -> dict[str, str]:
+    """Extract stable identity fields from Cognito claims."""
+    subject = str(claims.get("sub") or "").strip()
+    if not subject:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cognito token is missing sub claim",
+        )
+
+    email = str(claims.get("email") or "").strip()
+    username = str(
+        claims.get("cognito:username")
+        or claims.get("username")
+        or subject
+    ).strip()
+    token_use = str(claims.get("token_use") or "").strip()
+
+    return {
+        "sub": subject,
+        "email": email,
+        "username": username,
+        "token_use": token_use,
+    }
 
 
 def require_student(db: Session, student_id: str) -> User:
@@ -1079,6 +1125,89 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)) -> dict[str, 
         "email": user.email,
         "role": user.role,
         "nickname": user.nickname,
+    }
+
+
+@app.get("/api/auth/cognito/me")
+def cognito_me(
+    claims: dict = Depends(get_current_cognito_claims),
+) -> dict[str, str]:
+    """Return decoded user profile from a validated Cognito bearer token."""
+    identity = _extract_cognito_identity(claims)
+    return {
+        "sub": identity["sub"],
+        "email": identity["email"],
+        "username": identity["username"],
+        "token_use": identity["token_use"],
+    }
+
+
+@app.post("/api/auth/cognito/sync")
+def sync_cognito_user(
+    payload: CognitoSyncRequest,
+    claims: dict = Depends(get_current_cognito_claims),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """
+    Sync Cognito identity into local users table safely.
+
+    This endpoint never overwrites existing user credentials or role automatically.
+    """
+    identity = _extract_cognito_identity(claims)
+    role = payload.role.strip().lower()
+    if role not in User.VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Role must be either 'student' or 'professor'",
+        )
+
+    existing_user: User | None = None
+    if identity["email"]:
+        existing_user = db.query(User).filter(User.email == identity["email"]).first()
+
+    if existing_user is not None:
+        # Safe behavior: do not overwrite role/password_hash.
+        if payload.nickname and payload.nickname.strip():
+            existing_user.nickname = payload.nickname.strip()
+            db.commit()
+            db.refresh(existing_user)
+        return {
+            "status": "existing",
+            "user_id": existing_user.user_id,
+            "email": existing_user.email,
+            "role": existing_user.role,
+        }
+
+    generated_user_id = f"cognito-{identity['sub'][:18]}"
+    if db.query(User).filter(User.user_id == generated_user_id).first() is not None:
+        generated_user_id = f"cognito-{uuid4().hex[:18]}"
+
+    nickname = (
+        payload.nickname.strip()
+        if payload.nickname and payload.nickname.strip()
+        else identity["username"][:100]
+    )
+    email = identity["email"] or f"{generated_user_id}@cognito.local"
+    full_name = identity["username"] or generated_user_id
+
+    user = User(
+        user_id=generated_user_id,
+        email=email,
+        # Cognito-backed users do not use local password login by default.
+        password_hash=User.hash_password(uuid4().hex),
+        role=role,
+        full_name=full_name,
+        nickname=nickname,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "status": "created",
+        "user_id": user.user_id,
+        "email": user.email,
+        "role": user.role,
     }
 
 

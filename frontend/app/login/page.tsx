@@ -6,10 +6,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { useAuth } from "react-oidc-context";
 import { buildSessionFromLogin, loginUser } from "../lib/api";
 import {
   clearStoredSession,
   getDefaultRouteByRole,
+  readStoredSession,
   writeStoredSession,
   type UserRole,
 } from "../lib/auth";
@@ -18,6 +20,17 @@ type LoginRole = UserRole;
 
 function LoginPageContent() {
   const router = useRouter();
+  const oidc = useAuth();
+  const apiBaseUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    "http://localhost:8000";
+  const isCognitoConfigured = Boolean(
+    process.env.NEXT_PUBLIC_COGNITO_AUTHORITY &&
+      process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID &&
+      process.env.NEXT_PUBLIC_COGNITO_REDIRECT_URI &&
+      process.env.NEXT_PUBLIC_COGNITO_LOGOUT_URI,
+  );
   const searchParams =
     typeof window !== "undefined"
       ? new URLSearchParams(window.location.search)
@@ -27,6 +40,7 @@ function LoginPageContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isCognitoSyncing, setIsCognitoSyncing] = useState(false);
 
   const isDisabled = useMemo(() => {
     return loading || !email.trim() || !password.trim();
@@ -38,6 +52,81 @@ function LoginPageContent() {
       setSelectedRole(role);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const token = oidc.user?.access_token || oidc.user?.id_token;
+    if (!oidc.isAuthenticated || !token || readStoredSession()) {
+      return;
+    }
+
+    const syncUser = async () => {
+      setIsCognitoSyncing(true);
+      setErrorMessage("");
+      try {
+        const meResponse = await fetch(`${apiBaseUrl}/api/auth/cognito/me`, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!meResponse.ok) {
+          throw new Error("Failed to validate Cognito token");
+        }
+        const me = (await meResponse.json()) as {
+          sub: string;
+          email: string;
+          username: string;
+        };
+
+        const roleFromState = (
+          oidc.user?.state as { selectedRole?: UserRole } | undefined
+        )?.selectedRole;
+        const cognitoRole: UserRole =
+          roleFromState === "professor" ? "professor" : "student";
+
+        const syncResponse = await fetch(`${apiBaseUrl}/api/auth/cognito/sync`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            role: cognitoRole,
+            nickname: me.username,
+          }),
+        });
+
+        if (!syncResponse.ok) {
+          throw new Error("Failed to sync Cognito user");
+        }
+
+        const synced = (await syncResponse.json()) as {
+          user_id: string;
+          role: UserRole;
+        };
+
+        writeStoredSession({
+          accessToken: token,
+          tokenType: "bearer",
+          role: synced.role,
+          userId: synced.user_id,
+          email: me.email || `${synced.user_id}@cognito.local`,
+          fullName: me.username || synced.user_id,
+          nickname: me.username || synced.user_id,
+        });
+
+        router.replace(getDefaultRouteByRole(synced.role));
+      } catch (error) {
+        if (error instanceof Error) {
+          setErrorMessage(error.message);
+        } else {
+          setErrorMessage("Cognito login failed");
+        }
+      } finally {
+        setIsCognitoSyncing(false);
+      }
+    };
+
+    void syncUser();
+  }, [apiBaseUrl, oidc.isAuthenticated, oidc.user, router]);
 
   async function handleLogin() {
     if (isDisabled) {
@@ -168,7 +257,16 @@ function LoginPageContent() {
           disabled={isDisabled}
           className="w-full py-3.5 rounded-full bg-gradient-to-r from-[#513FDF] to-[#FD64A4] text-white font-semibold text-base hover:brightness-110 hover:shadow-lg hover:shadow-[#513FDF]/30 active:scale-[0.98] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-70"
         >
-          {loading ? "Loading..." : "Log in"}
+          {loading ? "Loading..." : "Login with existing account"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => oidc.signinRedirect({ state: { selectedRole } })}
+          disabled={!isCognitoConfigured || oidc.isLoading || isCognitoSyncing}
+          className="w-full py-3.5 rounded-full border border-[#513FDF] text-[#513FDF] font-semibold text-base hover:bg-[#F5F3FF] transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {isCognitoSyncing ? "Syncing Cognito account..." : "Login with Cognito"}
         </button>
 
         <div className="text-sm text-black flex flex-col items-center">

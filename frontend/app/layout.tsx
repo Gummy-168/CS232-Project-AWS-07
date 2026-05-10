@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Jua, Mali } from "next/font/google";
 import "./globals.css";
+import { CognitoAuthProvider } from "./providers/cognito-provider";
 
 
 const geistSans = Geist({
@@ -36,7 +37,7 @@ export default function RootLayout({
     <html lang="en" className="h-full antialiased">
       <body className={`${jua.className} bg-[#F8F9FE]`} 
             style={{ fontFamily: `${jua.style.fontFamily}, ${mali.style.fontFamily}` }}>
-        {children}
+        <CognitoAuthProvider>{children}</CognitoAuthProvider>
       </body>
     </html>
   );
