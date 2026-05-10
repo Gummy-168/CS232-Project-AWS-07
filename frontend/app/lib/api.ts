@@ -6,6 +6,14 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
   "http://localhost:8000";
+const BROWSER_BACKEND_PROXY_BASE = "/api/backend";
+
+function getResolvedApiBaseUrl() {
+  if (typeof window !== "undefined") {
+    return BROWSER_BACKEND_PROXY_BASE;
+  }
+  return API_BASE_URL;
+}
 
 interface ApiErrorPayload {
   detail?: string;
@@ -456,7 +464,8 @@ async function apiRequest<TResponse>(
   init: RequestInit,
 ): Promise<TResponse> {
   const authHeader = getAuthorizationHeaderValue();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const baseUrl = getResolvedApiBaseUrl();
+  const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -1111,7 +1120,7 @@ export function buildSessionFromLogin(
 }
 
 export function getApiBaseUrl() {
-  return API_BASE_URL;
+  return getResolvedApiBaseUrl();
 }
 
 export async function fetchQuestionsWithFilters(
@@ -1124,7 +1133,8 @@ export async function fetchQuestionsWithFilters(
   if (filters.status) queryParams.append("status", filters.status);
   if (filters.tag) queryParams.append("tag", filters.tag);
 
-  const res = await fetch(`${API_BASE_URL}/api/courses/${courseCode}/questions/search?${queryParams.toString()}`, {
+  const baseUrl = getResolvedApiBaseUrl();
+  const res = await fetch(`${baseUrl}/api/courses/${courseCode}/questions/search?${queryParams.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
 
