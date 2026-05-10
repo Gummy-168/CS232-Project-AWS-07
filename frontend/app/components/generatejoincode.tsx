@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Copy, RefreshCw, Timer, X } from "lucide-react";
 import type { ProfessorJoinCodeResponse } from "../lib/api";
 
+const JOIN_CODE_TIME_ZONE = "Asia/Bangkok";
+
 interface GenerateJoinCodeProps {
   isOpen: boolean;
   courseCode: string;
@@ -22,8 +24,34 @@ function formatTarget(courseCode: string, sectionCode?: string | null) {
   return `${courseCode} / COURSE`;
 }
 
+function parseApiDate(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const hasTimezone = /(?:Z|[+-]\d{2}:\d{2})$/i.test(trimmed);
+  const normalized = hasTimezone ? trimmed : `${trimmed}Z`;
+  const parsed = new Date(normalized);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
 function formatRemaining(expiresAt: string, nowMs: number) {
-  const diffMs = new Date(expiresAt).getTime() - nowMs;
+  const expiresAtDate = parseApiDate(expiresAt);
+  if (!expiresAtDate) {
+    return "Unavailable";
+  }
+
+  const diffMs = expiresAtDate.getTime() - nowMs;
   if (diffMs <= 0) {
     return "Expired";
   }
@@ -38,7 +66,13 @@ function getRemainingMs(expiresAt?: string | null, nowMs?: number) {
   if (!expiresAt || !nowMs) {
     return 0;
   }
-  return Math.max(new Date(expiresAt).getTime() - nowMs, 0);
+
+  const expiresAtDate = parseApiDate(expiresAt);
+  if (!expiresAtDate) {
+    return 0;
+  }
+
+  return Math.max(expiresAtDate.getTime() - nowMs, 0);
 }
 
 function getLifetimeMs(joinCode: ProfessorJoinCodeResponse | null) {
@@ -46,9 +80,15 @@ function getLifetimeMs(joinCode: ProfessorJoinCodeResponse | null) {
     return 15 * 60 * 1000;
   }
 
-  const createdAtMs = new Date(joinCode.created_at).getTime();
-  const expiresAtMs = new Date(joinCode.expires_at).getTime();
-  if (Number.isNaN(createdAtMs) || Number.isNaN(expiresAtMs) || expiresAtMs <= createdAtMs) {
+  const createdAtDate = parseApiDate(joinCode.created_at);
+  const expiresAtDate = parseApiDate(joinCode.expires_at);
+  if (!createdAtDate || !expiresAtDate) {
+    return 15 * 60 * 1000;
+  }
+
+  const createdAtMs = createdAtDate.getTime();
+  const expiresAtMs = expiresAtDate.getTime();
+  if (expiresAtMs <= createdAtMs) {
     return 15 * 60 * 1000;
   }
 
@@ -60,8 +100,8 @@ function formatExpiresAt(expiresAt?: string | null) {
     return "Expires 15 minutes after generation";
   }
 
-  const parsed = new Date(expiresAt);
-  if (Number.isNaN(parsed.getTime())) {
+  const parsed = parseApiDate(expiresAt);
+  if (!parsed) {
     return "Expires 15 minutes after generation";
   }
 
@@ -69,7 +109,22 @@ function formatExpiresAt(expiresAt?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
-  })}`;
+    timeZone: JOIN_CODE_TIME_ZONE,
+  })} (${JOIN_CODE_TIME_ZONE})`;
+}
+
+function formatGeneratedAt(createdAt?: string | null) {
+  const parsed = parseApiDate(createdAt);
+  if (!parsed) {
+    return null;
+  }
+
+  return parsed.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: JOIN_CODE_TIME_ZONE,
+  });
 }
 
 export default function GenerateJoinCode({
@@ -196,6 +251,11 @@ export default function GenerateJoinCode({
               <p className="mt-3 text-sm text-[#8F86B6]">
                 {formatExpiresAt(joinCode?.expires_at)}
               </p>
+              {joinCode?.created_at ? (
+                <p className="mt-1 text-xs text-[#B0A7D5]">
+                  Generated at {formatGeneratedAt(joinCode.created_at)}
+                </p>
+              ) : null}
             </div>
 
             <div className="mt-3 flex items-center gap-3">

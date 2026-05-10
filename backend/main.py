@@ -1232,35 +1232,43 @@ def get_student_courses(
 def get_student_course_board(
     student_id: str,
     course_code: str,
+    section_code: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     """Return the active board and course summary for one enrolled student course."""
     student = require_student(db=db, student_id=student_id)
     normalized_course_code = course_code.strip().upper()
+    normalized_section_code = section_code.strip().upper() if section_code else None
+    if normalized_section_code and normalized_section_code.startswith("SEC "):
+        normalized_section_code = normalized_section_code[4:].strip()
+
+    course_query = """
+        SELECT
+            c.course_code,
+            c.course_name,
+            COALESCE(p.nickname, c.professor_id) AS professor_name,
+            COALESCE(p.full_name, p.nickname, c.professor_id) AS professor_full_name,
+            e.section_id,
+            s.section_code
+        FROM enrollments e
+        JOIN courses c ON c.course_code = e.course_code
+        LEFT JOIN professors p ON p.professor_id = c.professor_id
+        LEFT JOIN course_sections s ON s.section_id = e.section_id
+        WHERE e.student_id = :student_id
+          AND c.course_code = :course_code
+    """
+    course_params = {
+        "student_id": student_id,
+        "course_code": normalized_course_code,
+    }
+    if normalized_section_code:
+        course_query += " AND s.section_code = :section_code"
+        course_params["section_code"] = normalized_section_code
+    course_query += " ORDER BY e.join_date DESC LIMIT 1"
 
     course = db.execute(
-        text(
-            """
-            SELECT
-                c.course_code,
-                c.course_name,
-                COALESCE(p.nickname, c.professor_id) AS professor_name,
-                COALESCE(p.full_name, p.nickname, c.professor_id) AS professor_full_name,
-                e.section_id,
-                s.section_code
-            FROM enrollments e
-            JOIN courses c ON c.course_code = e.course_code
-            LEFT JOIN professors p ON p.professor_id = c.professor_id
-            LEFT JOIN course_sections s ON s.section_id = e.section_id
-            WHERE e.student_id = :student_id
-              AND c.course_code = :course_code
-            LIMIT 1
-            """
-        ),
-        {
-            "student_id": student_id,
-            "course_code": normalized_course_code,
-        },
+        text(course_query),
+        course_params,
     ).mappings().first()
 
     if course is None:
@@ -1334,6 +1342,116 @@ def get_student_course_board(
             if active_board
             else None
         ),
+    }
+
+
+@app.get("/students/{student_id}/courses/{course_code}/boards")
+def get_student_course_boards(
+    student_id: str,
+    course_code: str,
+    section_code: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> dict[str, list[dict[str, object | str | None]]]:
+    """Return all board sessions for one enrolled student course/section."""
+    require_student(db=db, student_id=student_id)
+    normalized_course_code = course_code.strip().upper()
+    normalized_section_code = section_code.strip().upper() if section_code else None
+    if normalized_section_code and normalized_section_code.startswith("SEC "):
+        normalized_section_code = normalized_section_code[4:].strip()
+
+    enrollment_query = """
+        SELECT
+            e.section_id,
+            s.section_code
+        FROM enrollments e
+        LEFT JOIN course_sections s ON s.section_id = e.section_id
+        WHERE e.student_id = :student_id
+          AND e.course_code = :course_code
+    """
+    enrollment_params = {
+        "student_id": student_id,
+        "course_code": normalized_course_code,
+    }
+    if normalized_section_code:
+        enrollment_query += " AND s.section_code = :section_code"
+        enrollment_params["section_code"] = normalized_section_code
+    enrollment_query += " ORDER BY e.join_date DESC LIMIT 1"
+
+    enrollment = db.execute(
+        text(enrollment_query),
+        enrollment_params,
+    ).mappings().first()
+
+    if enrollment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Course not found for this student",
+        )
+
+    board_rows = db.execute(
+        text(
+            """
+            SELECT
+                b.board_id,
+                b.board_title,
+                b.course_code,
+                c.course_name,
+                b.section_id,
+                s.section_code,
+                b.status,
+                b.created_at,
+                b.closed_at,
+                COUNT(q.question_id) AS total_questions,
+                SUM(CASE WHEN q.status = 'answered' THEN 1 ELSE 0 END) AS answered_questions,
+                SUM(CASE WHEN q.status = 'pending' THEN 1 ELSE 0 END) AS unanswered_questions
+            FROM interaction_boards b
+            JOIN courses c ON c.course_code = b.course_code
+            LEFT JOIN course_sections s ON s.section_id = b.section_id
+            LEFT JOIN questions q
+                ON q.board_id = b.board_id
+               AND q.status <> 'deleted'
+            WHERE b.course_code = :course_code
+              AND (
+                    (:section_id IS NULL AND b.section_id IS NULL)
+                 OR b.section_id = :section_id
+              )
+            GROUP BY
+                b.board_id,
+                b.board_title,
+                b.course_code,
+                c.course_name,
+                b.section_id,
+                s.section_code,
+                b.status,
+                b.created_at,
+                b.closed_at
+            ORDER BY b.created_at DESC
+            """
+        ),
+        {
+            "course_code": normalized_course_code,
+            "section_id": str(enrollment["section_id"]) if enrollment["section_id"] else None,
+        },
+    ).mappings().all()
+
+    return {
+        "board_sessions": [
+            {
+                "board_id": str(row["board_id"]),
+                "board_title": str(row["board_title"] or row["board_id"]),
+                "course_code": str(row["course_code"]),
+                "course_name": str(row["course_name"]),
+                "section_id": str(row["section_id"]) if row["section_id"] else None,
+                "section_code": str(row["section_code"]) if row["section_code"] else None,
+                "status": str(row["status"]).upper(),
+                "created_at": serialize_datetime(row["created_at"]),
+                "closed_at": serialize_datetime(row["closed_at"]),
+                "total_questions": int(row["total_questions"] or 0),
+                "answered_questions": int(row["answered_questions"] or 0),
+                "unanswered_questions": int(row["unanswered_questions"] or 0),
+            }
+            for row in board_rows
+        ]
     }
 
 
