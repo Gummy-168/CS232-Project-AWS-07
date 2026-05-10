@@ -1,10 +1,12 @@
 import json
+import time
 from datetime import datetime
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import OperationalError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -53,6 +55,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def wait_for_database(max_attempts: int = 30, delay_seconds: float = 2.0) -> None:
+    """Retry DB connection while MySQL container is still booting/initializing."""
+    last_error: Exception | None = None
+    for _attempt in range(1, max_attempts + 1):
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+            return
+        except OperationalError as exc:
+            last_error = exc
+            time.sleep(delay_seconds)
+    if last_error is not None:
+        raise last_error
+
+
+wait_for_database()
 Base.metadata.create_all(bind=engine)
 with engine.begin() as conn:
     def ensure_index(table_name: str, index_name: str, ddl: str) -> None:
@@ -141,6 +159,54 @@ with engine.begin() as conn:
     ).scalar()
     if not has_question_section_id_column:
         conn.execute(text("ALTER TABLE questions ADD COLUMN section_id VARCHAR(50) NULL AFTER course_code"))
+    has_interaction_boards_table = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+            """
+        )
+    ).scalar()
+    if not has_interaction_boards_table:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS interaction_boards (
+                    board_id VARCHAR(50) PRIMARY KEY,
+                    course_code VARCHAR(50) NOT NULL,
+                    status ENUM('active', 'archived', 'closed') DEFAULT 'active',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_interaction_boards_course_code (course_code),
+                    CONSTRAINT fk_interaction_boards_course
+                        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+                        ON UPDATE CASCADE
+                        ON DELETE CASCADE
+                )
+                """
+            )
+        )
+    has_interaction_boards_section_column = conn.execute(
+        text(
+            """
+            SELECT COUNT(*)
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'interaction_boards'
+              AND COLUMN_NAME = 'section_id'
+            """
+        )
+    ).scalar()
+    if not has_interaction_boards_section_column:
+        conn.execute(
+            text(
+                """
+                ALTER TABLE interaction_boards
+                ADD COLUMN section_id VARCHAR(50) NULL AFTER course_code
+                """
+            )
+        )
     conn.execute(
         text(
             """
@@ -598,7 +664,7 @@ with engine.begin() as conn:
                 ADD CONSTRAINT fk_enrollments_section
                     FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
                     ON UPDATE CASCADE
-                    ON DELETE SET NULL
+                    ON DELETE RESTRICT
                 """
             )
         )

@@ -54,11 +54,7 @@ CREATE TABLE IF NOT EXISTS enrollments (
     CONSTRAINT fk_enrollments_course
         FOREIGN KEY (course_code) REFERENCES courses(course_code)
         ON UPDATE CASCADE
-        ON DELETE CASCADE,
-    CONSTRAINT fk_enrollments_section
-        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
-        ON UPDATE CASCADE
-        ON DELETE RESTRICT
+        ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS course_sections (
