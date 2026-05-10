@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronLeft, Clock3, MessageCircleMore, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import ActionNoticeModal from "../../../components/action-notice-modal";
 import AskModal from "../../../components/askmodal";
 import Header from "../../../components/Header";
 import JoinCourse from "../../../components/joincourse";
@@ -12,13 +13,28 @@ import { useAuthSession } from "../../../hooks/useAuthSession";
 import {
   createQuestion,
   getBoardQuestions,
+  getStudentCourseBoards,
+  type StudentBoardSession,
+  type StudentBoardQuestion,
   type StudentCourseBoardData,
   type StudentQuestion,
   getStudentCourseBoard,
   getStudentQuestions,
 } from "../../../lib/api";
+import {
+  buildCourseQueryString,
+  formatSectionLabel,
+  normalizeSectionCode,
+} from "../../../lib/section-code";
 
 type BoardFilter = "All" | "Answered" | "Unanswered";
+
+type NoticeState = {
+  badge: string;
+  title: string;
+  description: string;
+  tone: "info" | "warning" | "danger" | "success";
+} | null;
 
 function formatRelativeTime(value: string | null) {
   if (!value) {
@@ -111,18 +127,11 @@ export default function StudentCourseBoardView() {
   const { session } = useAuthSession();
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
-  const selectedSectionCode =
-    searchParams.get("sec")?.trim().toUpperCase() ?? "";
+  const selectedSectionCode = normalizeSectionCode(searchParams.get("sec"));
   const selectedBoardId = searchParams.get("board_id")?.trim() ?? "";
 
-  const buildCourseQuery = (courseCode: string, sectionCode?: string | null) => {
-    const query = new URLSearchParams();
-    query.set("course_code", courseCode.trim().toUpperCase());
-    if (sectionCode?.trim()) {
-      query.set("sec", sectionCode.trim().toUpperCase());
-    }
-    return query.toString();
-  };
+  const buildCourseQuery = (courseCode: string, sectionCode?: string | null) =>
+    buildCourseQueryString(courseCode, sectionCode);
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isAskModalOpen, setIsAskModalOpen] = useState(false);
@@ -132,6 +141,8 @@ export default function StudentCourseBoardView() {
   const [filter, setFilter] = useState<BoardFilter>("All");
   const [courseBoard, setCourseBoard] = useState<StudentCourseBoardData | null>(null);
   const [questions, setQuestions] = useState<StudentQuestion[]>([]);
+  const [boardSessions, setBoardSessions] = useState<StudentBoardSession[]>([]);
+  const [notice, setNotice] = useState<NoticeState>(null);
 
   useEffect(() => {
     if (!session?.userId || !selectedCourseCode || !selectedBoardId) {
@@ -140,40 +151,55 @@ export default function StudentCourseBoardView() {
 
     const loadBoard = async () => {
       setIsLoading(true);
-      const [boardResult, boardQuestionsResult, questionResult] = await Promise.allSettled([
+      const [boardResult, boardSessionsResult, boardQuestionsResult, questionResult] =
+        await Promise.allSettled([
         getStudentCourseBoard(
           session.userId,
           selectedCourseCode,
           selectedSectionCode || undefined,
         ),
-        getBoardQuestions(selectedBoardId, session.accessToken, session.role),
+        getStudentCourseBoards(
+          session.userId,
+          selectedCourseCode,
+          selectedSectionCode || undefined,
+        ),
+        getBoardQuestions(selectedBoardId, session.accessToken, session.role, {
+          studentId: session.userId,
+          courseCode: selectedCourseCode,
+          sectionCode: selectedSectionCode || undefined,
+        }),
         getStudentQuestions(session.userId, {
           scope: "all",
           courseCode: selectedCourseCode,
           boardId: selectedBoardId,
-          sectionCode: selectedSectionCode || undefined,
         }),
-      ]);
+        ]);
 
       const boardResponse =
         boardResult.status === "fulfilled" ? boardResult.value : null;
-      const boardQuestions =
+      const boardSessionsResponse =
+        boardSessionsResult.status === "fulfilled" ? boardSessionsResult.value : null;
+      const boardQuestionsFromBoardApi =
         boardQuestionsResult.status === "fulfilled"
           ? boardQuestionsResult.value.questions
           : [];
-      const fallbackQuestions =
+      const boardQuestionsFallback =
         questionResult.status === "fulfilled"
           ? questionResult.value.questions.filter(
               (question) => question.board_id === selectedBoardId,
             )
           : [];
+      const resolvedQuestions =
+        boardQuestionsFromBoardApi.length > 0
+          ? boardQuestionsFromBoardApi
+          : boardQuestionsFallback;
 
       setCourseBoard(boardResponse);
+      setBoardSessions(boardSessionsResponse?.board_sessions ?? []);
       setQuestions(
-        (boardQuestions.length > 0 || boardQuestionsResult.status === "fulfilled"
-          ? boardQuestions
-          : fallbackQuestions
-        ).filter((question) => question.status !== "DELETED"),
+        resolvedQuestions.filter(
+          (question): question is StudentBoardQuestion => question.status !== "DELETED",
+        ),
       );
       if (boardResult.status === "rejected" && questionResult.status === "rejected") {
         const message =
@@ -219,10 +245,48 @@ export default function StudentCourseBoardView() {
   }, [filter, questions, search]);
 
   const activeBoard = courseBoard?.active_board ?? null;
+  const viewedBoard =
+    boardSessions.find((board) => board.board_id === selectedBoardId) ||
+    (activeBoard?.board_id === selectedBoardId
+      ? {
+          board_id: activeBoard.board_id,
+          board_title: activeBoard.board_title,
+          course_code: courseBoard?.course.course_code || selectedCourseCode,
+          course_name: courseBoard?.course.course_name || "",
+          section_id: activeBoard.section_id,
+          section_code: activeBoard.section_code,
+          status: activeBoard.status,
+          created_at: activeBoard.created_at,
+          total_questions: activeBoard.total_questions,
+          answered_questions: activeBoard.answered_questions,
+          unanswered_questions: activeBoard.unanswered_questions,
+        }
+      : null);
   const isBoardActive =
-    (activeBoard?.status ?? "").trim().toLowerCase() === "active" &&
-    activeBoard?.board_id === selectedBoardId;
+    ((viewedBoard?.status ?? activeBoard?.status ?? "").trim().toLowerCase() === "active") &&
+    selectedBoardId === (viewedBoard?.board_id || activeBoard?.board_id);
   const canAskQuestion = Boolean(isBoardActive);
+  const sectionLabel = formatSectionLabel(viewedBoard?.section_code || selectedSectionCode);
+
+  const showQuestionErrorNotice = (message: string) => {
+    if (message.toLowerCase().includes("different section")) {
+      setNotice({
+        badge: "Section mismatch",
+        title: "You can only post in your enrolled section",
+        description:
+          "This question was blocked because the current board belongs to a different section. Please return to your section board and try again.",
+        tone: "warning",
+      });
+      return;
+    }
+
+    setNotice({
+      badge: "Question not sent",
+      title: "We could not post your question",
+      description: message,
+      tone: "danger",
+    });
+  };
 
   const handleCreateQuestion = async (payload: {
     title: string;
@@ -244,6 +308,7 @@ export default function StudentCourseBoardView() {
           is_anonymous: payload.anonymous,
           course_code: selectedCourseCode,
           board_id: selectedBoardId,
+          section_code: normalizeSectionCode(selectedSectionCode) || undefined,
         },
         session.accessToken,
         studentId,
@@ -269,6 +334,7 @@ export default function StudentCourseBoardView() {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to post question";
       setError(message);
+      showQuestionErrorNotice(message);
     }
   };
 
@@ -318,15 +384,25 @@ export default function StudentCourseBoardView() {
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
       />
+      <ActionNoticeModal
+        isOpen={Boolean(notice)}
+        tone={notice?.tone}
+        badge={notice?.badge}
+        title={notice?.title || "Notice"}
+        description={notice?.description || ""}
+        confirmLabel="Got it"
+        hideCancel
+        onClose={() => setNotice(null)}
+      />
       <AskModal
         isOpen={isAskModalOpen}
         onClose={() => setIsAskModalOpen(false)}
         onAdd={handleCreateQuestion}
         courseTitle={
-          activeBoard
+          viewedBoard
             ? `${courseBoard?.course.course_code || selectedCourseCode} · ${
-                activeBoard.board_title || activeBoard.board_id
-              }${selectedSectionCode ? ` · SEC ${selectedSectionCode}` : ""}`
+                viewedBoard.board_title || viewedBoard.board_id
+              }${sectionLabel ? ` · ${sectionLabel}` : ""}`
             : selectedCourseCode
         }
       />
@@ -354,24 +430,24 @@ export default function StudentCourseBoardView() {
                   View Course Board
                 </p>
                 <h1 className="mt-2 text-4xl font-semibold text-[#1B1B1B]">
-                  {activeBoard ? activeBoard.board_title || activeBoard.board_id : "No active board"}
+                  {viewedBoard ? viewedBoard.board_title || viewedBoard.board_id : "No board found"}
                 </h1>
                 <p className="mt-2 text-lg text-slate-500">
                   {courseBoard?.course.course_name || "Select a course"}
-                  {selectedSectionCode ? ` · SEC ${selectedSectionCode}` : ""}
+                  {sectionLabel ? ` · ${sectionLabel}` : ""}
                 </p>
               </div>
             </div>
 
-            {activeBoard && (
+            {viewedBoard && (
               <div className="flex flex-wrap items-center gap-4 rounded-[26px] border border-slate-100 bg-white px-5 py-4 shadow-sm">
                 <div className="flex items-center gap-2 text-slate-500">
                   <Clock3 size={16} />
-                  {formatRelativeTime(activeBoard.created_at)}
+                  {formatRelativeTime(viewedBoard.created_at)}
                 </div>
                 <div className="flex items-center gap-2 text-slate-500">
                   <MessageCircleMore size={16} />
-                  {activeBoard.total_questions} questions
+                  {viewedBoard.total_questions} questions
                 </div>
                 <span
                   className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
@@ -380,7 +456,7 @@ export default function StudentCourseBoardView() {
                       : "bg-slate-100 text-slate-500"
                   }`}
                 >
-                  {activeBoard.status || "Active"}
+                  {viewedBoard.status || "Active"}
                 </span>
               </div>
             )}
@@ -392,25 +468,25 @@ export default function StudentCourseBoardView() {
             </div>
           )}
 
-          {activeBoard ? (
+          {viewedBoard ? (
             <>
               <section className="grid gap-6 md:grid-cols-3">
                 <div className="rounded-[26px] bg-[#F4F0FF] p-6">
                   <p className="text-sm text-slate-500">Unanswered</p>
                   <p className="mt-3 text-4xl font-semibold text-[#513FDF]">
-                    {activeBoard.unanswered_questions}
+                    {viewedBoard.unanswered_questions}
                   </p>
                 </div>
                 <div className="rounded-[26px] bg-[#ECFDF5] p-6">
                   <p className="text-sm text-slate-500">Answered</p>
                   <p className="mt-3 text-4xl font-semibold text-[#059669]">
-                    {activeBoard.answered_questions}
+                    {viewedBoard.answered_questions}
                   </p>
                 </div>
                 <div className="rounded-[26px] bg-[#FFF8EF] p-6">
                   <p className="text-sm text-slate-500">Total Questions</p>
                   <p className="mt-3 text-4xl font-semibold text-[#EA580C]">
-                    {activeBoard.total_questions}
+                    {viewedBoard.total_questions}
                   </p>
                 </div>
               </section>
@@ -477,10 +553,10 @@ export default function StudentCourseBoardView() {
           ) : (
             <section className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
               <h2 className="text-3xl font-semibold text-[#1B1B1B]">
-                ยังไม่มี Board ที่ใช้งานอยู่
+                Board history is not available
               </h2>
               <p className="mt-3 text-lg text-slate-500">
-                หากอาจารย์ยังไม่ได้เปิด board ระบบจะแสดงสถานะนี้ และนักศึกษายังสามารถกลับไปหน้า course home ได้
+                We could not find this board in your enrolled course and section.
               </p>
               <Link
                 href={`/student/courses?${buildCourseQuery(

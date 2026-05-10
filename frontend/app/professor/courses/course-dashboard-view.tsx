@@ -12,11 +12,13 @@ import {
   MessageSquare,
   Plus,
   Search,
+  Trash2,
   Users,
 } from "lucide-react";
 import Header from "@/app/components/Header";
 import ActionNoticeModal from "@/app/components/action-notice-modal";
 import ConfirmCloseBoardModal from "@/app/components/confirm-close-board-modal";
+import ConfirmDeleteSectionModal from "@/app/components/confirm-delete-section-modal";
 import CreateBoardModal from "@/app/components/create-board-modal";
 import SelectSectionModal from "@/app/components/select-section-modal";
 import CreateCourse from "../../components/createcourse";
@@ -28,6 +30,7 @@ import {
   createProfessorJoinCode,
   createProfessorBoard,
   createProfessorQuestionReply,
+  deleteProfessorSection,
   deleteProfessorQuestion,
   getProfessorJoinCode,
   getProfessorQuestions,
@@ -182,6 +185,10 @@ export default function ProfessorCourseDashboardView() {
   const [isSelectSectionModalOpen, setIsSelectSectionModalOpen] = useState(false);
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [isCreatingBoard, setIsCreatingBoard] = useState(false);
+  const [isDeletingSection, setIsDeletingSection] = useState(false);
+  const [isDeleteSectionModalOpen, setIsDeleteSectionModalOpen] = useState(false);
+  const [deleteSectionConfirmation, setDeleteSectionConfirmation] = useState("");
+  const [deleteSectionError, setDeleteSectionError] = useState("");
 
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
@@ -629,6 +636,48 @@ export default function ProfessorCourseDashboardView() {
     }
   };
 
+  const handleDeleteSection = () => {
+    if (!selectedCourseCode || !selectedSectionCode) {
+      return;
+    }
+
+    setDeleteSectionConfirmation("");
+    setDeleteSectionError("");
+    setIsDeleteSectionModalOpen(true);
+  };
+
+  const handleConfirmDeleteSection = async () => {
+    if (!session?.userId || !selectedCourseCode || !selectedSectionCode) {
+      return;
+    }
+
+    const expectedSectionLabel = formatSectionLabel(selectedSectionCode);
+    if (deleteSectionConfirmation.trim().toUpperCase() !== expectedSectionLabel) {
+      setDeleteSectionError(`Please type ${expectedSectionLabel} exactly to continue.`);
+      return;
+    }
+
+    setIsDeletingSection(true);
+    setDeleteSectionError("");
+    try {
+      await deleteProfessorSection(
+        session.userId,
+        selectedCourseCode,
+        selectedSectionCode,
+      );
+      setIsDeleteSectionModalOpen(false);
+      setDeleteSectionConfirmation("");
+      router.replace(`${pathname}?course_code=${encodeURIComponent(selectedCourseCode)}`);
+      refresh();
+    } catch (err) {
+      setDeleteSectionError(
+        err instanceof Error ? err.message : "Delete section failed",
+      );
+    } finally {
+      setIsDeletingSection(false);
+    }
+  };
+
   const handleDelete = async (questionId: string) => {
     if (!session?.userId) {
       return;
@@ -806,6 +855,42 @@ export default function ProfessorCourseDashboardView() {
           void handleCloseBoard(boardToClose.board_id);
         }}
       />
+      <ConfirmDeleteSectionModal
+        isOpen={isDeleteSectionModalOpen}
+        courseCode={selectedCourseCode}
+        sectionLabel={selectedSectionCode ? formatSectionLabel(selectedSectionCode) : "Section"}
+        enrolledCount={
+          data?.enrolled_students.filter(
+            (student) =>
+              student.section_code?.trim().toUpperCase() === selectedSectionCode,
+          ).length ?? 0
+        }
+        boardCount={
+          data?.board_sessions.filter(
+            (board) => board.section_code?.trim().toUpperCase() === selectedSectionCode,
+          ).length ?? 0
+        }
+        confirmationValue={deleteSectionConfirmation}
+        error={deleteSectionError}
+        isSubmitting={isDeletingSection}
+        onChange={(value) => {
+          setDeleteSectionConfirmation(value);
+          if (deleteSectionError) {
+            setDeleteSectionError("");
+          }
+        }}
+        onClose={() => {
+          if (isDeletingSection) {
+            return;
+          }
+          setIsDeleteSectionModalOpen(false);
+          setDeleteSectionConfirmation("");
+          setDeleteSectionError("");
+        }}
+        onConfirm={() => {
+          void handleConfirmDeleteSection();
+        }}
+      />
       <ActionNoticeModal
         isOpen={!!actionNotice}
         tone={actionNotice?.tone}
@@ -861,6 +946,17 @@ export default function ProfessorCourseDashboardView() {
             <Plus size={16} />
             Create Sec
           </button>
+          {selectedSectionCode ? (
+            <button
+              type="button"
+              onClick={handleDeleteSection}
+              disabled={!selectedCourseCode || isDeletingSection}
+              className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Trash2 size={16} />
+              Delete Sec
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => setIsJoinCodeModalOpen(true)}

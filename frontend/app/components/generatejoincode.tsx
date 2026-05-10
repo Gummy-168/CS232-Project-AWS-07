@@ -23,10 +23,6 @@ function formatTarget(courseCode: string, sectionCode?: string | null) {
 }
 
 function formatRemaining(expiresAt: string, nowMs: number) {
-  if (nowMs <= 0) {
-    return "Valid for 15 minutes after generation";
-  }
-
   const diffMs = new Date(expiresAt).getTime() - nowMs;
   if (diffMs <= 0) {
     return "Expired";
@@ -36,6 +32,44 @@ function formatRemaining(expiresAt: string, nowMs: number) {
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return `${minutes}:${String(seconds).padStart(2, "0")} remaining`;
+}
+
+function getRemainingMs(expiresAt?: string | null, nowMs?: number) {
+  if (!expiresAt || !nowMs) {
+    return 0;
+  }
+  return Math.max(new Date(expiresAt).getTime() - nowMs, 0);
+}
+
+function getLifetimeMs(joinCode: ProfessorJoinCodeResponse | null) {
+  if (!joinCode?.created_at || !joinCode.expires_at) {
+    return 15 * 60 * 1000;
+  }
+
+  const createdAtMs = new Date(joinCode.created_at).getTime();
+  const expiresAtMs = new Date(joinCode.expires_at).getTime();
+  if (Number.isNaN(createdAtMs) || Number.isNaN(expiresAtMs) || expiresAtMs <= createdAtMs) {
+    return 15 * 60 * 1000;
+  }
+
+  return expiresAtMs - createdAtMs;
+}
+
+function formatExpiresAt(expiresAt?: string | null) {
+  if (!expiresAt) {
+    return "Expires 15 minutes after generation";
+  }
+
+  const parsed = new Date(expiresAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Expires 15 minutes after generation";
+  }
+
+  return `Expires at ${parsed.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })}`;
 }
 
 export default function GenerateJoinCode({
@@ -49,7 +83,7 @@ export default function GenerateJoinCode({
   onGenerate,
 }: GenerateJoinCodeProps) {
   const [copied, setCopied] = useState(false);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!isOpen || !joinCode?.expires_at) {
@@ -66,6 +100,11 @@ export default function GenerateJoinCode({
   const remainingText = !joinCode?.expires_at
     ? "Valid for 15 minutes after generation"
     : formatRemaining(joinCode.expires_at, now);
+  const remainingMs = getRemainingMs(joinCode?.expires_at, now);
+  const lifetimeMs = getLifetimeMs(joinCode);
+  const countdownPercent =
+    lifetimeMs > 0 ? Math.max(0, Math.min((remainingMs / lifetimeMs) * 100, 100)) : 0;
+  const isExpired = Boolean(joinCode?.expires_at) && remainingMs <= 0;
 
   if (!isOpen) {
     return null;
@@ -117,6 +156,48 @@ export default function GenerateJoinCode({
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8F86B6]">
               Current Join Code
             </p>
+
+            <div className="mt-4 rounded-[24px] bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8F86B6]">
+                    Time Remaining
+                  </p>
+                  <p
+                    className={`mt-2 text-2xl font-bold ${
+                      isExpired ? "text-rose-500" : "text-[#513FDF]"
+                    }`}
+                  >
+                    {remainingText}
+                  </p>
+                </div>
+                <div
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    isExpired
+                      ? "bg-rose-50 text-rose-500"
+                      : "bg-emerald-50 text-emerald-600"
+                  }`}
+                >
+                  {isExpired ? "Expired" : "Active"}
+                </div>
+              </div>
+
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#EEE9FF]">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-1000 ${
+                    isExpired
+                      ? "bg-gradient-to-r from-rose-400 to-rose-500"
+                      : "bg-gradient-to-r from-[#5B41FF] to-[#D94FA2]"
+                  }`}
+                  style={{ width: `${countdownPercent}%` }}
+                />
+              </div>
+
+              <p className="mt-3 text-sm text-[#8F86B6]">
+                {formatExpiresAt(joinCode?.expires_at)}
+              </p>
+            </div>
+
             <div className="mt-3 flex items-center gap-3">
               <div className="min-w-0 flex-1 rounded-2xl bg-white px-4 py-4 text-center text-2xl font-bold tracking-[0.2em] text-[#4A3BE0] shadow-sm">
                 {joinCode?.code || "No active code"}
@@ -132,7 +213,7 @@ export default function GenerateJoinCode({
             </div>
             <div className="mt-3 flex items-center gap-2 text-sm text-[#8F86B6]">
               <Timer size={16} />
-              <span>{copied ? "Copied" : remainingText}</span>
+              <span>{copied ? "Copied" : isExpired ? "This code is no longer valid" : "Share this code before the timer runs out"}</span>
             </div>
           </div>
 

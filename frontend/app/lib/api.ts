@@ -1,4 +1,5 @@
 import type { AuthSession, UserRole } from "./auth";
+import { normalizeSectionCode } from "./section-code";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
@@ -112,7 +113,7 @@ export interface StudentQuestion {
   id: string;
   course_code: string;
   course_name: string;
-  board_id?: string;
+  board_id?: string | null;
   section_id?: string | null;
   section_code?: string | null;
   title: string;
@@ -138,6 +139,47 @@ export interface StudentQuestionReply {
   content: string;
   created_at: string | null;
   updated_at: string | null;
+}
+
+export interface StudentBoardSession {
+  board_id: string;
+  course_code: string;
+  course_name: string;
+  section_id?: string | null;
+  section_code?: string | null;
+  board_title?: string | null;
+  status: string;
+  created_at: string | null;
+  closed_at?: string | null;
+  total_questions: number;
+  answered_questions: number;
+  unanswered_questions: number;
+}
+
+export interface StudentActivityTimelineBoardItem {
+  type: "board";
+  created_at: string | null;
+  board: StudentBoardSession;
+}
+
+export interface StudentActivityTimelineQuestionItem {
+  type: "question";
+  created_at: string | null;
+  question: StudentQuestion;
+}
+
+export interface StudentActivityTimelineResponse {
+  course_code: string;
+  section_code?: string | null;
+  items: Array<
+    StudentActivityTimelineBoardItem | StudentActivityTimelineQuestionItem
+  >;
+}
+
+export interface StudentBoardQuestion extends StudentQuestion {
+  question_text?: string;
+  student_display_name?: string;
+  answer_text?: string | null;
 }
 
 export interface StudentDashboardData {
@@ -226,6 +268,7 @@ export interface StudentCourseBoardData {
     answered_questions: number;
     unanswered_questions: number;
   } | null;
+  board_sessions?: StudentBoardSession[];
 }
 
 interface StudentQuestionsResponse {
@@ -396,6 +439,31 @@ async function apiRequest<TResponse>(
   return (await response.json()) as TResponse;
 }
 
+async function appApiRequest<TResponse>(path: string, init: RequestInit) {
+  const response = await fetch(path, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...init.headers,
+    },
+  });
+
+  if (!response.ok) {
+    let errorMessage = "Request failed";
+
+    try {
+      const payload = (await response.json()) as ApiErrorPayload;
+      errorMessage = payload.detail || payload.message || errorMessage;
+    } catch {
+      errorMessage = response.statusText || errorMessage;
+    }
+
+    throw new ApiError(errorMessage, response.status);
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 function buildRoleHeaders(token?: string, role?: UserRole) {
   const headers: Record<string, string> = {
     "X-Role": role ?? "student",
@@ -465,6 +533,50 @@ export async function getStudentCourseBoard(
   );
 }
 
+export async function getStudentCourseBoards(
+  studentId: string,
+  courseCode: string,
+  sectionCode?: string,
+) {
+  const query = new URLSearchParams();
+  if (sectionCode?.trim()) {
+    query.set("section_code", sectionCode.trim().toUpperCase());
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await apiRequest<unknown>(
+    `/students/${studentId}/courses/${courseCode.trim().toUpperCase()}/boards${suffix}`,
+    {
+      method: "GET",
+    },
+  );
+
+  if (Array.isArray(response)) {
+    return { board_sessions: response as StudentBoardSession[] };
+  }
+
+  if (
+    response &&
+    typeof response === "object" &&
+    "board_sessions" in response &&
+    Array.isArray((response as { board_sessions?: unknown }).board_sessions)
+  ) {
+    return response as { board_sessions: StudentBoardSession[] };
+  }
+
+  if (
+    response &&
+    typeof response === "object" &&
+    "boards" in response &&
+    Array.isArray((response as { boards?: unknown }).boards)
+  ) {
+    return {
+      board_sessions: (response as { boards: StudentBoardSession[] }).boards,
+    };
+  }
+
+  return { board_sessions: [] as StudentBoardSession[] };
+}
+
 export async function joinStudentCourse(studentId: string, joinCode: string) {
   return apiRequest<JoinCourseResponse>(`/students/${studentId}/courses/join`, {
     method: "POST",
@@ -508,8 +620,8 @@ export async function getStudentQuestions(
   }
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
 
-  return apiRequest<StudentQuestionsResponse>(
-    `/students/${studentId}/questions${suffix}`,
+  return appApiRequest<StudentQuestionsResponse>(
+    `/api/students/${encodeURIComponent(studentId)}/questions${suffix}`,
     {
       method: "GET",
     },
@@ -519,25 +631,58 @@ export async function getStudentQuestions(
 export async function createStudentQuestion(
   studentId: string,
   payload: CreateStudentQuestionPayload,
+  token?: string,
+  role?: UserRole,
 ) {
-  return apiRequest<StudentQuestion>(`/students/${studentId}/questions`, {
+  const normalizedPayload = {
+    ...payload,
+    course_code: payload.course_code.trim().toUpperCase(),
+    board_id: payload.board_id?.trim() || null,
+    section_code: payload.section_code
+      ? normalizeSectionCode(payload.section_code) || undefined
+      : undefined,
+  };
+  return appApiRequest<StudentQuestion>(
+    `/api/students/${encodeURIComponent(studentId)}/questions`,
+    {
     method: "POST",
-    body: JSON.stringify(payload),
-  });
+      headers: buildRoleHeaders(token, role),
+      body: JSON.stringify(normalizedPayload),
+    },
+  );
 }
 
 export async function getBoardQuestions(
   boardId: string,
   token: string,
   role?: UserRole,
+  params?: {
+    studentId?: string;
+    courseCode?: string;
+    sectionCode?: string;
+  },
 ) {
-  const response = await apiRequest<unknown>(`/boards/${boardId.trim()}/questions`, {
-    method: "GET",
-    headers: buildRoleHeaders(token, role),
-  });
+  const query = new URLSearchParams();
+  if (params?.studentId?.trim()) {
+    query.set("student_id", params.studentId.trim());
+  }
+  if (params?.courseCode?.trim()) {
+    query.set("course_code", params.courseCode.trim().toUpperCase());
+  }
+  if (params?.sectionCode?.trim()) {
+    query.set("section_code", normalizeSectionCode(params.sectionCode));
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await appApiRequest<unknown>(
+    `/api/boards/${encodeURIComponent(boardId.trim())}/questions${suffix}`,
+    {
+      method: "GET",
+      headers: buildRoleHeaders(token, role),
+    },
+  );
 
   if (Array.isArray(response)) {
-    return { questions: response as StudentQuestion[] };
+    return { questions: response as StudentBoardQuestion[] };
   }
 
   if (
@@ -546,10 +691,36 @@ export async function getBoardQuestions(
     "questions" in response &&
     Array.isArray((response as { questions?: unknown }).questions)
   ) {
-    return response as { questions: StudentQuestion[] };
+    return response as { questions: StudentBoardQuestion[] };
   }
 
-  return { questions: [] as StudentQuestion[] };
+  return { questions: [] as StudentBoardQuestion[] };
+}
+
+export async function getStudentActivityTimeline(
+  studentId: string,
+  courseCode: string,
+  params?: {
+    sectionCode?: string;
+    token?: string;
+    role?: UserRole;
+  },
+) {
+  const query = new URLSearchParams();
+  if (params?.sectionCode?.trim()) {
+    query.set("section_code", normalizeSectionCode(params.sectionCode));
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+
+  return appApiRequest<StudentActivityTimelineResponse>(
+    `/api/students/${encodeURIComponent(studentId)}/courses/${encodeURIComponent(
+      courseCode.trim().toUpperCase(),
+    )}/activity-timeline${suffix}`,
+    {
+      method: "GET",
+      headers: buildRoleHeaders(params?.token, params?.role),
+    },
+  );
 }
 
 export async function updateStudentQuestion(
@@ -609,6 +780,22 @@ export async function createProfessorSection(
     {
       method: "POST",
       body: JSON.stringify(payload),
+    },
+  );
+}
+
+export async function deleteProfessorSection(
+  professorId: string,
+  courseCode: string,
+  sectionCode: string,
+) {
+  const normalizedSectionCode = normalizeSectionCode(sectionCode);
+  return apiRequest<{ message?: string; section_code?: string; course_code?: string }>(
+    `/professors/${professorId}/courses/${courseCode.trim().toUpperCase()}/sections/${encodeURIComponent(
+      normalizedSectionCode || sectionCode.trim().toUpperCase(),
+    )}`,
+    {
+      method: "DELETE",
     },
   );
 }
@@ -897,24 +1084,24 @@ export async function createQuestion(
     is_anonymous: boolean;
     course_code: string;
     board_id: string;
+    section_code?: string;
   },
   token: string,
   studentId: string,
   role?: UserRole,
 ) {
-  const response = await fetch(`${API_BASE_URL}/students/${studentId}/questions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...buildRoleHeaders(token, role),
+  return createStudentQuestion(
+    studentId,
+    {
+      course_code: payload.course_code,
+      board_id: payload.board_id,
+      section_code: payload.section_code,
+      title: payload.title,
+      detail: payload.content,
+      tags: payload.tags,
+      is_anonymous: payload.is_anonymous,
     },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.detail || "Failed to post question");
-  }
-
-  return await response.json();
+    token,
+    role,
+  );
 }

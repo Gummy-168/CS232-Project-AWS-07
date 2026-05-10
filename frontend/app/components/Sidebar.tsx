@@ -6,6 +6,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import JoinCourse from "./joincourse";
 import { getStudentCourses, type StudentCourse } from "../lib/api";
 import { clearStoredSession } from "../lib/auth";
+import {
+  buildCourseQueryString,
+  formatSectionLabel,
+  normalizeSectionCode,
+  sectionCodesMatch,
+} from "../lib/section-code";
 import { useAuthSession } from "../hooks/useAuthSession";
 import {
   LayoutDashboard,
@@ -30,16 +36,7 @@ export default function Sidebar() {
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() || "";
-  const selectedSectionCode = searchParams.get("sec")?.trim().toUpperCase() || "";
-
-  const buildStudentCourseQuery = (courseCode: string, sectionCode?: string | null) => {
-    const query = new URLSearchParams();
-    query.set("course_code", courseCode.trim().toUpperCase());
-    if (sectionCode?.trim()) {
-      query.set("sec", sectionCode.trim().toUpperCase());
-    }
-    return query.toString();
-  };
+  const selectedSectionCode = normalizeSectionCode(searchParams.get("sec"));
 
   useEffect(() => {
     if (!session?.userId) {
@@ -133,7 +130,7 @@ export default function Sidebar() {
                   courses.map((course) => (
                     <Link
                       key={`${course.course_code}-${course.section_code || "no-section"}`}
-                      href={`/student/courses?${buildStudentCourseQuery(
+                      href={`/student/courses?${buildCourseQueryString(
                         course.course_code,
                         course.section_code,
                       )}`}
@@ -141,8 +138,7 @@ export default function Sidebar() {
                         (pathname === "/student/courses" ||
                           pathname.startsWith("/student/courses/")) &&
                         selectedCourseCode === course.course_code &&
-                        (selectedSectionCode || "") ===
-                          (course.section_code?.trim().toUpperCase() || "")
+                        sectionCodesMatch(selectedSectionCode, course.section_code)
                           ? "text-[#7B61FF] bg-[#FAF8FF]"
                           : "text-slate-400 hover:text-[#7B61FF]"
                       }`}
@@ -150,13 +146,14 @@ export default function Sidebar() {
                       {(pathname === "/student/courses" ||
                         pathname.startsWith("/student/courses/")) &&
                         selectedCourseCode === course.course_code &&
-                        (selectedSectionCode || "") ===
-                          (course.section_code?.trim().toUpperCase() || "") && (
+                        sectionCodesMatch(selectedSectionCode, course.section_code) && (
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
                       )}
                       <div className="flex items-center gap-3 pl-4">
                         {course.course_code}
-                        {course.section_code ? ` · SEC ${course.section_code}` : ""}
+                        {formatSectionLabel(course.section_code)
+                          ? ` · ${formatSectionLabel(course.section_code)}`
+                          : ""}
                       </div>
                     </Link>
                   ))

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { BookOpen, Clock3, MessageSquareText, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import ActionNoticeModal from "../../components/action-notice-modal";
 import AskModal from "../../components/askmodal";
 import Header from "../../components/Header";
 import JoinCourse from "../../components/joincourse";
@@ -12,14 +13,29 @@ import { useAuthSession } from "../../hooks/useAuthSession";
 import {
   createStudentQuestion,
   type StudentCourse,
+  type StudentActivityTimelineResponse,
+  type StudentBoardSession,
   type StudentCourseBoardData,
   type StudentQuestion,
+  getStudentActivityTimeline,
   getStudentCourseBoard,
   getStudentCourses,
-  getStudentQuestions,
 } from "../../lib/api";
+import {
+  buildCourseQueryString,
+  formatSectionLabel,
+  normalizeSectionCode,
+  sectionCodesMatch,
+} from "../../lib/section-code";
 
-type QuestionFilter = "All" | "Answered" | "Unanswered";
+type TimelineFilter = "All" | "Answered" | "Unanswered" | "Board";
+
+type NoticeState = {
+  badge: string;
+  title: string;
+  description: string;
+  tone: "info" | "warning" | "danger" | "success";
+} | null;
 
 function formatRelativeTime(value: string | null) {
   if (!value) {
@@ -57,9 +73,9 @@ function QuestionCard({
             <span className="rounded-full bg-white/80 px-3 py-1 font-medium text-[#6F63A8]">
               {question.course_code}
             </span>
-            {question.section_code ? (
+            {formatSectionLabel(question.section_code) ? (
               <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-medium text-[#C97316]">
-                SEC {question.section_code}
+                {formatSectionLabel(question.section_code)}
               </span>
             ) : null}
             <span>{formatRelativeTime(question.created_at)}</span>
@@ -128,41 +144,135 @@ function QuestionCard({
   );
 }
 
+function BoardHistoryCard({
+  board,
+  courseCode,
+  sectionCode,
+}: {
+  board: StudentBoardSession;
+  courseCode: string;
+  sectionCode?: string | null;
+}) {
+  const boardStatus = board.status.trim().toUpperCase();
+  const isActive = boardStatus === "ACTIVE";
+
+  const buildCourseQuery = (code: string, section?: string | null) => {
+    return buildCourseQueryString(code, section);
+  };
+
+  return (
+    <article className="rounded-[28px] border border-slate-100 bg-white p-6 shadow-sm transition-all">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+            <span className="rounded-full bg-[#F4F0FF] px-3 py-1 font-medium text-[#6F63A8]">
+              {board.course_code}
+            </span>
+            {formatSectionLabel(board.section_code) ? (
+              <span className="rounded-full bg-[#FFF7ED] px-3 py-1 font-medium text-[#C97316]">
+                {formatSectionLabel(board.section_code)}
+              </span>
+            ) : null}
+            <span>{formatRelativeTime(board.created_at)}</span>
+          </div>
+
+          <div>
+            <h3 className="text-2xl font-semibold text-[#1B1B1B]">
+              {board.board_title || board.board_id}
+            </h3>
+            <p className="mt-2 text-base leading-7 text-slate-600">
+              {isActive
+                ? "Board is currently active for this section."
+                : "Board session has been closed and remains available for review."}
+            </p>
+          </div>
+        </div>
+
+        <span
+          className={`rounded-full px-4 py-1.5 text-sm font-semibold ${
+            isActive
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {isActive ? "Active" : "Closed"}
+        </span>
+      </div>
+
+      <div className="mt-5 grid gap-4 sm:grid-cols-3">
+        <div className="rounded-[22px] bg-[#F4F0FF] p-4">
+          <p className="text-sm text-slate-500">Unanswered</p>
+          <p className="mt-2 text-3xl font-semibold text-[#513FDF]">
+            {board.unanswered_questions}
+          </p>
+        </div>
+        <div className="rounded-[22px] bg-[#ECFDF5] p-4">
+          <p className="text-sm text-slate-500">Answered</p>
+          <p className="mt-2 text-3xl font-semibold text-[#059669]">
+            {board.answered_questions}
+          </p>
+        </div>
+        <div className="rounded-[22px] bg-[#FFF6EC] p-4">
+          <p className="text-sm text-slate-500">Total Questions</p>
+          <p className="mt-2 text-3xl font-semibold text-[#D97706]">
+            {board.total_questions}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
+        <div className="text-sm text-slate-500">
+          {board.closed_at
+            ? `Closed ${formatRelativeTime(board.closed_at)}`
+            : isActive
+              ? "Open for this class session"
+              : "Board status available for review"}
+        </div>
+        <Link
+          href={`/student/courses/board?${buildCourseQuery(
+            courseCode,
+            sectionCode,
+          )}&board_id=${encodeURIComponent(board.board_id)}`}
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-purple-200 transition-all hover:scale-[1.01]"
+        >
+          {isActive ? "View Board" : "Review Session"}
+          <MessageSquareText size={16} />
+        </Link>
+      </div>
+    </article>
+  );
+}
+
 export default function StudentCourseHomeView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuthSession();
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
-  const selectedSectionCode =
-    searchParams.get("sec")?.trim().toUpperCase() ?? "";
+  const selectedSectionCode = normalizeSectionCode(searchParams.get("sec"));
 
-  const buildCourseQuery = (courseCode: string, sectionCode?: string | null) => {
-    const query = new URLSearchParams();
-    query.set("course_code", courseCode.trim().toUpperCase());
-    if (sectionCode?.trim()) {
-      query.set("sec", sectionCode.trim().toUpperCase());
-    }
-    return query.toString();
-  };
+  const buildCourseQuery = (courseCode: string, sectionCode?: string | null) =>
+    buildCourseQueryString(courseCode, sectionCode);
 
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
   const [isAskModalOpen, setIsAskModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [courseBoard, setCourseBoard] = useState<StudentCourseBoardData | null>(null);
-  const [questions, setQuestions] = useState<StudentQuestion[]>([]);
+  const [timeline, setTimeline] = useState<StudentActivityTimelineResponse | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<QuestionFilter>("All");
+  const [filter, setFilter] = useState<TimelineFilter>("All");
+  const [notice, setNotice] = useState<NoticeState>(null);
   const selectedCourse =
     courses.find((course) => {
       const matchesCourse =
         course.course_code.trim().toUpperCase() === selectedCourseCode;
       const matchesSection =
-        selectedSectionCode.length === 0 ||
-        (course.section_code?.trim().toUpperCase() || "") === selectedSectionCode;
+        selectedSectionCode.length === 0 || sectionCodesMatch(course.section_code, selectedSectionCode);
       return matchesCourse && matchesSection;
     }) ?? null;
+  const resolvedSectionCode = selectedCourse?.section_code || selectedSectionCode || undefined;
+  const sectionLabel = formatSectionLabel(resolvedSectionCode);
   const resolvedProfessorName =
     selectedCourse?.professor_full_name?.trim() ||
     courseBoard?.course.professor_full_name?.trim() ||
@@ -188,8 +298,7 @@ export default function StudentCourseHomeView() {
           (course) => course.course_code.trim().toUpperCase() === selectedCourseCode,
         );
         const exactCourse = matchingCourses.find(
-          (course) =>
-            (course.section_code?.trim().toUpperCase() || "") === selectedSectionCode,
+          (course) => sectionCodesMatch(course.section_code, selectedSectionCode),
         );
 
         if (!selectedCourseCode) {
@@ -241,51 +350,124 @@ export default function StudentCourseHomeView() {
         selectedCourseCode,
         selectedCourse?.section_code || selectedSectionCode || undefined,
       ),
-      getStudentQuestions(session.userId, {
-        scope: "all",
-        courseCode: selectedCourseCode,
-        sectionCode: selectedCourse?.section_code || undefined,
+      getStudentActivityTimeline(session.userId, selectedCourseCode, {
+        sectionCode: resolvedSectionCode,
+        token: session.accessToken,
+        role: session.role,
       }),
     ])
-      .then(([boardResponse, questionsResponse]) => {
+      .then(([boardResponse, timelineResponse]) => {
         setCourseBoard(boardResponse);
-        setQuestions(
-          questionsResponse.questions.filter((question) => question.status !== "DELETED"),
-        );
+        setTimeline(timelineResponse);
       })
       .catch(() => {
         setCourseBoard(null);
-        setQuestions([]);
+        setTimeline(null);
       })
       .finally(() => {
         setIsLoading(false);
       });
-  }, [selectedCourse?.section_code, selectedCourseCode, selectedSectionCode, session?.userId]);
+  }, [
+    resolvedSectionCode,
+    selectedCourse?.section_code,
+    selectedCourseCode,
+    selectedSectionCode,
+    session?.accessToken,
+    session?.role,
+    session?.userId,
+  ]);
 
-  const filteredQuestions = useMemo(() => {
+  const timelineItems = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const sourceItems = timeline?.items ?? [];
 
-    return questions.filter((question) => {
-      const matchesFilter =
-        filter === "All" ||
-        (filter === "Answered" && question.status === "ANSWERED") ||
-        (filter === "Unanswered" && question.status === "UNANSWERED");
+    const questions = sourceItems
+      .filter((item): item is Extract<StudentActivityTimelineResponse["items"][number], { type: "question" }> => item.type === "question")
+      .map((item) => item.question);
 
-      const matchesSearch =
-        query.length === 0 ||
-        question.title.toLowerCase().includes(query) ||
-        question.content.toLowerCase().includes(query) ||
-        question.author_name.toLowerCase().includes(query);
+    const questionItems = questions
+      .filter((question) => {
+        const matchesFilter =
+          filter === "All" ||
+          (filter === "Answered" && question.status === "ANSWERED") ||
+          (filter === "Unanswered" && question.status === "UNANSWERED");
 
-      return matchesFilter && matchesSearch;
+        const matchesSearch =
+          query.length === 0 ||
+          question.title.toLowerCase().includes(query) ||
+          question.content.toLowerCase().includes(query) ||
+          question.author_name.toLowerCase().includes(query);
+
+        return matchesFilter && matchesSearch;
+      })
+      .map((question) => ({
+        type: "question" as const,
+        id: question.id,
+        createdAt: question.created_at,
+        question,
+      }));
+
+    const boardItems =
+      filter === "Answered" || filter === "Unanswered"
+        ? []
+        : sourceItems
+            .filter((item): item is Extract<StudentActivityTimelineResponse["items"][number], { type: "board" }> => item.type === "board")
+            .map((item) => item.board)
+            .filter((board) => {
+              const matchesSearch =
+                query.length === 0 ||
+                (board.board_title || board.board_id).toLowerCase().includes(query) ||
+                board.course_code.toLowerCase().includes(query) ||
+                (board.section_code || "").toLowerCase().includes(query);
+
+              return matchesSearch && (filter === "All" || filter === "Board");
+            })
+            .map((board) => ({
+              type: "board" as const,
+              id: board.board_id,
+              createdAt: board.created_at,
+              board,
+            }));
+
+    return [...boardItems, ...questionItems].sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
     });
-  }, [filter, questions, search]);
+  }, [filter, search, timeline]);
 
   const activeBoard = courseBoard?.active_board ?? null;
+  const questions = useMemo(
+    () =>
+      (timeline?.items ?? [])
+        .filter((item): item is Extract<StudentActivityTimelineResponse["items"][number], { type: "question" }> => item.type === "question")
+        .map((item) => item.question),
+    [timeline],
+  );
   const answeredCount = questions.filter((question) => question.status === "ANSWERED").length;
   const unansweredCount = questions.filter(
     (question) => question.status === "UNANSWERED",
   ).length;
+
+  const showQuestionErrorNotice = (message: string) => {
+    if (message.toLowerCase().includes("different section")) {
+      setNotice({
+        badge: "Section mismatch",
+        title: "You can only post in your enrolled section",
+        description:
+          "This question was blocked because the current board belongs to a different section. Please open the board for your own section and try again.",
+        tone: "warning",
+      });
+      return;
+    }
+
+    setNotice({
+      badge: "Question not sent",
+      title: "We could not post your question",
+      description: message,
+      tone: "danger",
+    });
+  };
 
   const handleCreateQuestion = async (payload: {
     title: string;
@@ -300,16 +482,32 @@ export default function StudentCourseHomeView() {
     try {
       const created = await createStudentQuestion(session.userId, {
         course_code: selectedCourse.course_code,
-        section_code: selectedCourse.section_code ?? undefined,
+        section_code: normalizeSectionCode(selectedCourse.section_code) || undefined,
         title: payload.title,
         detail: payload.detail,
         tags: payload.tags,
         is_anonymous: payload.anonymous,
-      });
-      setQuestions((prev) => [created, ...prev.filter((item) => item.id !== created.id)]);
+      }, session.accessToken, session.role);
+      setTimeline((prev) => ({
+        course_code: prev?.course_code || selectedCourse.course_code,
+        section_code:
+          prev?.section_code || normalizeSectionCode(selectedCourse.section_code) || null,
+        items: [
+          {
+            type: "question",
+            created_at: created.created_at,
+            question: created,
+          },
+          ...(prev?.items ?? []).filter(
+            (item) => item.type !== "question" || item.question.id !== created.id,
+          ),
+        ],
+      }));
       setIsAskModalOpen(false);
     } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Failed to post question");
+      showQuestionErrorNotice(
+        err instanceof Error ? err.message : "Failed to post question",
+      );
     }
   };
 
@@ -339,6 +537,16 @@ export default function StudentCourseHomeView() {
         isOpen={isJoinModalOpen}
         onClose={() => setIsJoinModalOpen(false)}
       />
+      <ActionNoticeModal
+        isOpen={Boolean(notice)}
+        tone={notice?.tone}
+        badge={notice?.badge}
+        title={notice?.title || "Notice"}
+        description={notice?.description || ""}
+        confirmLabel="Got it"
+        hideCancel
+        onClose={() => setNotice(null)}
+      />
       <AskModal
         isOpen={isAskModalOpen}
         onClose={() => setIsAskModalOpen(false)}
@@ -346,7 +554,7 @@ export default function StudentCourseHomeView() {
         courseTitle={
           selectedCourse
             ? `${selectedCourse.course_code}${
-                selectedCourse.section_code ? ` · SEC ${selectedCourse.section_code}` : ""
+                sectionLabel ? ` · ${sectionLabel}` : ""
               }`
             : undefined
         }
@@ -370,9 +578,7 @@ export default function StudentCourseHomeView() {
                     {selectedCourse.course_name}
                   </p>
                   <p className="mt-3 inline-flex rounded-full bg-[#F4F0FF] px-4 py-2 text-sm font-semibold text-[#5B41FF]">
-                    {selectedCourse.section_code
-                      ? `Enrolled in SEC ${selectedCourse.section_code}`
-                      : "Section not assigned"}
+                    {sectionLabel ? `Enrolled in ${sectionLabel}` : "Section not assigned"}
                   </p>
                   <p className="mt-2 text-base text-slate-500">
                     Instructor: {resolvedProfessorName}
@@ -385,9 +591,7 @@ export default function StudentCourseHomeView() {
                         {activeBoard ? activeBoard.board_title || activeBoard.board_id : "None"}
                       </p>
                       <p className="mt-2 text-sm text-slate-500">
-                        {selectedCourse.section_code
-                          ? `SEC ${selectedCourse.section_code}`
-                          : "No section"}
+                        {sectionLabel || "No section"}
                       </p>
                     </div>
                     <div className="rounded-[24px] bg-[#FFF6EC] p-5">
@@ -486,12 +690,12 @@ export default function StudentCourseHomeView() {
                     </h3>
                     <p className="mt-2 text-xl text-[#8A80B9]">
                       ติดตามกิจกรรมและคำถามในรายวิชา {selectedCourse.course_code}
-                      {selectedCourse.section_code ? ` · SEC ${selectedCourse.section_code}` : ""}
+                      {sectionLabel ? ` · ${sectionLabel}` : ""}
                     </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
-                    {(["All", "Answered", "Unanswered"] as QuestionFilter[]).map(
+                    {(["All", "Answered", "Unanswered", "Board"] as TimelineFilter[]).map(
                       (option) => (
                         <button
                           key={option}
@@ -528,17 +732,26 @@ export default function StudentCourseHomeView() {
 
               <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
                 <div className="space-y-5">
-                  {filteredQuestions.length > 0 ? (
-                    filteredQuestions.map((question) => (
-                      <QuestionCard
-                        key={question.id}
-                        question={question}
-                        professorName={resolvedProfessorName}
-                      />
-                    ))
+                  {timelineItems.length > 0 ? (
+                    timelineItems.map((item) =>
+                      item.type === "board" ? (
+                        <BoardHistoryCard
+                          key={item.id}
+                          board={item.board}
+                          courseCode={selectedCourse.course_code}
+                          sectionCode={selectedCourse.section_code}
+                        />
+                      ) : (
+                        <QuestionCard
+                          key={item.id}
+                          question={item.question}
+                          professorName={resolvedProfessorName}
+                        />
+                      ),
+                    )
                   ) : (
                     <div className="rounded-[28px] border border-dashed border-slate-200 bg-white px-6 py-12 text-center text-slate-500 shadow-sm">
-                      No questions in this course yet.
+                      No activity in this course yet.
                     </div>
                   )}
                 </div>
@@ -553,9 +766,7 @@ export default function StudentCourseHomeView() {
                         {selectedCourse.course_code}
                       </h4>
                       <p className="mt-2 text-sm font-semibold text-[#6F63A8]">
-                        {selectedCourse.section_code
-                          ? `SEC ${selectedCourse.section_code}`
-                          : "No section"}
+                        {sectionLabel || "No section"}
                       </p>
                     </div>
                     <UserRound className="text-[#8B5CF6]" size={24} />
