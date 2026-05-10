@@ -1,0 +1,313 @@
+USE cs232db;
+
+CREATE TABLE IF NOT EXISTS users (
+    user_id VARCHAR(50) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role ENUM('student', 'professor') NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    nickname VARCHAR(100),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_users_email (email)
+);
+
+CREATE TABLE IF NOT EXISTS professors (
+    professor_id VARCHAR(50) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role ENUM('professor') NOT NULL DEFAULT 'professor',
+    full_name VARCHAR(150) NOT NULL,
+    nickname VARCHAR(100) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_professors_email (email),
+    INDEX idx_professors_professor_id (professor_id)
+);
+
+CREATE TABLE IF NOT EXISTS courses (
+    course_code VARCHAR(50) PRIMARY KEY,
+    course_name VARCHAR(255) NOT NULL,
+    professor_id VARCHAR(50) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_courses_professor_id (professor_id),
+    CONSTRAINT fk_courses_professor
+        FOREIGN KEY (professor_id) REFERENCES professors(professor_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS enrollments (
+    enrollment_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(50) NOT NULL,
+    course_code VARCHAR(50) NOT NULL,
+    section_id VARCHAR(50) NOT NULL,
+    join_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_enrollments_student_course (student_id, course_code),
+    INDEX idx_enrollments_student_id (student_id),
+    INDEX idx_enrollments_course_code (course_code),
+    INDEX idx_enrollments_section_id (section_id),
+    INDEX idx_enrollments_student_course_section (student_id, course_code, section_id),
+    CONSTRAINT fk_enrollments_student
+        FOREIGN KEY (student_id) REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_enrollments_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS course_sections (
+    section_id VARCHAR(50) PRIMARY KEY,
+    course_code VARCHAR(50) NOT NULL,
+    section_code VARCHAR(50) NOT NULL,
+    meeting_days VARCHAR(100) NOT NULL DEFAULT '',
+    start_time VARCHAR(5) NOT NULL,
+    end_time VARCHAR(5) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_course_sections_course_code (course_code),
+    UNIQUE KEY uq_course_sections_course_section (course_code, section_code),
+    CONSTRAINT fk_course_sections_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS interaction_boards (
+    board_id VARCHAR(50) PRIMARY KEY,
+    course_code VARCHAR(50) NOT NULL,
+    section_id VARCHAR(50) NOT NULL,
+    board_title VARCHAR(255) NULL,
+    opened_by VARCHAR(50) NULL,
+    status ENUM('active', 'archived', 'closed') DEFAULT 'active',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    closed_at DATETIME NULL,
+    INDEX idx_interaction_boards_course_code (course_code),
+    INDEX idx_interaction_boards_section_id (section_id),
+    INDEX idx_interaction_boards_course_section_status_created (course_code, section_id, status, created_at),
+    CONSTRAINT fk_interaction_boards_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_interaction_boards_section
+        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS course_join_codes (
+    join_code_id VARCHAR(50) PRIMARY KEY,
+    code VARCHAR(20) NOT NULL UNIQUE,
+    course_code VARCHAR(50) NOT NULL,
+    section_id VARCHAR(50) NOT NULL,
+    professor_id VARCHAR(50) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_course_join_codes_code (code),
+    INDEX idx_course_join_codes_code_is_active (code, is_active),
+    INDEX idx_course_join_codes_course_code (course_code),
+    INDEX idx_course_join_codes_section_id (section_id),
+    INDEX idx_course_join_codes_course_section_active (course_code, section_id, is_active),
+    INDEX idx_course_join_codes_professor_id (professor_id),
+    CONSTRAINT fk_course_join_codes_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_course_join_codes_section
+        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_course_join_codes_professor
+        FOREIGN KEY (professor_id) REFERENCES professors(professor_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS questions (
+    question_id VARCHAR(50) PRIMARY KEY,
+    board_id VARCHAR(50) NULL,
+    course_code VARCHAR(50) NOT NULL,
+    section_id VARCHAR(50) NOT NULL,
+    student_id VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    reply_content TEXT NULL,
+    status ENUM('pending', 'answered', 'deleted') DEFAULT 'pending',
+    is_anonymous BOOLEAN DEFAULT FALSE,
+    participation_score INT DEFAULT 0,
+    tags JSON DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_questions_board_id (board_id),
+    INDEX idx_questions_course_code (course_code),
+    INDEX idx_questions_section_id (section_id),
+    INDEX idx_questions_student_id (student_id),
+    INDEX idx_questions_course_section_student_status_created (course_code, section_id, student_id, status, created_at),
+    CONSTRAINT fk_questions_board
+        FOREIGN KEY (board_id) REFERENCES interaction_boards(board_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_questions_course
+        FOREIGN KEY (course_code) REFERENCES courses(course_code)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_questions_section
+        FOREIGN KEY (section_id) REFERENCES course_sections(section_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_questions_student
+        FOREIGN KEY (student_id) REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS question_replies (
+    reply_id VARCHAR(50) PRIMARY KEY,
+    question_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_question_replies_question_id (question_id),
+    INDEX idx_question_replies_user_id (user_id),
+    CONSTRAINT fk_question_replies_question
+        FOREIGN KEY (question_id) REFERENCES questions(question_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_question_replies_user
+        FOREIGN KEY (user_id) REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    notification_id INT AUTO_INCREMENT PRIMARY KEY,
+    target_user_id VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    notif_type VARCHAR(50),
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notifications_target_user_id (target_user_id),
+    CONSTRAINT fk_notifications_target_user
+        FOREIGN KEY (target_user_id) REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+-- Bootstrap default users/courses so login works right after first init.
+-- Passwords are SHA-256 hashes generated by User.hash_password():
+-- prof001@example.com / prof1234
+-- stu001@example.com / stu1234
+-- stu002@example.com / stu1234
+INSERT IGNORE INTO users (user_id, email, password_hash, role, full_name, nickname)
+VALUES
+    (
+        'prof001',
+        'prof001@example.com',
+        '1ec76e799fcbdafce642c640793c7ca39a586bd17166ba0d4f9c98c65713b284',
+        'professor',
+        'Professor CS232',
+        'Prof CS232'
+    ),
+    (
+        'stu001',
+        'stu001@example.com',
+        'debb161e8b26f3cab862f7c9f1e87fb88f8282d566bb724e0eb1d583faf84f6a',
+        'student',
+        'Student One',
+        'Student One'
+    ),
+    (
+        'stu002',
+        'stu002@example.com',
+        'debb161e8b26f3cab862f7c9f1e87fb88f8282d566bb724e0eb1d583faf84f6a',
+        'student',
+        'Student Two',
+        'Student Two'
+    );
+
+INSERT IGNORE INTO professors (
+    professor_id,
+    email,
+    password_hash,
+    role,
+    full_name,
+    nickname
+)
+VALUES
+    (
+        'prof001',
+        'prof001@example.com',
+        '1ec76e799fcbdafce642c640793c7ca39a586bd17166ba0d4f9c98c65713b284',
+        'professor',
+        'Professor CS232',
+        'Prof CS232'
+    );
+
+-- Keep the bootstrap professor account stable for local/demo environments.
+UPDATE users
+SET email = 'prof001@example.com',
+    password_hash = '1ec76e799fcbdafce642c640793c7ca39a586bd17166ba0d4f9c98c65713b284',
+    role = 'professor',
+    full_name = 'Professor CS232',
+    nickname = 'Prof CS232'
+WHERE user_id = 'prof001';
+
+UPDATE users
+SET password_hash = 'debb161e8b26f3cab862f7c9f1e87fb88f8282d566bb724e0eb1d583faf84f6a'
+WHERE user_id IN ('stu001', 'stu002')
+  AND password_hash = 'hashed_password';
+
+UPDATE professors
+SET email = 'prof001@example.com',
+    password_hash = '1ec76e799fcbdafce642c640793c7ca39a586bd17166ba0d4f9c98c65713b284',
+    role = 'professor',
+    full_name = 'Professor CS232',
+    nickname = 'Prof CS232'
+WHERE professor_id = 'prof001';
+
+INSERT IGNORE INTO professors (
+    professor_id,
+    email,
+    password_hash,
+    role,
+    full_name,
+    nickname
+)
+SELECT
+    user_id,
+    email,
+    password_hash,
+    'professor',
+    full_name,
+    COALESCE(NULLIF(nickname, ''), full_name, user_id)
+FROM users
+WHERE role = 'professor';
+
+INSERT IGNORE INTO courses (course_code, course_name, professor_id, is_active)
+VALUES
+    ('CS232', 'Smart Classroom Interaction System', 'prof001', TRUE);
+
+INSERT IGNORE INTO course_sections (
+    section_id,
+    course_code,
+    section_code,
+    meeting_days,
+    start_time,
+    end_time,
+    is_active
+)
+VALUES
+    ('sec-cs232-100001', 'CS232', 'SEC 100001', 'Monday,Wednesday', '13:00', '16:00', TRUE),
+    ('sec-cs232-100002', 'CS232', 'SEC 100002', 'Tuesday,Thursday', '13:00', '16:00', TRUE);
+
+INSERT IGNORE INTO enrollments (student_id, course_code, section_id)
+VALUES
+    ('stu001', 'CS232', 'sec-cs232-100001'),
+    ('stu002', 'CS232', 'sec-cs232-100002');
+
+INSERT IGNORE INTO interaction_boards (board_id, course_code, section_id, status)
+VALUES
+    ('board001', 'CS232', 'sec-cs232-100001', 'active');

@@ -1,0 +1,270 @@
+"use client";
+import { useEffect, useState } from "react";
+import AskModal from "../../components/askmodal";
+import JoinCourse from "../../components/joincourse";
+import Header from "../../components/Header";
+import { Contact, Clock } from "lucide-react";
+import Link from "next/link";
+import { useAuthSession } from "../../hooks/useAuthSession";
+import {
+  getStudentAnalytics,
+  getStudentDashboard,
+  type StudentDashboardData,
+} from "../../lib/api";
+import { buildCourseQueryString } from "../../lib/section-code";
+
+type DashboardViewData = StudentDashboardData & {
+  recentQuestion: string;
+  tag: "RECENT" | "EMPTY";
+};
+
+export default function Dashboard() {
+  const [data, setData] = useState<DashboardViewData | null>(null);
+  const [chart, setChart] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
+  const [open, setOpen] = useState(false);
+  const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
+  const { session } = useAuthSession();
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  useEffect(() => {
+    if (!session?.userId) {
+      return;
+    }
+    Promise.all([
+      getStudentDashboard(session.userId),
+      getStudentAnalytics(session.userId),
+    ])
+      .then(([dashboard, analytics]) => {
+        const recentQuestionExists = Boolean(dashboard.recent_question?.trim());
+        setData({
+          ...dashboard,
+          recentQuestion: dashboard.recent_question || "No recent question",
+          tag: recentQuestionExists ? "RECENT" : "EMPTY",
+        });
+        const byDay = analytics.chart.reduce(
+          (acc, row) => {
+            acc[row.day] = row.value;
+            return acc;
+          },
+          {} as Record<string, number>,
+        );
+        const rawValues = [
+          byDay.Sun || 0,
+          byDay.Mon || 0,
+          byDay.Tue || 0,
+          byDay.Wed || 0,
+          byDay.Thu || 0,
+          byDay.Fri || 0,
+          byDay.Sat || 0,
+        ];
+        const maxValue = Math.max(...rawValues, 1);
+        setChart(rawValues.map((value) => Math.max(10, Math.round((value / maxValue) * 100))));
+      })
+      .catch(() => {
+        setData(null);
+      });
+  }, [session?.userId]);
+
+  useEffect(() => {
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, []);
+
+  const hasActiveBoard = Boolean(data?.session?.has_active_board);
+  const boardHref =
+    hasActiveBoard && data?.session?.course_code
+      ? `/student/courses/board?${buildCourseQueryString(
+          data.session.course_code,
+          data.session.section_code,
+        )}${
+          data.session.board_id
+            ? `&board_id=${encodeURIComponent(data.session.board_id)}`
+            : ""
+        }`
+      : "";
+
+  return (
+    <div className="h-screen bg-[#FCF9F8] overflow-hidden">
+      <Header
+        studentName={session?.nickname}
+        studentId={session?.userId}
+        onJoinCourse={() => setIsJoinModalOpen(true)}
+        mode="dashboard"
+      />
+      <JoinCourse
+        isOpen={isJoinModalOpen}
+        onClose={() => setIsJoinModalOpen(false)}
+      />
+
+      <main className="p-8 pt-[140px] space-y-6 h-full">
+        {!data ? (
+          <div>Loading...</div>
+        ) : (
+          <>
+            {/* Card Section */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Current Session */}
+              <section className="col-span-2 bg-white rounded-[30px] p-6 shadow border border-slate-50 overflow-hidden relative text-left">
+                <div className="flex items-center gap-2 mb-4 text-[#D1388D] text-xs font-semibold tracking-wider uppercase">
+                  <span className="text-[10px]">(( ))</span>
+                  {hasActiveBoard ? "CURRENTLY IN SESSION" : "NO ACTIVE SESSION"}
+                </div>
+
+                <h2 className="text-2xl mb-6">
+                  {hasActiveBoard ? (
+                    <>
+                      <span className="text-[#1B1B1B]">
+                        {data.session.title.split(":")[0]}:{" "}
+                      </span>
+                      <span className="text-[#513FDF]">
+                        Join and ask your questions now!
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[#1B1B1B]">No board is open right now</span>
+                  )}
+                </h2>
+
+                <div className="grid grid-cols-2 gap-6 mb-8">
+                  <div className="flex items-center gap-4 bg-[#F9F9F9] p-5 rounded-full">
+                    <div className="bg-white p-2 rounded-full shadow-sm">
+                      <Clock size={24} className="text-[#513FDF]" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">
+                        Time Remaining
+                      </p>
+                      <p className="text-lg text-slate-800">
+                        {hasActiveBoard ? data.session.time : "-"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4 bg-[#F9F9F9] p-5 rounded-full">
+                    <div className="bg-white p-2 rounded-full shadow-sm">
+                      <Contact size={24} className="text-[#513FDF]" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-slate-400 font-medium">
+                        Instructor
+                      </p>
+                      <p className="text-lg text-slate-800">
+                        {data.session.instructor}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6">
+                  {hasActiveBoard ? (
+                    <>
+                      <Link
+                        href={boardHref}
+                        className="bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-white px-12 py-3 rounded-full text-lg shadow-xl shadow-purple-100 hover:scale-105 active:scale-95 transition-all"
+                      >
+                        Ask Now
+                      </Link>
+                      <p className="text-sm text-slate-500 font-medium">
+                        <span className="text-slate-700">{data.stats.questions}</span>{" "}
+                        questions asked so far.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="rounded-full bg-[#FBFAFF] px-5 py-3 text-sm font-medium text-[#9388BB]">
+                      Wait for your professor to open a board for this class.
+                    </p>
+                  )}
+                </div>
+
+                <AskModal isOpen={open} onClose={() => setOpen(false)} />
+              </section>
+
+              {/* Stats */}
+              <div className="bg-[#F6F3F2]-100 p-6 rounded-2xl shadow">
+                <h3 className="mb-4 text-xl">My Activity Stats</h3>
+                <div className="grid grid-cols-2 gap-5">
+                  <StatBox
+                    value={`${data.stats.participation}%`}
+                    label="Participation"
+                    textColor="text-[#513FDF]"
+                  />
+                  <StatBox
+                    value={data.stats.questions}
+                    label="Questions"
+                    textColor="text-[#AE2466]"
+                  />
+                  <StatBox
+                    value={data.stats.answered}
+                    label="Answered"
+                    textColor="text-[#16A34A]"
+                  />
+                  <StatBox
+                    value={data.stats.pending}
+                    label="Pending"
+                    textColor="text-[#F59E0B]"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom */}
+            <div className="grid grid-cols-3 gap-6">
+              {/* Chart */}
+              <div className="bg-[#F6F3F2] p-6 rounded-2xl shadow col-span-1">
+                <h3 className="mb-4">Participation Overview</h3>
+                <div className="flex items-end gap-2.5 h-40">
+                  {chart.map((h, i) => (
+                    <div
+                      key={i}
+                      className="flex flex-col items-center gap-2 w-10 h-full justify-end"
+                    >
+                      <div
+                        className="bg-[#513FDF] w-full rounded-t-3xl"
+                        style={{ height: `${h}%` }}
+                      />
+                      <span className="text-xs text-gray-500 font-medium">
+                        {days[i]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Questions */}
+              <div className="bg-white p-6 rounded-2xl shadow col-span-2">
+                {/* Header + Tag */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3>Recent Questions</h3>
+                </div>
+
+                {/* Content */}
+                <div className="bg-[#F9F9F9] p-4 rounded-3xl text-sm flex items-center justify-between gap-4">
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                  <p className="text-slate-800 pr-4 flex-1">
+                    {data.recentQuestion}
+                  </p>
+
+                  <span className="text-red-600  bg-red-100 px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap">
+                    {data.tag}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function StatBox({ value, label, textColor }) {
+  return (
+    <div className="bg-white p-5 rounded-4xl flex flex-col items-start">
+      <p className={`text-2xl font-regular ${textColor}`}>{value}</p>
+      <p className="text-s text-gray-500">{label}</p>
+    </div>
+  );
+}
