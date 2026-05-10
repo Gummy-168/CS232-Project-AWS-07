@@ -45,7 +45,7 @@ const MOCK_NOTIFICATIONS = [
 interface NotificationOverlayProfProps {
   isOpen: boolean;
   onClose: () => void;
-  anchorRef?: React.RefObject<HTMLElement>;
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function NotificationOverlayProf({

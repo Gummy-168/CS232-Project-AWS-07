@@ -57,7 +57,7 @@ const statusColors: Record<string, string> = {
 interface NotificationOverlayProps {
   isOpen: boolean;
   onClose: () => void;
-  anchorRef?: React.RefObject<HTMLElement>;
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function NotificationOverlay({
