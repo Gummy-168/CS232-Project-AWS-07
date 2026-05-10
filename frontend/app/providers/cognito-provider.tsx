@@ -22,7 +22,7 @@ function getCognitoConfig(): { config: AuthProviderProps; enabled: boolean } {
       redirect_uri: redirectUri || "http://localhost:3000",
       post_logout_redirect_uri: logoutUri || "http://localhost:3000",
       response_type: "code",
-      scope: "openid email profile",
+      scope: "email openid phone",
       automaticSilentRenew: true,
       loadUserInfo: true,
       onSigninCallback: () => {
