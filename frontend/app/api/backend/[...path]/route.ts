@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 
 const BACKEND_BASE_URL =
   process.env.BACKEND_API_URL?.replace(/\/$/, "") ||
+  process.env.API_URL?.replace(/\/$/, "") ||
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
   "http://localhost:8000";
 
 const HOP_BY_HOP_HEADERS = new Set([

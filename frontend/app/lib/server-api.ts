@@ -1,6 +1,8 @@
 import { normalizeSectionCode, sectionCodesMatch } from "./section-code";
 
 const API_BASE_URL =
+  process.env.BACKEND_API_URL?.replace(/\/$/, "") ||
+  process.env.API_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
   "http://localhost:8000";
@@ -127,13 +129,18 @@ export async function fetchBackend<TResponse>(
   init: RequestInit,
   request: Request,
 ) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      ...Object.fromEntries(buildForwardHeaders(request).entries()),
-      ...Object.fromEntries(new Headers(init.headers).entries()),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        ...Object.fromEntries(buildForwardHeaders(request).entries()),
+        ...Object.fromEntries(new Headers(init.headers).entries()),
+      },
+    });
+  } catch {
+    throw new ServerApiError("Cannot reach backend API.", 502);
+  }
 
   if (!response.ok) {
     throw new ServerApiError(await readErrorMessage(response), response.status);
