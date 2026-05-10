@@ -1,0 +1,9 @@
+services:
+  backend:
+    build: .
+    container_name: backend-cs232-prod
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"

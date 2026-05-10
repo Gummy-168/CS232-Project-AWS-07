@@ -1,3 +1,5 @@
+-- Run this after sql/init.sql so the cs232db database and tables already exist.
+-- Demo inserts use INSERT IGNORE where possible, so repeated imports should not fail.
 USE cs232db;
 
 INSERT IGNORE INTO users (user_id, email, password_hash, role, full_name, nickname)
@@ -67,13 +69,16 @@ VALUES
     ('stu001', 'CS232', 'sec-cs232-100001'),
     ('stu002', 'CS232', 'sec-cs232-100002');
 
-INSERT IGNORE INTO interaction_boards (board_id, course_code, status)
+INSERT IGNORE INTO interaction_boards (board_id, course_code, section_id, status)
 VALUES
-    ('board001', 'CS232', 'active');
+    ('board001', 'CS232', 'sec-cs232-100001', 'active'),
+    ('board002', 'CS232', 'sec-cs232-100002', 'active');
 
 INSERT IGNORE INTO questions (
     question_id,
     board_id,
+    course_code,
+    section_id,
     student_id,
     title,
     content,
@@ -86,6 +91,8 @@ VALUES
     (
         'q001',
         'board001',
+        'CS232',
+        'sec-cs232-100001',
         'stu001',
         'Lecture Slides Upload',
         'Will lecture slides be uploaded after class?',
@@ -96,7 +103,9 @@ VALUES
     ),
     (
         'q002',
-        'board001',
+        'board002',
+        'CS232',
+        'sec-cs232-100002',
         'stu002',
         'Assignment Group Policy',
         'Can we submit the assignment in pairs?',

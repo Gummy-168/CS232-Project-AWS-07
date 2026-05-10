@@ -2,4 +2,13 @@ myenv/
 __pycache__/
 *.pyc
 .env
+.env.local
+.env.production
+.env.staging
 .vscode/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+*.log

@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from datetime import datetime
 from uuid import uuid4
@@ -47,9 +48,22 @@ import models.user
 
 app = FastAPI()
 
+def get_allowed_origins() -> list[str]:
+    configured_origins = os.getenv("ALLOWED_ORIGINS") or os.getenv("FRONTEND_ORIGIN")
+    if not configured_origins:
+        return ["http://localhost:3000"]
+
+    origins = [
+        origin.strip()
+        for origin in configured_origins.split(",")
+        if origin.strip()
+    ]
+    return origins or ["http://localhost:3000"]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1031,11 +1045,16 @@ def read_root():
     return {"message": "Backend is running"}
 
 
+@app.get("/api/health")
+def health_check() -> dict[str, str]:
+    return {"status": "ok"}
+
+
 @app.get("/api/db-test")
-def db_test():
+def db_test() -> dict[str, str]:
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-    return {"message": "MySQL connected successfully"}
+    return {"status": "ok", "database": "connected"}
 
 
 @app.post("/login", response_model=TokenResponse)
@@ -1069,8 +1088,13 @@ def create_course(
     db: Session = Depends(get_db),
 ) -> CourseResponse:
     """Create a course for the authenticated professor."""
-    # TODO: Re-enable security before deployment
-    professor_id = (course_data.professor_id or "prof001").strip()
+    if course_data.professor_id is None or not course_data.professor_id.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="professor_id is required",
+        )
+
+    professor_id = course_data.professor_id.strip()
     professor = UserManager.get_professor_by_id(db=db, professor_id=professor_id)
 
     if professor is None:
