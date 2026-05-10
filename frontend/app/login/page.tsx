@@ -54,18 +54,8 @@ function LoginPageContent() {
   }, [searchParams]);
 
   function handleCognitoLogin() {
-    const domain = "https://us-east-1ilsyn1c5l.auth.us-east-1.amazoncognito.com";
-
-    const params = new URLSearchParams({
-      client_id: process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID || "",
-      response_type: "code",
-      scope: "email openid phone",
-      redirect_uri:
-        process.env.NEXT_PUBLIC_COGNITO_REDIRECT_URI ||
-        "https://cs-232-project-aws-07.vercel.app",
-    });
-
-    window.location.href = `${domain}/login?${params.toString()}`;
+    window.location.href =
+      "https://us-east-1ilsyn1c5l.auth.us-east-1.amazoncognito.com/login?client_id=dt8bhl59494ud7estlib2l060&response_type=code&scope=email+openid+phone&redirect_uri=https%3A%2F%2Fcs-232-project-aws-07.vercel.app";
   }
 
   useEffect(() => {
