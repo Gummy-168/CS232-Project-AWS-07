@@ -58,7 +58,9 @@ const Dashboard = () => {
   if (loading || !data)
     return <div className="p-8 text-center">Loading Dashboard...</div>;
 
-  const openedBoards = Number(data?.stats?.opened_boards ?? data?.stats?.board ?? 0);
+  const openedBoards = Number(
+    data?.stats?.opened_boards ?? data?.stats?.board ?? 0,
+  );
   const participatedBoards = Number(data?.stats?.participated_boards ?? 0);
   const courseActivity = Array.isArray(data?.course_activity)
     ? data.course_activity
@@ -89,16 +91,13 @@ const Dashboard = () => {
       />
       <main className="p-8 pt-[120px] space-y-6 h-full overflow-y-auto pb-10 ">
         {/*  Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 ">
           <StatCard
-            label="ON-CLASS PARTICIPATION RATE"
+            label="PARTICIPATION RATE"
             value={`${data.stats.participation}%`}
             subValue={`${participatedBoards}/${openedBoards} joined scopes`}
           />
-          <StatCard
-            label="TOTAL QUESTIONS"
-            value={data.stats.questions}
-          />
+          <StatCard label="TOTAL QUESTIONS" value={data.stats.questions} />
           <StatCard label="ANSWERED QUESTIONS" value={data.stats.answered} />
           <StatCard
             label="ACTIVE COURSES"
@@ -110,7 +109,7 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* Participation Trend (Bar Chart) */}
           <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-            <h3 className="text-xl font-bold mb-6">Participation Trend</h3>
+            <h3 className="text-xl font-medium mb-6">Participation Trend</h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -135,7 +134,11 @@ const Dashboard = () => {
                         const { x, y, width, value, index } = props;
 
                         if (index !== activeIndex) return null;
-                        if (typeof x !== "number" || typeof y !== "number" || typeof width !== "number") {
+                        if (
+                          typeof x !== "number" ||
+                          typeof y !== "number" ||
+                          typeof width !== "number"
+                        ) {
                           return null;
                         }
 
@@ -185,7 +188,7 @@ const Dashboard = () => {
 
           {/*  Question Status  */}
           <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col items-center">
-            <h3 className="text-xl font-bold self-start mb-4">
+            <h3 className="text-xl font-medium self-start mb-4">
               Question Status
             </h3>
             <div className="relative h-48 w-48">
@@ -205,7 +208,9 @@ const Dashboard = () => {
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold">{totalQuestionStatus}</span>
+                <span className="text-3xl font-bold">
+                  {totalQuestionStatus}
+                </span>
                 <span className="text-xs text-slate-400 uppercase">Total</span>
               </div>
             </div>
@@ -232,7 +237,7 @@ const Dashboard = () => {
 
         {/* Course Activity */}
         <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <h3 className="text-xl font-bold mb-4">Course Activity</h3>
+          <h3 className="text-xl font-medium mb-4">Course Activity</h3>
           {courseActivity.length === 0 ? (
             <p className="text-sm text-slate-400">No enrolled courses yet.</p>
           ) : (
@@ -259,11 +264,16 @@ const Dashboard = () => {
                     course.interaction_count ?? course.total_interactions ?? 0,
                   );
                   const totalQuestions = Number(course.total_questions ?? 0);
-                  const answeredQuestions = Number(course.answered_questions ?? 0);
-                  const unansweredQuestions = Number(
-                    course.unanswered_questions ?? Math.max(totalQuestions - answeredQuestions, 0),
+                  const answeredQuestions = Number(
+                    course.answered_questions ?? 0,
                   );
-                  const generalQuestions = Number(course.general_questions ?? 0);
+                  const unansweredQuestions = Number(
+                    course.unanswered_questions ??
+                      Math.max(totalQuestions - answeredQuestions, 0),
+                  );
+                  const generalQuestions = Number(
+                    course.general_questions ?? 0,
+                  );
                   const boardQuestions = Number(course.board_questions ?? 0);
                   const boardSessionsJoined = Number(
                     course.boards_joined ?? course.board_sessions_joined ?? 0,
@@ -279,7 +289,10 @@ const Dashboard = () => {
                         : 0;
 
                   return (
-                    <div key={course.course_code} className="flex flex-col gap-2">
+                    <div
+                      key={course.course_code}
+                      className="flex flex-col gap-2"
+                    >
                       <div className="flex justify-between items-center text-sm mb-1">
                         <div>
                           <span className="font-medium">{course.title}</span>
@@ -340,10 +353,9 @@ interface StatCardProps {
   value: string | number;
   subValue?: string;
 }
-
 const StatCard = ({ label, value, subValue }: StatCardProps) => {
   const defaultLabelClasses =
-    "text-[10px] font-bold text-slate-400 transition-colors duration-300 tracking-wider uppercase group-hover:text-pink-500";
+    "text-[12px] font-medium text-slate-400 transition-colors duration-300 tracking-wider uppercase group-hover:text-pink-500";
   const defaultBorderClasses = "border-slate-100 transition-all duration-300";
   const hoverBorderClasses =
     "group-hover:border-pink-400 group-hover:shadow-lg group-hover:scale-105";
@@ -352,18 +364,25 @@ const StatCard = ({ label, value, subValue }: StatCardProps) => {
     <div
       className={`relative overflow-hidden p-6 rounded-3xl border bg-white shadow-sm flex flex-col group ${defaultBorderClasses} ${hoverBorderClasses}`}
     >
+      {/* Pink line on top */}
       <div className="absolute top-0 left-6 right-6 h-1 bg-pink-500 rounded-full opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
 
-      <div className="flex justify-between items-start mb-2 relative z-10">
+      {/* Top Section (Label) */}
+      <div className="mb-2 relative z-10">
         <p className={defaultLabelClasses}>{label}</p>
+      </div>
 
-        {subValue && (
-          <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-bold">
+      {/* Value Section */}
+      <p className="text-4xl font-bold text-slate-800 relative z-10">{value}</p>
+
+      {/* Bottom Right Section (subValue) */}
+      {subValue && (
+        <div className="absolute bottom-4 right-4 z-10">
+          <span className="text-[12px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full font-medium">
             {subValue}
           </span>
-        )}
-      </div>
-      <p className="text-4xl font-bold text-slate-800 relative z-10">{value}</p>
+        </div>
+      )}
     </div>
   );
 };

@@ -74,7 +74,7 @@ export default function Header({
         <div className="space-y-1">
           <h1 className="text-3xl font-regular text-[#1B1B1B]">
             Hello,{" "}
-            <span className="font-bold">
+            <span className="font-medium">
               {studentName ? renderName(studentName) : "..."}
             </span>
           </h1>
@@ -89,7 +89,7 @@ export default function Header({
       return (
         <h1 className="text-3xl font-regular text-[#1B1B1B]">
           Hello,{" "}
-          <span className="font-bold">
+          <span className="font-medium">
             {professorName ? renderName(professorName) : "..."}
           </span>
         </h1>
@@ -111,7 +111,7 @@ export default function Header({
   };
 
   return (
-    <header className="fixed left-64 right-0 top-0 z-10 bg-[#F9F9F9] px-6 py-6 xl:px-8">
+    <header className="fixed left-64 right-0 top-0 z-10 bg-[#F9F9F9] px-6 py-6 xl:px-8 pt-10">
       <div className="flex flex-wrap items-start justify-between gap-4 xl:items-center">
         <div className="min-w-0 flex-1 space-y-1">{renderLeft()}</div>
 
@@ -148,7 +148,7 @@ export default function Header({
             />
           )}
 
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#513FDF] text-sm font-semibold text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#513FDF] text-sm font-medium text-white">
             N
           </div>
         </div>

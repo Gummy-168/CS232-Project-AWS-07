@@ -510,12 +510,13 @@ export default function StudentCourseBoardView() {
                   <button
                     key={option}
                     onClick={() => setFilter(option)}
-                    className={`rounded-full border px-5 py-2.5 text-base font-medium transition-all ${
-                      filter === option
-                        ? "border-[#5B41FF] bg-[#5B41FF] text-white"
-                        : "border-slate-200 bg-white text-slate-500 hover:bg-slate-100"
-                    }`}
+                    className={`px-5 py-1.5 rounded-full text-sm transition-all border ${
+                            filter === option
+                              ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                              : "text-slate-400 border-slate-200 hover:bg-slate-200 bg-white"
+                          }`}
                   >
+                    
                     {option}
                   </button>
                 ))}
@@ -525,7 +526,7 @@ export default function StudentCourseBoardView() {
                     <button
                       type="button"
                       onClick={() => setIsAskModalOpen(true)}
-                      className="inline-flex h-16 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] px-6 text-base font-semibold text-white shadow-lg shadow-purple-200 transition hover:scale-[1.01]"
+                      className="inline-flex py-2 px-4 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#6443D9] via-[#A952C0] to-[#EA60AB] text-base font-medium text-white shadow-lg shadow-purple-200 transition hover:scale-[1.01]"
                     >
                       <Plus size={20} />
                       Ask Question
@@ -534,15 +535,15 @@ export default function StudentCourseBoardView() {
 
                   <label className="relative w-full max-w-[460px]">
                     <Search
-                      className="absolute left-5 top-1/2 -translate-y-1/2 text-[#A08ECF]"
-                      size={22}
+                      className="absolute left-3 top-2.5 text-slate-400"
+                      size={15}
                     />
                     <input
                       type="text"
                       value={search}
                       onChange={(event) => setSearch(event.target.value)}
                       placeholder="Search questions or answers..."
-                      className="h-16 w-full rounded-full border border-slate-200 bg-white pl-14 pr-6 text-lg text-slate-700 shadow-sm outline-none transition focus:border-[#C4B5FD]"
+                      className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
                     />
                   </label>
                 </div>

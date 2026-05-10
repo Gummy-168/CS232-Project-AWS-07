@@ -106,7 +106,7 @@ function BoardQuestionCard({
             ) : null}
           </div>
 
-          <h2 className="mt-4 text-xl font-semibold text-[#1B1B1B]">
+          <h2 className="mt-4 text-xl font-medium text-[#1B1B1B]">
             {question.title || question.content}
           </h2>
           {question.title && question.content && question.title !== question.content ? (
@@ -119,7 +119,7 @@ function BoardQuestionCard({
             <button
               type="button"
               onClick={onToggleReplies}
-              className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-[#7D70B0] transition hover:text-[#5B41FF]"
+              className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#7D70B0] transition hover:text-[#5B41FF]"
             >
               <CornerDownLeft size={16} />
               {repliesOpen ? "Hide replies" : `Show replies (${question.replies.length})`}
@@ -131,7 +131,7 @@ function BoardQuestionCard({
           <button
             type="button"
             onClick={onToggleAnswered}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
               isAnswered
                 ? "bg-orange-50 text-orange-600 hover:bg-orange-100"
                 : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
@@ -142,7 +142,7 @@ function BoardQuestionCard({
           <button
             type="button"
             onClick={onDelete}
-            className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
+            className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100"
           >
             <Trash2 size={16} />
             Delete
@@ -189,7 +189,7 @@ function BoardQuestionCard({
               {initials(question.student_name)}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-700">{question.student_name}</p>
+              <p className="truncate text-sm font-medium text-slate-700">{question.student_name}</p>
               <p className="text-xs text-slate-500">{question.student_id}</p>
             </div>
           </div>
@@ -197,7 +197,7 @@ function BoardQuestionCard({
             type="button"
             onClick={onReply}
             disabled={!replyDraft.trim()}
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             <MessageSquarePlus size={16} />
             Post Reply
@@ -343,15 +343,15 @@ export default function ProfessorBoardReviewPage() {
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="mb-5 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="mb-5 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
               >
                 <ChevronLeft size={18} />
                 Back
               </button>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#D1388D]">
+              <p className="text-sm font-medium uppercase tracking-[0.18em] text-[#D1388D]">
                 Live Board Review
               </p>
-              <h1 className="mt-3 break-words text-3xl font-semibold text-[#1B1B1B]">
+              <h1 className="mt-3 break-words text-3xl font-bold text-[#1B1B1B]">
                 {boardTitle}
               </h1>
               <p className="mt-2 text-sm text-slate-500">
@@ -385,15 +385,15 @@ export default function ProfessorBoardReviewPage() {
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-[22px] bg-[#FFF6EC] p-4">
                   <p className="text-sm text-slate-500">Pending</p>
-                  <p className="mt-2 text-3xl font-semibold text-[#EA580C]">{stats.pending}</p>
+                  <p className="mt-2 text-3xl font-medium text-[#EA580C]">{stats.pending}</p>
                 </div>
                 <div className="rounded-[22px] bg-[#ECFDF5] p-4">
                   <p className="text-sm text-slate-500">Answered</p>
-                  <p className="mt-2 text-3xl font-semibold text-[#059669]">{stats.answered}</p>
+                  <p className="mt-2 text-3xl font-medium text-[#059669]">{stats.answered}</p>
                 </div>
                 <div className="rounded-[22px] bg-[#F4F0FF] p-4">
                   <p className="text-sm text-slate-500">Total</p>
-                  <p className="mt-2 text-3xl font-semibold text-[#513FDF]">{stats.total}</p>
+                  <p className="mt-2 text-3xl font-medium text-[#513FDF]">{stats.total}</p>
                 </div>
               </div>
             </div>
@@ -407,16 +407,16 @@ export default function ProfessorBoardReviewPage() {
 
           {!selectedBoardId ? (
             <div className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
-              <h2 className="text-3xl font-semibold text-[#1B1B1B]">Missing board_id</h2>
+              <h2 className="text-3xl font-medium text-[#1B1B1B]">Missing board_id</h2>
               <p className="mt-3 text-lg text-slate-500">
                 Open this page from a board link that includes `board_id`.
               </p>
             </div>
           ) : questions.length === 0 ? (
             <div className="rounded-[32px] border border-dashed border-slate-200 bg-white px-8 py-14 text-center shadow-sm">
-              <h2 className="text-3xl font-semibold text-[#1B1B1B]">No questions yet</h2>
+              <h2 className="text-3xl font-medium text-[#1B1B1B]">No questions yet</h2>
               <p className="mt-3 text-lg text-slate-500">
-                Questions for this board will appear here once students start asking.
+                ยังไม่มีคำถามในขณะนี้ คำถามจากนักศึกษาจะแสดงที่นี่
               </p>
             </div>
           ) : (
