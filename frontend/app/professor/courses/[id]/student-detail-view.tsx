@@ -279,10 +279,12 @@ export default function StudentDetailView() {
   const routeParams = useParams<{ id: string | string[] }>();
   const searchParams = useSearchParams();
   const { session } = useAuthSession();
+  const sessionUserId = session?.userId ?? "";
+  const sessionAccessToken = session?.accessToken ?? "";
   const studentId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id ?? "";
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
-  const hasSession = Boolean(session?.userId && session?.accessToken);
+  const hasSession = Boolean(sessionUserId && sessionAccessToken);
   const hasRouteContext = Boolean(studentId && selectedCourseCode);
   const hasRouteMismatch =
     hasRouteContext &&
@@ -312,25 +314,29 @@ export default function StudentDetailView() {
       : null;
 
   useEffect(() => {
-    if (!activeRequestKey) {
+    if (!activeRequestKey || !sessionUserId || !sessionAccessToken) {
       return;
     }
 
     Promise.allSettled([
-      getProfessorQuestionsByCourse(session.userId, selectedCourseCode, session.accessToken),
+      getProfessorQuestionsByCourse(
+        sessionUserId,
+        selectedCourseCode,
+        sessionAccessToken,
+      ),
       getStudentAnalyticsForProfessor(
-        session.userId,
+        sessionUserId,
         selectedCourseCode,
         studentId,
-        session.accessToken,
+        sessionAccessToken,
       ),
       getStudentQuestionsInCourse(
-        session.userId,
+        sessionUserId,
         selectedCourseCode,
         studentId,
-        session.accessToken,
+        sessionAccessToken,
       ),
-      getStudentProfile(studentId, session.accessToken, "professor"),
+      getStudentProfile(studentId, sessionAccessToken, "professor"),
     ]).then(([courseResult, analyticsResult, questionResult, profileResult]) => {
       const courseData = courseResult.status === "fulfilled" ? courseResult.value : null;
       const analyticsData =
@@ -407,8 +413,8 @@ export default function StudentDetailView() {
     activeRequestKey,
     refreshToken,
     selectedCourseCode,
-    session?.accessToken,
-    session?.userId,
+    sessionAccessToken,
+    sessionUserId,
     studentId,
   ]);
 
