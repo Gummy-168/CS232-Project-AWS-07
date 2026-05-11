@@ -286,7 +286,13 @@ export default function BoardView() {
                   {filteredStudents.map((student) => (
                     <tr
                       key={student.id}
-                      onClick={() => router.push(`/professor/courses/${student.id}`)}
+                      onClick={() =>
+                        router.push(
+                          `/professor/courses/${student.id}?course_code=${encodeURIComponent(
+                            data.course.code,
+                          )}`,
+                        )
+                      }
                       className="cursor-pointer border-t border-slate-50 transition hover:bg-slate-50"
                     >
                       <td className="py-2.5">

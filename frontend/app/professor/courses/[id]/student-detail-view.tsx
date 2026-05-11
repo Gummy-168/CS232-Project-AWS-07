@@ -9,7 +9,7 @@ import {
   TrendingUp,
   User,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Header from "@/app/components/Header";
 import CreateCourse from "@/app/components/createcourse";
 import { useAuthSession } from "@/app/hooks/useAuthSession";
@@ -274,16 +274,28 @@ function LoadingSpinner() {
   );
 }
 
-export default function StudentDetailView({ params }: { params: { id: string } }) {
+export default function StudentDetailView() {
   const router = useRouter();
+  const routeParams = useParams<{ id: string | string[] }>();
   const searchParams = useSearchParams();
   const { session } = useAuthSession();
-  const studentId = params.id;
+  const studentId = Array.isArray(routeParams?.id) ? routeParams.id[0] : routeParams?.id ?? "";
   const selectedCourseCode =
     searchParams.get("course_code")?.trim().toUpperCase() ?? "";
+  const hasSession = Boolean(session?.userId && session?.accessToken);
+  const hasRouteContext = Boolean(studentId && selectedCourseCode);
+  const hasRouteMismatch =
+    hasRouteContext &&
+    studentId.trim().toUpperCase() === selectedCourseCode.trim().toUpperCase();
+  const routeError = !studentId
+    ? "Student ID not found in route"
+    : !selectedCourseCode
+      ? "Course code not found in URL"
+      : hasRouteMismatch
+        ? "Route validation failed: URL id appears to be course_code, not student_id"
+        : "";
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<FilterValue>("All");
   const [studentProfile, setStudentProfile] = useState<StudentProfileCard | null>(null);
@@ -293,20 +305,16 @@ export default function StudentDetailView({ params }: { params: { id: string } }
   const [openReplies, setOpenReplies] = useState<Record<string, boolean>>({});
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [refreshToken, setRefreshToken] = useState(0);
+  const [loadedRequestKey, setLoadedRequestKey] = useState<string | null>(null);
+  const activeRequestKey =
+    hasSession && hasRouteContext && !hasRouteMismatch
+      ? `${studentId}:${selectedCourseCode}:${refreshToken}`
+      : null;
 
   useEffect(() => {
-    if (!session?.userId || !session.accessToken || !studentId || !selectedCourseCode) {
-      setIsLoading(false);
+    if (!activeRequestKey) {
       return;
     }
-
-    if (studentId.trim().toUpperCase() === selectedCourseCode.trim().toUpperCase()) {
-      setError("Route validation failed: URL id appears to be course_code, not student_id");
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
 
     Promise.allSettled([
       getProfessorQuestionsByCourse(session.userId, selectedCourseCode, session.accessToken),
@@ -345,7 +353,7 @@ export default function StudentDetailView({ params }: { params: { id: string } }
         setError("Permission Denied: Please check professor role header");
         setStudentProfile(null);
         setQuestions([]);
-        setIsLoading(false);
+        setLoadedRequestKey(activeRequestKey);
         return;
       }
 
@@ -365,7 +373,7 @@ export default function StudentDetailView({ params }: { params: { id: string } }
         }
         setStudentProfile(null);
         setQuestions([]);
-        setIsLoading(false);
+        setLoadedRequestKey(activeRequestKey);
         return;
       }
 
@@ -393,9 +401,19 @@ export default function StudentDetailView({ params }: { params: { id: string } }
       );
       setProfessorName(courseData?.professor.full_name || courseData?.professor.name || "Professor");
       setError("");
-      setIsLoading(false);
+      setLoadedRequestKey(activeRequestKey);
     });
-  }, [session?.accessToken, session?.userId, selectedCourseCode, studentId, refreshToken]);
+  }, [
+    activeRequestKey,
+    refreshToken,
+    selectedCourseCode,
+    session?.accessToken,
+    session?.userId,
+    studentId,
+  ]);
+
+  const isLoading = activeRequestKey !== null && loadedRequestKey !== activeRequestKey;
+  const shouldShowLoading = !hasSession || (!routeError && isLoading);
 
   const filteredQuestions = useMemo(() => {
     if (filter === "Answered") {
@@ -477,21 +495,27 @@ export default function StudentDetailView({ params }: { params: { id: string } }
             <p className="text-sm font-semibold text-[#232735]">Student Detail</p>
           </div>
 
-          {isLoading ? <LoadingSpinner /> : null}
+          {shouldShowLoading ? <LoadingSpinner /> : null}
 
-          {!isLoading && error ? (
+          {!shouldShowLoading && routeError ? (
+            <div className="rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-600">
+              {routeError}
+            </div>
+          ) : null}
+
+          {!shouldShowLoading && !routeError && error ? (
             <div className="rounded-2xl border border-rose-100 bg-rose-50 px-5 py-4 text-sm font-medium text-rose-600">
               {error}
             </div>
           ) : null}
 
-          {!isLoading && !error && !studentProfile ? (
+          {!shouldShowLoading && !routeError && !error && !studentProfile ? (
             <div className="rounded-2xl border border-slate-100 bg-[#FCFBFF] px-5 py-4 text-sm text-slate-500">
               Student data not found
             </div>
           ) : null}
 
-          {!isLoading && !error && studentProfile ? (
+          {!shouldShowLoading && !routeError && !error && studentProfile ? (
             <div className="rounded-2xl border border-slate-100 bg-[#FCFBFF] p-4 md:p-5">
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
                 <div className="lg:col-span-2">
