@@ -2,7 +2,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { usePathname, useRouter,useSearchParams } from "next/navigation";
 import JoinCourse from "./joincourse";
 import { getStudentCourses, type StudentCourse } from "../lib/api";
 import { clearStoredSession } from "../lib/auth";
@@ -25,16 +26,19 @@ import {
   User,
 } from "lucide-react";
 
-export default function Sidebar() {
+function SidebarContent() {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
-      : new URLSearchParams();
+  const searchParams = useSearchParams();
   const { session } = useAuthSession();
-  const [isFeedOpen, setIsFeedOpen] = useState(pathname.includes("/feed"));
-  const [isCourseOpen, setIsCourseOpen] = useState(pathname.includes("/courses"));
+  const [isFeedOpen, setIsFeedOpen] = useState(false);
+  const [isCourseOpen, setIsCourseOpen] = useState(false);
+
+  const isFeedActive = pathname.startsWith("/student/feed");
+  const isCourseActive = pathname.startsWith("/student/courses");
+
+  const feedOpen = isFeedOpen || isFeedActive;
+  const courseOpen = isCourseOpen || isCourseActive;
   const [isJoinOpen, setIsJoinOpen] = useState(false);
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const selectedCourseCode =
@@ -98,8 +102,8 @@ export default function Sidebar() {
           {/* My Courses (Dropdown) */}
           <div className="space-y-1">
             <div
-              onClick={() => setIsCourseOpen(!isCourseOpen)}
-              className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all  ${pathname.includes("/courses") ? activeStyle : inactiveStyle}`}
+              onClick={() => setIsCourseOpen(!courseOpen)}
+              className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all ${isCourseActive ? activeStyle : inactiveStyle}`}
             >
               <div className="flex items-center gap-3">
                 <BookOpen size={20} />
@@ -107,11 +111,11 @@ export default function Sidebar() {
               </div>
               <ChevronRight
                 size={18}
-                className={`transition-transform ${isCourseOpen ? "rotate-90" : ""}`}
+                className={`transition-transform ${courseOpen ? "rotate-90" : ""}`}
               />
             </div>
 
-            {isCourseOpen && (
+            {courseOpen && (
               <div className="ml-4 mt-2 space-y-1">
                 {courses.length === 0 ? (
                   <Link
@@ -127,7 +131,9 @@ export default function Sidebar() {
                       pathname.startsWith("/student/courses/")) && (
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
                     )}
-                    <div className="flex items-center gap-3 pl-4">No Courses</div>
+                    <div className="flex items-center gap-3 pl-4">
+                      No Courses
+                    </div>
                   </Link>
                 ) : (
                   courses.map((course) => (
@@ -141,7 +147,10 @@ export default function Sidebar() {
                         (pathname === "/student/courses" ||
                           pathname.startsWith("/student/courses/")) &&
                         selectedCourseCode === course.course_code &&
-                        sectionCodesMatch(selectedSectionCode, course.section_code)
+                        sectionCodesMatch(
+                          selectedSectionCode,
+                          course.section_code,
+                        )
                           ? "text-[#7B61FF] bg-[#FAF8FF]"
                           : "text-slate-400 hover:text-[#7B61FF]"
                       }`}
@@ -149,9 +158,12 @@ export default function Sidebar() {
                       {(pathname === "/student/courses" ||
                         pathname.startsWith("/student/courses/")) &&
                         selectedCourseCode === course.course_code &&
-                        sectionCodesMatch(selectedSectionCode, course.section_code) && (
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
-                      )}
+                        sectionCodesMatch(
+                          selectedSectionCode,
+                          course.section_code,
+                        ) && (
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#D1388D] rounded-r-full" />
+                        )}
                       <div className="flex items-center gap-3 pl-4">
                         {course.course_code}
                         {formatSectionLabel(course.section_code)
@@ -193,8 +205,8 @@ export default function Sidebar() {
           {/* Feed */}
           <div className="space-y-1">
             <div
-              onClick={() => setIsFeedOpen(!isFeedOpen)}
-              className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all ${pathname.includes("/feed") ? activeStyle : inactiveStyle}`}
+              onClick={() => setIsFeedOpen(!feedOpen)}
+              className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all ${isFeedActive ? activeStyle : inactiveStyle}`}
             >
               <div className="flex items-center gap-3">
                 <Rss size={20} />
@@ -202,11 +214,11 @@ export default function Sidebar() {
               </div>
               <ChevronRight
                 size={18}
-                className={`transition-transform ${isFeedOpen ? "rotate-90" : ""}`}
+                className={`transition-transform ${feedOpen ? "rotate-90" : ""}`}
               />
             </div>
 
-            {isFeedOpen && (
+            {feedOpen && (
               <div className="ml-4 mt-2 space-y-1">
                 <Link
                   href="/student/feed/allquestions"
@@ -272,5 +284,12 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+  );
+}
+export default function Sidebar() {
+  return (
+    <Suspense fallback={null}>
+      <SidebarContent />
+    </Suspense>
   );
 }

@@ -157,7 +157,8 @@ export default function ProfessorDashboardHomeView() {
 
   useEffect(() => {
     const handleCourseCreated = (event: Event) => {
-      const createdCourse = (event as CustomEvent<ProfessorCourseResponse>).detail;
+      const createdCourse = (event as CustomEvent<ProfessorCourseResponse>)
+        .detail;
       if (!createdCourse?.course_code) {
         return;
       }
@@ -172,7 +173,10 @@ export default function ProfessorDashboardHomeView() {
 
     window.addEventListener("askademy-course-created", handleCourseCreated);
     return () => {
-      window.removeEventListener("askademy-course-created", handleCourseCreated);
+      window.removeEventListener(
+        "askademy-course-created",
+        handleCourseCreated,
+      );
     };
   }, [pathname, router]);
 
@@ -201,7 +205,9 @@ export default function ProfessorDashboardHomeView() {
       })
       .catch((err: unknown) => {
         const message =
-          err instanceof Error ? err.message : "Failed to load professor dashboard";
+          err instanceof Error
+            ? err.message
+            : "Failed to load professor dashboard";
         setError(message);
       });
   }, [
@@ -219,10 +225,15 @@ export default function ProfessorDashboardHomeView() {
   const courseOptions = useMemo(() => data?.courses ?? [], [data?.courses]);
   const sectionOptions = useMemo(() => data?.sections ?? [], [data?.sections]);
   const currentCourse = courseOptions.find(
-    (course) => course.course_code.trim().toUpperCase() === (data?.selected_course_code || "").trim().toUpperCase(),
+    (course) =>
+      course.course_code.trim().toUpperCase() ===
+      (data?.selected_course_code || "").trim().toUpperCase(),
   );
   const currentCourseTitle =
-    data?.course.title || currentCourse?.course_name || selectedCourseCode || "No course selected";
+    data?.course.title ||
+    currentCourse?.course_name ||
+    selectedCourseCode ||
+    "No course selected";
 
   const timelineItems = useMemo(() => {
     if (!data) {
@@ -314,7 +325,9 @@ export default function ProfessorDashboardHomeView() {
     }
 
     if (!createBoardTargetSection) {
-      router.push(`/professor/courses?course_code=${encodeURIComponent(selectedCourseCode)}`);
+      router.push(
+        `/professor/courses?course_code=${encodeURIComponent(selectedCourseCode)}`,
+      );
       return;
     }
 
@@ -338,7 +351,8 @@ export default function ProfessorDashboardHomeView() {
       );
       refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Create board failed";
+      const message =
+        err instanceof Error ? err.message : "Create board failed";
       if (message.toLowerCase().includes("active board")) {
         const forceReplace = window.confirm(
           `${message}\n\nDo you want to close the current board and open a new one?`,
@@ -360,7 +374,9 @@ export default function ProfessorDashboardHomeView() {
           return;
         } catch (forceErr) {
           window.alert(
-            forceErr instanceof Error ? forceErr.message : "Create board failed",
+            forceErr instanceof Error
+              ? forceErr.message
+              : "Create board failed",
           );
           return;
         }
@@ -418,7 +434,9 @@ export default function ProfessorDashboardHomeView() {
     }
 
     try {
-      await createProfessorQuestionReply(session.userId, questionId, { content });
+      await createProfessorQuestionReply(session.userId, questionId, {
+        content,
+      });
       setReplyDrafts((prev) => ({ ...prev, [questionId]: "" }));
       setOpenReplies((prev) => ({ ...prev, [questionId]: true }));
       refresh();
@@ -428,7 +446,10 @@ export default function ProfessorDashboardHomeView() {
   };
 
   const professorName =
-    session?.fullName || session?.nickname || data?.professor?.full_name || data?.professor?.name;
+    session?.fullName ||
+    session?.nickname ||
+    data?.professor?.full_name ||
+    data?.professor?.name;
 
   if (isHydrated && (!session?.userId || session.role !== "professor")) {
     return (
@@ -456,13 +477,15 @@ export default function ProfessorDashboardHomeView() {
         <div className="mx-auto max-w-[1220px] px-6">
           <section className="rounded-[36px] bg-white px-8 py-8 shadow-[0_20px_60px_rgba(104,74,191,0.08)]">
             <div className="flex flex-col items-center text-center">
-              <h2 className="text-3xl font-bold text-[#1B1B1B]">
-                {selectedCourseCode ? `${selectedCourseCode}: ${currentCourseTitle}` : currentCourseTitle}
+              <h2 className="text-3xl font-med text-[#1B1B1B]">
+                {selectedCourseCode
+                  ? `${selectedCourseCode}: ${currentCourseTitle}`
+                  : currentCourseTitle}
               </h2>
               <p className="mt-3 max-w-2xl text-sm text-[#8D84B6]">
                 {createBoardTargetSection
                   ? `Create a new board for ${formatSectionLabel(createBoardTargetSection)} and start the class conversation.`
-                  : "Select a course section in My Courses if you want to open a board for a specific section."}
+                  : "สร้างรายวิชาได้ที่ Create Course"}
               </p>
               <button
                 type="button"
@@ -476,62 +499,66 @@ export default function ProfessorDashboardHomeView() {
           </section>
 
           <section className="mt-10">
-            <h3 className="text-[2.1rem] font-bold text-[#1B1B1B]">ActivityTimeline</h3>
-
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              {[
-                { label: "All", value: "all" },
-                { label: "Answered", value: "answered" },
-                { label: "Unanswered", value: "unanswered" },
-                { label: "Board", value: "board" },
-              ].map((item) => {
-                const active = filter === item.value;
-                return (
+            <h3 className="text-3xl font-medium text-[#1B1B1B]">
+              ActivityTimeline
+            </h3>
+            <div className="mt-6 flex flex-wrap items-center gap-3 mb-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                {[
+                  { label: "All", value: "all" },
+                  { label: "Answered", value: "answered" },
+                  { label: "Unanswered", value: "unanswered" },
+                  { label: "Board", value: "board" },
+                ].map((item) => (
                   <button
                     key={item.value}
                     type="button"
                     onClick={() => setFilter(item.value as DashboardFilter)}
-                    className={`rounded-full px-6 py-2.5 text-sm font-semibold shadow-sm transition ${
-                      active
-                        ? "bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] text-white"
-                        : "border border-[#ECE6FB] bg-white text-[#7E75A4] hover:border-[#D7CCF6]"
+                    className={`px-5 py-1.5 rounded-full text-sm font-regular transition-all border ${
+                      filter === item.value
+                        ? "bg-[#5B41FF] text-white border-[#5B41FF]"
+                        : "text-slate-400 border-slate-200 hover:bg-slate-200 bg-white"
                     }`}
                   >
                     {item.label}
                   </button>
-                );
-              })}
-
-              <select
-                value={selectedCourseCode}
-                onChange={(event) => {
-                  const nextCourseCode = event.target.value.trim().toUpperCase();
-                  if (nextCourseCode) {
-                    router.replace(`${pathname}?${buildCourseQuery(nextCourseCode)}`);
-                  } else {
-                    router.replace(pathname);
-                  }
-                }}
-                className="rounded-full border border-[#ECE6FB] bg-white px-4 py-2.5 text-sm font-medium text-[#6C6297] shadow-sm outline-none"
-              >
-                <option value="">By Course</option>
-                {courseOptions.map((course) => (
-                  <option key={course.course_code} value={course.course_code}>
-                    {course.course_code}
-                  </option>
                 ))}
-              </select>
 
-              <div className="relative min-w-[260px] flex-1">
+                <select
+                  value={selectedCourseCode}
+                  onChange={(event) => {
+                    const nextCourseCode = event.target.value
+                      .trim()
+                      .toUpperCase();
+                    if (nextCourseCode) {
+                      router.replace(
+                        `${pathname}?${buildCourseQuery(nextCourseCode)}`,
+                      );
+                    } else {
+                      router.replace(pathname);
+                    }
+                  }}
+                  className="px-5 py-1.5 rounded-full text-sm border text-slate-400 border-slate-200 bg-white outline-none"
+                >
+                  <option value="">By Course</option>
+                  {courseOptions.map((course) => (
+                    <option key={course.course_code} value={course.course_code}>
+                      {course.course_code}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="relative flex-1 max-w-xs ml-auto">
                 <Search
-                  size={18}
-                  className="absolute right-5 top-1/2 -translate-y-1/2 text-[#7C739F]"
+                  size={15}
+                  className="absolute left-3 top-2.5 text-slate-400"
                 />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search my questions..."
-                  className="w-full rounded-full border border-[#ECE6FB] bg-white px-5 py-3 pr-12 text-sm font-medium text-[#443A66] shadow-sm outline-none placeholder:text-[#A79FC4]"
+                  className="w-full bg-white border border-slate-200 py-2 pl-9 pr-4 rounded-full text-sm focus:outline-none"
                 />
               </div>
             </div>
@@ -565,7 +592,8 @@ export default function ProfessorDashboardHomeView() {
                       question={item.question}
                       replyValue={replyDrafts[item.question.id] ?? ""}
                       repliesOpen={
-                        openReplies[item.question.id] ?? item.question.replies.length > 0
+                        openReplies[item.question.id] ??
+                        item.question.replies.length > 0
                       }
                       onReplyDraftChange={(value) =>
                         setReplyDrafts((prev) => ({
@@ -576,8 +604,10 @@ export default function ProfessorDashboardHomeView() {
                       onToggleReplies={() =>
                         setOpenReplies((prev) => ({
                           ...prev,
-                          [item.question.id]:
-                            !(prev[item.question.id] ?? item.question.replies.length > 0),
+                          [item.question.id]: !(
+                            prev[item.question.id] ??
+                            item.question.replies.length > 0
+                          ),
                         }))
                       }
                       onReply={() => void handleReply(item.question.id)}
@@ -605,14 +635,17 @@ function BoardTimelineCard({ board }: { board: ProfessorBoardSession }) {
     <article className="rounded-[28px] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(104,74,191,0.06)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="flex gap-4">
-          <Avatar seed={board.board_id} alt={`${board.course_code} board avatar`} />
+          <Avatar
+            seed={board.board_id}
+            alt={`${board.course_code} board avatar`}
+          />
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-bold text-[#1F1838]">
-                {board.course_code} Course Bot
+              <span className="text-lg font-medium text-[#1F1838]">
+                {board.course_code} Course Board
               </span>
               {board.section_code ? (
-                <span className="rounded-full bg-[#FFF3E8] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#D97706]">
+                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium uppercase text-gray-500">
                   {formatSectionLabel(board.section_code)}
                 </span>
               ) : null}
@@ -624,14 +657,15 @@ function BoardTimelineCard({ board }: { board: ProfessorBoardSession }) {
               {board.board_title || board.board_id}
             </p>
             <p className="mt-2 text-sm text-[#7E75A4]">
-              {board.total_questions} questions / {board.answered_questions} answered
+              {board.total_questions} questions / {board.answered_questions}{" "}
+              answered
             </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <span
-            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${boardStatusPillClasses(
+            className={`rounded-full px-3 py-1 text-xs font-medium uppercase ${boardStatusPillClasses(
               board.status,
             )}`}
           >
@@ -641,9 +675,11 @@ function BoardTimelineCard({ board }: { board: ProfessorBoardSession }) {
             href={`/professor/courses/boardreview?course_code=${encodeURIComponent(
               board.course_code,
             )}&board_id=${encodeURIComponent(board.board_id)}${
-              board.section_code ? `&sec=${encodeURIComponent(board.section_code)}` : ""
+              board.section_code
+                ? `&sec=${encodeURIComponent(board.section_code)}`
+                : ""
             }`}
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-5 py-2.5 text-sm font-semibold text-white"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-5 py-2.5 text-sm font-medium text-white transition hover:opacity-80"
           >
             <Eye size={16} />
             Review Session
@@ -677,102 +713,129 @@ function QuestionTimelineCard({
 
   return (
     <article className="rounded-[28px] bg-white px-5 py-5 shadow-[0_14px_32px_rgba(104,74,191,0.06)]">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-        <div className="flex min-w-0 gap-4">
-          <Avatar seed={question.student_id} alt={`${question.student_name} avatar`} />
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-bold text-[#1F1838]">{question.student_name}</span>
-              {question.section_code ? (
-                <span className="rounded-full bg-[#FFF3E8] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#D97706]">
-                  {formatSectionLabel(question.section_code)}
-                </span>
-              ) : null}
-              <span className="text-xs text-[#A39ACB]">
+      {/* Header: avatar + ชื่อ + เวลา | status */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <Avatar
+            seed={question.student_id}
+            alt={`${question.student_name} avatar`}
+          />
+          <div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-lg font-medium text-slate-800">
+                {question.student_name}
+              </span>
+              <span className="text-xs text-slate-400">
                 {formatRelativeTime(question.created_at)}
               </span>
             </div>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-[#40375C]">
-              {question.title ? `${question.title}\n${question.content}` : question.content}
-            </p>
+            {/* Tags */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {question.section_code ? (
+                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                  {formatSectionLabel(question.section_code)}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {/* Status pill */}
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium uppercase ${questionStatusPillClasses(question.status)}`}
+        >
+          {isAnswered ? "● ANSWERED" : "● UNANSWERED"}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="ml-14 mt-2">
+        {question.title ? (
+          <p className="text-xl font-semibold text-slate-800 mt-5">
+            {question.title}
+          </p>
+        ) : null}
+        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-600">
+          {question.content}
+        </p>
+
+        {/* Reply + actions */}
+        <div className="mt-2 flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={onToggleReplies}
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 hover:text-violet-500"
+          >
+            <CornerDownLeft size={13} />
+            {question.replies.length > 0
+              ? `${question.replies.length} replies`
+              : "Reply"}
+          </button>
+          <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
-              onClick={onToggleReplies}
-              className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-[#8B7FC0] transition hover:text-[#5B41FF]"
+              onClick={onToggleAnswered}
+              className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-sm font-medium text-emerald-600 hover:bg-emerald-50 cursor-pointer"
             >
-              <CornerDownLeft size={15} />
-              {question.replies.length}
+              {isAnswered ? "Unmark" : "Mark Answered"}
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="rounded-full border border-rose-200 bg-white px-3 py-1 text-sm font-medium text-rose-500 hover:bg-rose-50 cursor-pointer"
+            >
+              Delete
             </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-[0.14em] ${questionStatusPillClasses(
-              question.status,
-            )}`}
-          >
-            {question.status}
-          </span>
-          <button
-            type="button"
-            onClick={onToggleAnswered}
-            className="rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-100"
-          >
-            {isAnswered ? "Mark Unanswered" : "Mark Answered"}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="rounded-full bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-500 transition hover:bg-rose-100"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-
-      {repliesOpen && question.replies.length > 0 ? (
-        <div className="mt-5 space-y-3 border-t border-[#F1ECFF] pt-5">
-          {question.replies.map((reply) => (
-            <div
-              key={reply.id}
-              className={`rounded-[22px] px-4 py-4 ${
-                reply.is_professor
-                  ? "bg-[#EFFFF6] text-[#275E47]"
-                  : "bg-[#F6F4FF] text-[#4B4170]"
-              }`}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold uppercase tracking-[0.14em]">
-                  {reply.is_professor ? "Professor Reply" : reply.author_name}
-                </span>
-                <span className="text-xs opacity-70">
-                  {formatRelativeTime(reply.created_at)}
-                </span>
+        {/* Replies */}
+        {repliesOpen && question.replies.length > 0 ? (
+          <div className="mt-5 space-y-3 border-t border-[#F1ECFF] pt-5">
+            {question.replies.map((reply) => (
+              <div
+                key={reply.id}
+                className={`rounded-[22px] px-4 py-4 ${
+                  reply.is_professor
+                    ? "bg-[#EFFFF6] text-[#275E47]"
+                    : "bg-[#F6F4FF] text-[#4B4170]"
+                }`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-[0.14em]">
+                    {reply.is_professor ? "Professor Reply" : reply.author_name}
+                  </span>
+                  <span className="text-xs opacity-70">
+                    {formatRelativeTime(reply.created_at)}
+                  </span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6">
+                  {reply.content}
+                </p>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{reply.content}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
+            ))}
+          </div>
+        ) : null}
 
-      <div className="mt-5 rounded-[24px] bg-[#FBFBFE] p-4">
-        <textarea
-          rows={3}
-          value={replyValue}
-          onChange={(event) => onReplyDraftChange(event.target.value)}
-          placeholder="Reply as Instructor..."
-          className="w-full resize-none bg-transparent text-sm leading-6 text-[#463C69] outline-none placeholder:text-[#B0A6D7]"
-        />
-        <div className="mt-3 flex justify-end">
-          <button
-            type="button"
-            onClick={onReply}
-            className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#5B41FF] to-[#6A63F8] px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-violet-100"
-          >
-            Post Reply
-            <ChevronRight size={16} />
-          </button>
+        {/* Reply box */}
+        <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2.5">
+          <textarea
+            rows={2}
+            value={replyValue}
+            onChange={(event) => onReplyDraftChange(event.target.value)}
+            placeholder="Reply as Instructor..."
+            className="w-full resize-none bg-transparent text-sm leading-5 text-slate-700 outline-none placeholder:text-slate-400"
+          />
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={onReply}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#5B41FF] to-[#8B63F7] px-4 py-1.5 text-sm font-medium text-white hover:opacity-80 transition cursor-pointer"
+            >
+              Post Reply
+              <ChevronRight size={13} />
+            </button>
+          </div>
         </div>
       </div>
     </article>

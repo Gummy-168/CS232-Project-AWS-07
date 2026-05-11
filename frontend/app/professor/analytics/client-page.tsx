@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
@@ -252,10 +252,7 @@ function buildAnalyticsQuery(
 function ProfessorAnalyticsPageContent() {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
-      : new URLSearchParams();
+  const searchParams = useSearchParams();
   const { session } = useAuthSession();
   const [error, setError] = useState("");
   const [data, setData] = useState<ProfessorQuestionsData | null>(null);
@@ -577,16 +574,13 @@ function ProfessorAnalyticsPageContent() {
               <div className="max-w-2xl">
                 <div className="inline-flex items-center gap-2 rounded-full bg-[#F8F2FF] px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#8B5CF6]">
                   <BarChart3 size={14} />
-                  Professor Analytics
+                  ภาพรวมการเรียนการสอน
                 </div>
-                <h1 className="mt-4 text-3xl font-bold text-[#1F1838] xl:text-4xl">
-                  Course and section participation overview
+                <h1 className="mt-4 text-2xl font-bold text-[#1F1838] xl:text-4xl">
+                  สรุปการมีส่วนร่วมของนักศึกษา
                 </h1>
-                <p className="mt-3 text-sm leading-7 text-[#7C739D] xl:text-base">
-                  Review engagement across courses, sections, board sessions, and
-                  student participation. This page currently aggregates from the
-                  existing course/question feed so it is ready to connect to a
-                  dedicated analytics API later.
+                <p className="mt-3 text-xs leading-7 text-[#7C739D] xl:text-base">
+                  ดูภาพรวมการมีส่วนร่วมของนักศึกษาในแต่ละรายวิชา กลุ่มเรียน และ Board Session รวมถึงสถิติคำถามที่ตอบแล้วและรอตอบ
                 </p>
               </div>
 
@@ -674,35 +668,35 @@ function ProfessorAnalyticsPageContent() {
             <SummaryCard
               label="Total Students"
               value={totalStudents}
-              helper="Counted from enrollments"
+              helper="นับจากการลงทะเบียน"
               accent="from-[#F063AC] to-[#D94FA2]"
               icon={<Users size={20} />}
             />
             <SummaryCard
               label="Total Questions"
               value={totalQuestions}
-              helper="Filtered by course / section / range"
+              helper="กรองตามรายวิชา / กลุ่ม / ช่วงเวลา"
               accent="from-[#6B5BFF] to-[#8C72FF]"
               icon={<MessageSquare size={20} />}
             />
             <SummaryCard
               label="Answered Rate"
               value={`${answeredRate}%`}
-              helper={`${answeredQuestions} answered`}
+              helper={`ตอบแล้ว ${answeredQuestions} ข้อ`}
               accent="from-[#00A98F] to-[#4BC9A1]"
               icon={<CheckCircle2 size={20} />}
             />
             <SummaryCard
               label="Board Sessions"
               value={filteredBoards.length}
-              helper="Boards in selected scope"
+              helper="จำนวน Board ในช่วงที่เลือก"
               accent="from-[#FF9D4D] to-[#FF6B6B]"
               icon={<Eye size={20} />}
             />
             <SummaryCard
-              label="Average Participation"
+              label="Participation"
               value={`${participationRate}%`}
-              helper={`${activeStudentIds.size} active students`}
+              helper={`${activeStudentIds.size} คนที่ active`}
               accent="from-[#5D71F5] to-[#EE57A7]"
               icon={<BarChart3 size={20} />}
             />
@@ -712,14 +706,14 @@ function ProfessorAnalyticsPageContent() {
             <article className="rounded-[32px] bg-white p-6 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold text-[#21183A]">
-                    Question Trend
-                  </h2>
-                  <p className="mt-1 text-sm text-[#8479A7]">
-                    Based on `questions.created_at` in the selected date range
-                  </p>
+                  <h2 className="text-2xl font-medium text-[#21183A]">
+                  Question Trend
+                </h2>
+                <p className="mt-1 text-sm text-[#8479A7]">
+                  จำนวนคำถามที่ถูกถามในแต่ละช่วงเวลา
+                </p>
                 </div>
-                <span className="rounded-full bg-[#F5F1FF] px-3 py-1 text-xs font-semibold text-[#735DE8]">
+                <span className="rounded-full bg-[#F5F1FF] px-3 py-1 text-xs font-medium text-[#735DE8]">
                   {selectedDateRange === "week"
                     ? "Daily view"
                     : "Weekly buckets"}
@@ -732,7 +726,7 @@ function ProfessorAnalyticsPageContent() {
                     maxTrendValue > 0 ? Math.max((point.total / maxTrendValue) * 100, 8) : 0;
                   return (
                     <div key={point.label} className="flex h-full flex-col items-center gap-3">
-                      <span className="text-xs font-semibold text-[#786D9D]">
+                      <span className="text-xs font-medium text-[#786D9D]">
                         {point.total}
                       </span>
                       <div className="flex h-full w-full items-end rounded-full bg-[#F1F3FA] p-1">
@@ -751,12 +745,9 @@ function ProfessorAnalyticsPageContent() {
             </article>
 
             <article className="rounded-[32px] bg-white p-6 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
-              <h2 className="text-2xl font-semibold text-[#21183A]">
+              <h2 className="text-2xl font-medium text-[#21183A]">
                 Question Status Breakdown
               </h2>
-              <p className="mt-1 text-sm text-[#8479A7]">
-                Answered, pending, and moderated visibility
-              </p>
 
               <div className="mt-8 space-y-5">
                 {[
@@ -785,7 +776,7 @@ function ProfessorAnalyticsPageContent() {
                     <div key={item.label}>
                       <div className="mb-2 flex items-center justify-between text-sm">
                         <span className="font-medium text-[#2A2340]">{item.label}</span>
-                        <span className="font-semibold text-[#6A5EDB]">{item.value}</span>
+                        <span className="font-medium text-[#6A5EDB]">{item.value}</span>
                       </div>
                       <div className={`h-3 overflow-hidden rounded-full ${item.bg}`}>
                         <div
@@ -804,12 +795,10 @@ function ProfessorAnalyticsPageContent() {
             <article className="rounded-[32px] bg-white p-6 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold text-[#21183A]">
+                  <h2 className="text-2xl font-medium text-[#21183A]">
                     Section Comparison
                   </h2>
-                  <p className="mt-1 text-sm text-[#8479A7]">
-                    All sections stay visible even when activity is zero
-                  </p>
+
                 </div>
               </div>
 
@@ -829,7 +818,7 @@ function ProfessorAnalyticsPageContent() {
                   <tbody>
                     {sectionComparison.map((section) => (
                       <tr key={section.id} className="border-b border-[#F7F3FD] last:border-b-0">
-                        <td className="py-4 pr-4 font-semibold text-[#241B47]">
+                        <td className="py-4 pr-4 font-medium text-[#241B47]">
                           {section.label}
                         </td>
                         <td className="py-4 pr-4 text-[#6F658F]">{section.students}</td>
@@ -845,7 +834,7 @@ function ProfessorAnalyticsPageContent() {
                                 style={{ width: `${section.participation}%` }}
                               />
                             </div>
-                            <span className="w-12 text-right font-semibold text-[#5F55E6]">
+                            <span className="w-12 text-right font-medium text-[#5F55E6]">
                               {section.participation}%
                             </span>
                           </div>
@@ -858,12 +847,10 @@ function ProfessorAnalyticsPageContent() {
             </article>
 
             <article className="rounded-[32px] bg-white p-6 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
-              <h2 className="text-2xl font-semibold text-[#21183A]">
+              <h2 className="text-2xl font-medium text-[#21183A]">
                 Recent Pending Questions
               </h2>
-              <p className="mt-1 text-sm text-[#8479A7]">
-                Latest unanswered questions in the current scope
-              </p>
+
 
               <div className="mt-6 space-y-4">
                 {recentPendingQuestions.length === 0 ? (
@@ -879,14 +866,14 @@ function ProfessorAnalyticsPageContent() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full bg-[#F1ECFF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6F5CE5]">
+                            <span className="rounded-full bg-[#F1ECFF] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[#6F5CE5]">
                               {formatSectionLabel(question.section_code)}
                             </span>
-                            <span className="rounded-full bg-[#FFF1F6] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#D5488D]">
+                            <span className="rounded-full bg-[#FFF1F6] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[#D5488D]">
                               Pending
                             </span>
                           </div>
-                          <h3 className="mt-3 text-lg font-semibold text-[#231B44]">
+                          <h3 className="mt-3 text-lg font-medium text-[#231B44]">
                             {question.title}
                           </h3>
                           <p className="mt-2 line-clamp-3 text-sm leading-7 text-[#746A96]">
@@ -901,7 +888,7 @@ function ProfessorAnalyticsPageContent() {
                             selectedDateRange,
                             "pending",
                           )}`}
-                          className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-[#E5DBFD] bg-white px-4 py-2 text-sm font-semibold text-[#6D59E7] transition hover:bg-[#FBF8FF]"
+                          className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-[#E5DBFD] bg-white px-4 py-2 text-sm font-medium text-[#6D59E7] transition hover:bg-[#FBF8FF]"
                         >
                           Answer
                           <ChevronRight size={16} />
@@ -917,12 +904,10 @@ function ProfessorAnalyticsPageContent() {
           <section className="mt-6 rounded-[32px] bg-white p-6 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-semibold text-[#21183A]">
+                <h2 className="text-2xl font-medium text-[#21183A]">
                   Board Session Analytics
                 </h2>
-                <p className="mt-1 text-sm text-[#8479A7]">
-                  Review every board in the selected course and section scope
-                </p>
+
               </div>
             </div>
 
@@ -940,11 +925,11 @@ function ProfessorAnalyticsPageContent() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded-full bg-[#F2ECFF] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#6F5CE5]">
+                          <span className="rounded-full bg-[#F2ECFF] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-[#6F5CE5]">
                             {formatSectionLabel(board.section_code)}
                           </span>
                           <span
-                            className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${
+                            className={`rounded-full px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] ${
                               board.status === "ACTIVE"
                                 ? "bg-[#EEF7F5] text-[#13836D]"
                                 : "bg-[#F4F5F8] text-[#7F8798]"
@@ -953,7 +938,7 @@ function ProfessorAnalyticsPageContent() {
                             {board.status.toLowerCase()}
                           </span>
                         </div>
-                        <h3 className="mt-3 text-xl font-semibold text-[#231B44]">
+                        <h3 className="mt-3 text-xl font-medium text-[#231B44]">
                           {board.board_title || board.board_id}
                         </h3>
                         <p className="mt-1 text-sm text-[#857CA6]">
@@ -972,7 +957,7 @@ function ProfessorAnalyticsPageContent() {
                             ? `&sec=${encodeURIComponent(board.section_code)}`
                             : ""
                         }`}
-                        className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-[#E5DBFD] bg-white px-4 py-2 text-sm font-semibold text-[#6D59E7] transition hover:bg-[#FBF8FF]"
+                        className="inline-flex shrink-0 items-center gap-2 rounded-2xl border border-[#E5DBFD] bg-white px-4 py-2 text-sm font-medium text-[#6D59E7] transition hover:bg-[#FBF8FF]"
                       >
                         View Board Details
                         <ChevronRight size={16} />
@@ -1003,13 +988,10 @@ function ProfessorAnalyticsPageContent() {
           </section>
 
           <section className="mt-6 rounded-[32px] bg-white p-6 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
-            <h2 className="text-2xl font-semibold text-[#21183A]">
+            <h2 className="text-2xl font-medium text-[#21183A]">
               Student Participation Ranking
             </h2>
-            <p className="mt-1 text-sm text-[#8479A7]">
-              Participation is based on distinct board sessions joined within the
-              selected scope.
-            </p>
+
 
             <div className="mt-6 overflow-x-auto">
               <table className="min-w-full text-sm">
@@ -1029,14 +1011,14 @@ function ProfessorAnalyticsPageContent() {
                       <td className="py-4 pr-4">
                         <div className="flex items-center gap-3">
                           <div
-                            className={`flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold ${getAvatarTone(
+                            className={`flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-medium ${getAvatarTone(
                               student.id,
                             )}`}
                           >
                             {getInitials(student.name)}
                           </div>
                           <div>
-                            <p className="font-semibold text-[#241B47]">{student.name}</p>
+                            <p className="font-medium text-[#241B47]">{student.name}</p>
                             <p className="text-xs text-[#958CB5]">{student.id}</p>
                           </div>
                         </div>
@@ -1055,7 +1037,7 @@ function ProfessorAnalyticsPageContent() {
                               style={{ width: `${student.participation}%` }}
                             />
                           </div>
-                          <span className="w-12 text-right font-semibold text-[#5F55E6]">
+                          <span className="w-12 text-right font-medium text-[#5F55E6]">
                             {student.participation}%
                           </span>
                         </div>
@@ -1095,7 +1077,7 @@ function FilterSelect({
 }) {
   return (
     <label className="rounded-[24px] border border-[#F1EAFE] bg-[#FCFAFF] px-4 py-3">
-      <span className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A195C3]">
+      <span className="mb-2 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-[#A195C3]">
         {icon}
         {label}
       </span>
@@ -1137,10 +1119,10 @@ function SummaryCard({
     <article className="rounded-[28px] bg-white p-5 shadow-[0_18px_40px_rgba(104,74,191,0.08)]">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#9A90BD]">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#9A90BD]">
             {label}
           </p>
-          <p className="mt-3 text-4xl font-bold text-[#20173B]">{value}</p>
+          <p className="mt-3 text-4xl font-medium text-[#20173B]">{value}</p>
           <p className="mt-2 text-sm text-[#8177A2]">{helper}</p>
         </div>
         <div
@@ -1164,10 +1146,10 @@ function MiniMetric({
 }) {
   return (
     <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_10px_24px_rgba(116,90,198,0.08)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#A197C2]">
+      <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-[#A197C2]">
         {label}
       </p>
-      <p className={`mt-2 text-2xl font-bold ${tone}`}>{value}</p>
+      <p className={`mt-2 text-2xl font-medium ${tone}`}>{value}</p>
     </div>
   );
 }

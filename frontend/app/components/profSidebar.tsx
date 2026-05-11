@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter , useSearchParams} from "next/navigation";
+import { useEffect, useState, Suspense } from "react"; 
 import {
   BarChart3,
   ChevronRight,
@@ -23,13 +23,10 @@ import {
   type ProfessorCourseResponse,
 } from "../lib/api";
 
-export default function ProfessorSidebar() {
+function ProfessorSidebarContent() {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams =
-    typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search)
-      : new URLSearchParams();
+  const searchParams = useSearchParams();
   const { session } = useAuthSession();
   const [isCourseOpen, setIsCourseOpen] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,7 +64,8 @@ export default function ProfessorSidebar() {
 
   useEffect(() => {
     const handleCourseCreated = (event: Event) => {
-      const createdCourse = (event as CustomEvent<ProfessorCourseResponse>).detail;
+      const createdCourse = (event as CustomEvent<ProfessorCourseResponse>)
+        .detail;
       if (!createdCourse?.course_code || !createdCourse?.course_name) {
         return;
       }
@@ -89,7 +87,10 @@ export default function ProfessorSidebar() {
 
     window.addEventListener("askademy-course-created", handleCourseCreated);
     return () => {
-      window.removeEventListener("askademy-course-created", handleCourseCreated);
+      window.removeEventListener(
+        "askademy-course-created",
+        handleCourseCreated,
+      );
     };
   }, []);
 
@@ -105,7 +106,10 @@ export default function ProfessorSidebar() {
   const inactiveStyle = "text-[#1B1B1B] hover:bg-slate-50";
   return (
     <>
-      <CreateCourse isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
+      <CreateCourse
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
 
       <aside className="fixed left-0 top-0 h-screen w-64 bg-white p-6 rounded-r-[40px] flex flex-col justify-between shadow-sm border-r border-slate-50 z-40">
         <div>
@@ -126,7 +130,9 @@ export default function ProfessorSidebar() {
             <Link
               href={`/professor/dashboard${selectedCourseQuery}`}
               className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${
-                pathname === "/professor/dashboard" ? activeStyle : inactiveStyle
+                pathname === "/professor/dashboard"
+                  ? activeStyle
+                  : inactiveStyle
               }`}
             >
               <LayoutDashboard size={20} />
@@ -138,7 +144,9 @@ export default function ProfessorSidebar() {
                 type="button"
                 onClick={() => setIsCourseOpen(!isCourseOpen)}
                 className={`flex items-center justify-between px-4 py-3 rounded-2xl cursor-pointer transition-all w-full ${
-                  pathname.startsWith("/professor/courses") ? activeStyle : inactiveStyle
+                  pathname.startsWith("/professor/courses")
+                    ? activeStyle
+                    : inactiveStyle
                 }`}
               >
                 <div className="flex items-center gap-3.5">
@@ -179,7 +187,9 @@ export default function ProfessorSidebar() {
                       );
                     })
                   ) : (
-                    <p className="px-4 py-1 text-xs text-slate-400">No courses yet</p>
+                    <p className="px-4 py-1 text-xs text-slate-400">
+                      No courses yet
+                    </p>
                   )}
 
                   <button
@@ -197,7 +207,9 @@ export default function ProfessorSidebar() {
             <Link
               href={`/professor/questions${selectedCourseQuery}`}
               className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${
-                pathname === "/professor/questions" ? activeStyle : inactiveStyle
+                pathname === "/professor/questions"
+                  ? activeStyle
+                  : inactiveStyle
               }`}
             >
               <FileText size={20} />
@@ -207,7 +219,9 @@ export default function ProfessorSidebar() {
             <Link
               href={`/professor/analytics${selectedCourseQuery}`}
               className={`flex items-center gap-3.5 px-4 py-3 rounded-2xl transition-all ${
-                pathname === "/professor/analytics" ? activeStyle : inactiveStyle
+                pathname === "/professor/analytics"
+                  ? activeStyle
+                  : inactiveStyle
               }`}
             >
               <BarChart3 size={20} />
@@ -241,5 +255,13 @@ export default function ProfessorSidebar() {
         </div>
       </aside>
     </>
+  );
+}
+
+export default function ProfessorSidebar() {
+  return (
+    <Suspense fallback={null}>
+      <ProfessorSidebarContent />
+    </Suspense>
   );
 }
